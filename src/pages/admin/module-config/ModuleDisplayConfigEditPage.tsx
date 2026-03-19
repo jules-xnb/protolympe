@@ -826,21 +826,37 @@ export default function ModuleDisplayConfigEditPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(localConfig.drawer_system_fields ?? []).map((field) => (
-                    <TableRow key={field.field_id}>
-                      <TableCell className="font-medium">{field.field_name}</TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex justify-center">
-                          <Switch checked={field.visible} onCheckedChange={() => toggleSystemFieldVisible(field.field_id)} />
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex justify-center">
-                          <Switch checked={field.editable} disabled={!field.visible} onCheckedChange={() => toggleSystemFieldEditable(field.field_id)} />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {(localConfig.drawer_system_fields ?? []).map((field) => {
+                    const isLocked = ['name', 'parent', 'level'].includes(field.field_id);
+                    return (
+                      <TableRow key={field.field_id}>
+                        <TableCell className="font-medium">
+                          {field.field_name}
+                          {field.field_id === 'level' && (
+                            <span className="ml-2 text-xs text-muted-foreground">(lecture seule)</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex justify-center">
+                            {isLocked ? (
+                              <Switch checked disabled />
+                            ) : (
+                              <Switch checked={field.visible} onCheckedChange={() => toggleSystemFieldVisible(field.field_id)} />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex justify-center">
+                            {isLocked ? (
+                              <Switch checked disabled />
+                            ) : (
+                              <Switch checked={field.editable} disabled={!field.visible} onCheckedChange={() => toggleSystemFieldEditable(field.field_id)} />
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

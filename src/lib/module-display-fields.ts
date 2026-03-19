@@ -122,8 +122,9 @@ export interface FilterField {
 export interface Prefilter {
   field_id: string;
   field_name: string;
-  operator: 'equals' | 'not_equals' | 'contains' | 'is_empty' | 'is_not_empty';
+  operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'between' | 'before' | 'after' | 'is_empty' | 'is_not_empty';
   value?: string;
+  value2?: string;
   is_user_editable: boolean;
 }
 
@@ -168,6 +169,7 @@ export interface DisplayConfigData {
   list_columns?: ListColumn[];
   filters?: FilterField[];
   prefilters?: Prefilter[];
+  prefilter_logic?: 'and' | 'or';
   /** @deprecated Use drawer_system_fields, drawer_sections, drawer_unassigned_fields */
   drawer_fields?: DrawerField[];
   drawer_system_fields?: DrawerField[];
@@ -282,6 +284,7 @@ export function mergeWithDefaults(raw: Record<string, unknown>, moduleSlug: stri
     list_columns: (raw.list_columns as ListColumn[]) ?? defaults.list_columns,
     filters: (raw.filters as FilterField[]) ?? defaults.filters,
     prefilters: (raw.prefilters as Prefilter[]) ?? defaults.prefilters,
+    prefilter_logic: (raw.prefilter_logic as 'and' | 'or') ?? 'and',
     drawer_system_fields: drawerSystemFields ?? defaults.drawer_system_fields,
     drawer_sections: drawerSections ?? defaults.drawer_sections,
     drawer_unassigned_fields: drawerUnassignedFields ?? defaults.drawer_unassigned_fields,

@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==============================================
+   OLYMPE Design System
+   A professional B2B SaaS platform for workflow management
+   ============================================== */
+
+@layer base {
+  :root {
+    /* Drawer width — consommé par sheet.tsx via w-[var(--drawer-width)] */
+    --drawer-width: clamp(320px, 62.5vw, 900px);
+
+    /* Modal widths — toute nouvelle modale DOIT utiliser ces variables.
+       Ne jamais définir de largeur fixe en px directement sur une modale.
+       Standard : confirmation, formulaires simples, alertes
+       Large    : tableaux, formulaires complexes, previews, contenu riche */
+    --modal-width:    clamp(320px, 90vw, 600px);
+    --modal-width-lg: clamp(320px, 90vw, 900px);
+
+    /* Core text colors */
+    --background: 0 0% 100%;
+    --foreground: 240 18% 17%;
+
+    /* Card surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 240 18% 17%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 18% 17%;
+
+    /* Primary: Violet */
+    --primary: 248 65% 54%;
+    --primary-foreground: 216 33% 96%;
+    --primary-highlight: 248 58% 43%;
+    --primary-deep: 248 52% 35%;
+
+    /* Secondary: Text secondary as foreground, neutral as bg */
+    --secondary: 228 22% 92%;
+    --secondary-foreground: 230 16% 35%;
+
+    /* Muted: Neutral palette */
+    --muted: 228 22% 92%;
+    --muted-foreground: 228 22% 61%;
+
+    /* Accent: Neutral highlight */
+    --accent: 228 18% 83%;
+    --accent-foreground: 240 18% 17%;
+
+    /* Destructive */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 216 33% 96%;
+
+    /* Success */
+    --success: 142 71% 45%;
+    --success-foreground: 216 33% 96%;
+
+    /* Warning */
+    --warning: 38 92% 50%;
+    --warning-foreground: 240 18% 17%;
+
+    /* Info */
+    --info: 200 92% 55%;
+    --info-foreground: 216 33% 96%;
+
+    /* Borders & inputs - Lines/Separators */
+    --border: 228 18% 77%;
+    --input: 228 18% 77%;
+    --ring: 248 65% 54%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar - Light theme */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 18% 17%;
+    --sidebar-primary: 248 65% 54%;
+    --sidebar-primary-foreground: 216 33% 96%;
+    --sidebar-accent: 220 9% 60% / 0.15;
+    --sidebar-accent-foreground: 240 18% 17%;
+    --sidebar-border: 228 18% 77%;
+    --sidebar-ring: 248 65% 54%;
+    --sidebar-muted-foreground: 228 22% 61%;
+  }
+
+  .dark {
+    --background: 240 18% 6%;
+    --foreground: 216 33% 96%;
+
+    --card: 240 18% 9%;
+    --card-foreground: 216 33% 96%;
+
+    --popover: 240 18% 9%;
+    --popover-foreground: 216 33% 96%;
+
+    --primary: 248 65% 58%;
+    --primary-foreground: 240 18% 6%;
+    --primary-highlight: 248 58% 48%;
+    --primary-deep: 248 52% 40%;
+
+    --secondary: 230 16% 18%;
+    --secondary-foreground: 216 33% 96%;
+
+    --muted: 230 16% 18%;
+    --muted-foreground: 228 22% 61%;
+
+    --accent: 230 16% 24%;
+    --accent-foreground: 216 33% 96%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 216 33% 96%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 240 18% 6%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 240 18% 6%;
+
+    --info: 200 92% 55%;
+    --info-foreground: 216 33% 96%;
+
+    --border: 230 16% 24%;
+    --input: 230 16% 24%;
+    --ring: 248 65% 58%;
+
+    --sidebar-background: 240 18% 5%;
+    --sidebar-foreground: 228 22% 92%;
+    --sidebar-primary: 248 65% 58%;
+    --sidebar-primary-foreground: 216 33% 96%;
+    --sidebar-accent: 240 16% 14%;
+    --sidebar-accent-foreground: 228 22% 92%;
+    --sidebar-border: 240 16% 18%;
+    --sidebar-ring: 248 65% 58%;
+    --sidebar-muted-foreground: 228 22% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Raleway", system-ui, sans-serif;
+  }
+
+  /* Smooth focus states for accessibility */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+

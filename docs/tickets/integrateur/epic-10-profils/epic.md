@@ -1,0 +1,5 @@
+# [10-0-0] Intégrateur - Profils
+
+## Description
+
+Permettre à l'intégrateur de créer et gérer les profils-types (templates de profils) d'un client. Un profil combine un ensemble de **rôles**, d'**entités organisationnelles** (avec option d'inclusion des descendants) et de **regroupements d'EO**, qui sont ensuite assignés aux utilisateurs finaux. Le tableau principal affiche les profils avec leurs rôles (groupés par catégorie, chips colorées), EOs, regroupements et nombre d'utilisateurs assignés. L'intégrateur peut créer, modifier, dupliquer (avec copie intégrale) et archiver des profils. Le formulaire de création propose trois sélecteurs : un arbre hiérarchique d'EOs (avec filtres par niveau, statut et champs personnalisés), un sélecteur de regroupements, et un sélecteur de rôles par catégorie. Un drawer de détails affiche la vue complète du profil et la liste des utilisateurs assignés. La suppression n'est possible que si aucun utilisateur n'est assigné ; l'archivage conserve les assignations existantes.

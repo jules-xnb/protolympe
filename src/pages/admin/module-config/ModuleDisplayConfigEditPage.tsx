@@ -92,6 +92,11 @@ const OPERATOR_LABELS: Record<string, string> = {
   equals: 'Égal à',
   not_equals: 'Différent de',
   contains: 'Contient',
+  greater_than: 'Supérieur à',
+  less_than: 'Inférieur à',
+  between: 'Entre',
+  before: 'Avant',
+  after: 'Après',
   is_empty: 'Est vide',
   is_not_empty: "N'est pas vide",
 };
@@ -114,6 +119,33 @@ const ANONYMIZABLE_FIELDS: { field: UserAnonymizableField; label: string }[] = [
   { field: 'email', label: 'Email' },
   { field: 'profile', label: 'Profil' },
 ];
+
+// ---------------------------------------------------------------------------
+// Field category helpers for adaptive operators
+// ---------------------------------------------------------------------------
+
+type FieldCategory = 'text' | 'number' | 'boolean' | 'select' | 'date' | 'reference' | 'other';
+
+function getFieldCategory(fieldId: string): FieldCategory {
+  const numberFields = ['employee_count'];
+  const booleanFields = ['is_active'];
+  const selectFields = ['country'];
+
+  if (numberFields.includes(fieldId)) return 'number';
+  if (booleanFields.includes(fieldId)) return 'boolean';
+  if (selectFields.includes(fieldId)) return 'select';
+  return 'text';
+}
+
+const OPERATORS_BY_CATEGORY: Record<FieldCategory, string[]> = {
+  text: ['equals', 'not_equals', 'contains', 'is_empty', 'is_not_empty'],
+  number: ['equals', 'not_equals', 'greater_than', 'less_than', 'between', 'is_empty', 'is_not_empty'],
+  boolean: ['equals'],
+  select: ['equals', 'not_equals', 'is_empty', 'is_not_empty'],
+  date: ['equals', 'not_equals', 'before', 'after', 'between', 'is_empty', 'is_not_empty'],
+  reference: ['equals', 'not_equals', 'is_empty', 'is_not_empty'],
+  other: ['equals', 'not_equals', 'is_empty', 'is_not_empty'],
+};
 
 // ---------------------------------------------------------------------------
 // Sortable row components
@@ -408,7 +440,13 @@ export default function ModuleDisplayConfigEditPage() {
   };
 
   const updatePrefilter = (index: number, patch: Partial<Prefilter>) => {
-    const prefilters = (localConfig.prefilters ?? []).map((pf, i) => (i === index ? { ...pf, ...patch } : pf));
+    const prefilters = (localConfig.prefilters ?? []).map((pf, i) => {
+      if (i !== index) return pf;
+      if (patch.field_id && patch.field_id !== pf.field_id) {
+        return { ...pf, ...patch, operator: 'equals' as const, value: '', value2: undefined };
+      }
+      return { ...pf, ...patch };
+    });
     update({ prefilters });
   };
 
@@ -1170,28 +1208,51 @@ export default function ModuleDisplayConfigEditPage() {
         {/* Tab: Pré-filtres */}
         {tabs.includes('prefilters') && (
           <TabsContent value="prefilters" className="pt-4">
-            <div className="flex justify-end mb-4">
-              <Button size="sm" variant="outline" onClick={addPrefilter}>
-                Ajouter un pré-filtre <Plus className="h-4 w-4" />
+            <div className="flex items-center justify-between mb-4">
+              {(localConfig.prefilters ?? []).length >= 2 && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm">Opérateur logique :</Label>
+                  <Select
+                    value={localConfig.prefilter_logic ?? 'and'}
+                    onValueChange={(v) => update({ prefilter_logic: v as 'and' | 'or' })}
+                  >
+                    <SelectTrigger className="w-24 h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="and">AND</SelectItem>
+                      <SelectItem value="or">OR</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <Button size="sm" variant="outline" onClick={addPrefilter} className="ml-auto">
+                Ajouter une condition <Plus className="h-4 w-4" />
               </Button>
             </div>
             {(localConfig.prefilters ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">Aucun pré-filtre configuré.</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Champ</TableHead>
-                    <TableHead>Opérateur</TableHead>
-                    <TableHead>Valeur</TableHead>
-                    <TableHead className="text-center">Modifiable</TableHead>
-                    <TableHead className="w-[60px]" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(localConfig.prefilters ?? []).map((pf, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell>
+              <div className="space-y-2">
+                {(localConfig.prefilters ?? []).map((pf, idx) => {
+                  const category = getFieldCategory(pf.field_id);
+                  const availableOperators = OPERATORS_BY_CATEGORY[category];
+                  const hideValue = pf.operator === 'is_empty' || pf.operator === 'is_not_empty';
+                  const isBetween = pf.operator === 'between';
+                  const isBoolean = category === 'boolean';
+                  const isDate = category === 'date';
+                  const isNumber = category === 'number';
+
+                  return (
+                    <div key={idx}>
+                      {idx > 0 && (
+                        <div className="flex justify-center py-1">
+                          <span className="text-xs font-medium text-muted-foreground bg-muted px-3 py-0.5 rounded-full">
+                            {(localConfig.prefilter_logic ?? 'and').toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
                         <Select
                           value={pf.field_id}
                           onValueChange={(v) => {
@@ -1199,7 +1260,7 @@ export default function ModuleDisplayConfigEditPage() {
                             updatePrefilter(idx, { field_id: v, field_name: field.name });
                           }}
                         >
-                          <SelectTrigger className="w-full">
+                          <SelectTrigger className="w-[180px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1208,50 +1269,102 @@ export default function ModuleDisplayConfigEditPage() {
                             ))}
                           </SelectContent>
                         </Select>
-                      </TableCell>
-                      <TableCell>
+
                         <Select
                           value={pf.operator}
                           onValueChange={(v) => updatePrefilter(idx, { operator: v as Prefilter['operator'] })}
                         >
-                          <SelectTrigger className="w-full">
+                          <SelectTrigger className="w-[160px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {Object.entries(OPERATOR_LABELS).map(([key, label]) => (
-                              <SelectItem key={key} value={key}>{label}</SelectItem>
+                            {availableOperators.map((op) => (
+                              <SelectItem key={op} value={op}>{OPERATOR_LABELS[op]}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                      </TableCell>
-                      <TableCell>
-                        {pf.operator !== 'is_empty' && pf.operator !== 'is_not_empty' ? (
-                          <Input
-                            value={pf.value ?? ''}
-                            onChange={(e) => updatePrefilter(idx, { value: e.target.value })}
-                            placeholder="Valeur"
-                          />
-                        ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
+
+                        {!hideValue && (
+                          <div className="flex items-center gap-2 flex-1">
+                            {isBoolean ? (
+                              <Select
+                                value={pf.value ?? ''}
+                                onValueChange={(v) => updatePrefilter(idx, { value: v })}
+                              >
+                                <SelectTrigger className="w-[120px]">
+                                  <SelectValue placeholder="—" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="true">Oui</SelectItem>
+                                  <SelectItem value="false">Non</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : isDate ? (
+                              <>
+                                <Input
+                                  type="date"
+                                  value={pf.value ?? ''}
+                                  onChange={(e) => updatePrefilter(idx, { value: e.target.value })}
+                                  className="flex-1"
+                                />
+                                {isBetween && (
+                                  <>
+                                    <span className="text-sm text-muted-foreground">et</span>
+                                    <Input
+                                      type="date"
+                                      value={pf.value2 ?? ''}
+                                      onChange={(e) => updatePrefilter(idx, { value2: e.target.value })}
+                                      className="flex-1"
+                                    />
+                                  </>
+                                )}
+                              </>
+                            ) : isNumber ? (
+                              <>
+                                <Input
+                                  type="number"
+                                  value={pf.value ?? ''}
+                                  onChange={(e) => updatePrefilter(idx, { value: e.target.value })}
+                                  placeholder="Valeur"
+                                  className="flex-1"
+                                />
+                                {isBetween && (
+                                  <>
+                                    <span className="text-sm text-muted-foreground">et</span>
+                                    <Input
+                                      type="number"
+                                      value={pf.value2 ?? ''}
+                                      onChange={(e) => updatePrefilter(idx, { value2: e.target.value })}
+                                      placeholder="Valeur"
+                                      className="flex-1"
+                                    />
+                                  </>
+                                )}
+                              </>
+                            ) : (
+                              <Input
+                                value={pf.value ?? ''}
+                                onChange={(e) => updatePrefilter(idx, { value: e.target.value })}
+                                placeholder="Valeur"
+                                className="flex-1"
+                              />
+                            )}
+                          </div>
                         )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex justify-center">
-                          <Switch
-                            checked={pf.is_user_editable}
-                            onCheckedChange={(checked) => updatePrefilter(idx, { is_user_editable: checked })}
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => removePrefilter(idx)}>
+
+                        <Switch
+                          checked={pf.is_user_editable}
+                          onCheckedChange={(checked) => updatePrefilter(idx, { is_user_editable: checked })}
+                        />
+
+                        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => removePrefilter(idx)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </TabsContent>
         )}

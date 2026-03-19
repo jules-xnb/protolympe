@@ -22,6 +22,13 @@ import {
 } from '@/components/ui/dialog';
 import { Pencil, Trash2, Loader2 } from 'lucide-react';
 
+const ROLE_COLORS = [
+  '#4E3BD7', '#6366F1', '#3B82F6', '#06B6D4',
+  '#22C55E', '#84CC16', '#EAB308', '#F59E0B',
+  '#F97316', '#EF4444', '#EC4899', '#DB2777',
+  '#A855F7', '#92400E',
+];
+
 interface RoleFormData {
   name: string;
   color: string;
@@ -123,24 +130,14 @@ export default function ModuleRolesPage({ externalOpen, onExternalOpenChange }: 
       accessorKey: 'name',
       header: 'Nom',
       cell: ({ row }) => (
-        <span className="font-medium">{row.original.name}</span>
+        <span className="inline-flex items-center gap-2 font-medium">
+          <span
+            className="h-3 w-3 rounded-full shrink-0"
+            style={{ backgroundColor: row.original.color || '#6b7280' }}
+          />
+          {row.original.name}
+        </span>
       ),
-    },
-    {
-      accessorKey: 'color',
-      header: 'Couleur',
-      cell: ({ row }) =>
-        row.original.color ? (
-          <span className="inline-flex items-center gap-2">
-            <span
-              className="h-3 w-3 rounded-full inline-block"
-              style={{ backgroundColor: row.original.color }}
-            />
-            <span className="text-sm text-muted-foreground">{row.original.color}</span>
-          </span>
-        ) : (
-          <span className="text-muted-foreground">&mdash;</span>
-        ),
     },
     {
       accessorKey: 'description',
@@ -200,16 +197,22 @@ export default function ModuleRolesPage({ externalOpen, onExternalOpenChange }: 
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="role-color">Couleur</Label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  id="role-color"
-                  value={form.color || '#3b82f6'}
-                  onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
-                  className="h-9 w-12 rounded border border-input cursor-pointer p-0.5"
-                />
-                <span className="text-sm text-muted-foreground font-mono">{form.color || '#3b82f6'}</span>
+              <Label>Couleur</Label>
+              <div className="flex flex-wrap gap-4">
+                {ROLE_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, color }))}
+                    className="flex items-center justify-center h-6 w-6 rounded-full focus:outline-none transition-all hover:scale-110"
+                    style={form.color === color ? {
+                      outline: `2px solid ${color}`,
+                      outlineOffset: '2px',
+                    } : undefined}
+                  >
+                    <span className="block h-4 w-4 rounded-full" style={{ backgroundColor: color }} />
+                  </button>
+                ))}
               </div>
             </div>
             <div className="space-y-2">

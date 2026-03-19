@@ -330,7 +330,7 @@ export function AppSidebar() {
               </>
             )}
           </div>
-          {mode === 'integrator' && selectedClient && !collapsed && !isInModuleConfig && (
+          {mode === 'integrator' && selectedClient && !collapsed && (
             <div className="w-full bg-primary/5 px-4 py-2 flex flex-col gap-1">
               <Button
                 variant="ghost"

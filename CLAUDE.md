@@ -36,11 +36,11 @@ Un doc par ticket. L'arborescence des dossiers porte la hiérarchie EPIC > FEATU
 
 Préfixes utilisés dans les instructions pour indiquer la vue concernée :
 
-- **`a `** → vue **Admin**
-- **`i `** → vue **Intégrateur**
-- **`uf `** → vue **User Final**
+- **`bo-`** → vue **Admin** (Back Office)
+- **`mo-`** → vue **Intégrateur** (Module Owner)
+- **`fo-`** → vue **User Final** (Front Office)
 
-Exemple : "i-navbar" = la navbar dans la vue intégrateur.
+Exemple : "mo-navbar" = la navbar dans la vue intégrateur.
 
 ## Conventions UI
 

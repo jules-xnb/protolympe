@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ColumnDef } from '@tanstack/react-table';
 import { useClientPath } from '@/hooks/useClientPath';
@@ -11,7 +11,6 @@ import {
 } from '@/hooks/useModuleDisplayConfigs';
 import { useModuleRoles } from '@/hooks/useModuleRoles';
 import { DataTable } from '@/components/admin/DataTable';
-import { PageHeader } from '@/components/admin/PageHeader';
 import { DeleteConfirmDialog } from '@/components/admin/DeleteConfirmDialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Chip } from '@/components/ui/chip';
-import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Pencil, Trash2, Loader2 } from 'lucide-react';
 
 interface FormData {
   name: string;
@@ -34,7 +33,12 @@ interface FormData {
 
 const emptyForm: FormData = { name: '', role_ids: [] };
 
-export default function ModuleDisplayPage() {
+interface ModuleDisplayPageProps {
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
+}
+
+export default function ModuleDisplayPage({ externalOpen, onExternalOpenChange }: ModuleDisplayPageProps) {
   const { moduleId } = useParams<{ moduleId: string }>();
   const navigate = useNavigate();
   const cp = useClientPath();
@@ -48,6 +52,16 @@ export default function ModuleDisplayPage() {
   const [editingConfig, setEditingConfig] = useState<DisplayConfig | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<DisplayConfig | null>(null);
+
+  // Sync external open trigger (CTA button in layout)
+  useEffect(() => {
+    if (externalOpen) {
+      setEditingConfig(null);
+      setForm(emptyForm);
+      setDialogOpen(true);
+      onExternalOpenChange?.(false);
+    }
+  }, [externalOpen, onExternalOpenChange]);
 
   const openCreate = () => {
     setEditingConfig(null);
@@ -183,9 +197,7 @@ export default function ModuleDisplayPage() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader title="Affichage" />
-
+    <div className="py-6 space-y-6">
       <DataTable
         columns={columns}
         data={configs || []}
@@ -194,11 +206,6 @@ export default function ModuleDisplayPage() {
         isLoading={isLoading}
         hideColumnSelector
         onRowClick={(config) => navigate(cp(`/modules/${moduleId}/display/${config.id}`))}
-        toolbarRight={
-          <Button onClick={openCreate}>
-            Ajouter un affichage <Plus className="h-4 w-4" />
-          </Button>
-        }
       />
 
       {/* Create / Edit dialog */}

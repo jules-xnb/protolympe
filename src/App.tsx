@@ -62,12 +62,7 @@ const BusinessObjectHistoryPage = lazy(() => import("./pages/admin/BusinessObjec
 
 // Lazy-loaded pages — Modules
 const ModulesPage = lazy(() => import("./pages/admin/ModulesPage"));
-
-const ModuleRolesPage = lazy(() => import("./pages/admin/module-config/ModuleRolesPage"));
-const ModuleConfigPermissionsPage = lazy(() => import("./pages/admin/module-config/ModulePermissionsPage"));
-const ModuleWorkflowsPage = lazy(() => import("./pages/admin/module-config/ModuleWorkflowsPage"));
-const ModuleBoPage = lazy(() => import("./pages/admin/module-config/ModuleBoPage"));
-const ModuleDisplayPage = lazy(() => import("./pages/admin/module-config/ModuleDisplayPage"));
+const ModuleConfigPage = lazy(() => import("./pages/admin/module-config/ModuleConfigPage"));
 const ModuleDisplayConfigEditPage = lazy(() => import("./pages/admin/module-config/ModuleDisplayConfigEditPage"));
 // Lazy-loaded pages — Workflows
 const WorkflowsPage = lazy(() => import("./pages/admin/WorkflowsPage"));
@@ -172,12 +167,8 @@ const App = () => (
                   <Route path="business-objects/import" element={<BusinessObjectsImportPage />} />
                   <Route path="business-objects/:id/import" element={<BusinessObjectInstancesImportPage />} />
                   <Route path="modules" element={<ModulesPage />} />
-                  <Route path="modules/:moduleId/roles" element={<ModuleRolesPage />} />
-                  <Route path="modules/:moduleId/permissions" element={<ModuleConfigPermissionsPage />} />
-                  <Route path="modules/:moduleId/workflows" element={<ModuleWorkflowsPage />} />
-                  <Route path="modules/:moduleId/display" element={<ModuleDisplayPage />} />
+                  <Route path="modules/:moduleId" element={<ModuleConfigPage />} />
                   <Route path="modules/:moduleId/display/:configId" element={<ModuleDisplayConfigEditPage />} />
-                  <Route path="modules/:moduleId/bo" element={<ModuleBoPage />} />
                   <Route path="workflows" element={<WorkflowsPage />} />
                   <Route path="design" element={<ClientDesignPage />} />
                   <Route path="translations" element={<TranslationsPage />} />

@@ -32,12 +32,13 @@ export function PermissionsMatrix({
   }
 
   return (
+    <div className="rounded-lg border bg-card overflow-x-auto">
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Permission</TableHead>
           {roles.map((role) => (
-            <TableHead key={role.id} className="text-center">
+            <TableHead key={role.id} className="text-center w-[150px] min-w-[150px] max-w-[150px]">
               <div className="flex items-center justify-center gap-2">
                 {role.color && (
                   <span
@@ -61,7 +62,7 @@ export function PermissionsMatrix({
           <TableRow key={perm.slug}>
             <TableCell className="font-medium">{perm.label}</TableCell>
             {roles.map((role) => (
-              <TableCell key={role.id} className="text-center">
+              <TableCell key={role.id} className="text-center w-[150px] min-w-[150px] max-w-[150px]">
                 <div className="flex justify-center">
                   <Checkbox
                     checked={grants[perm.slug]?.[role.id] ?? false}
@@ -80,5 +81,6 @@ export function PermissionsMatrix({
         ))}
       </TableBody>
     </Table>
+    </div>
   );
 }

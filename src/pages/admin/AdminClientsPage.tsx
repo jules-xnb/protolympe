@@ -52,7 +52,7 @@ export default function AdminClientsPage() {
 
   const handleConfigure = (client: Client) => {
     switchToIntegratorMode(client);
-    navigate(`/dashboard/${client.id}/business-objects`);
+    navigate(`/dashboard/${client.id}/modules`);
   };
 
   const handleCreateSubmit = async (data: Partial<Client>) => {

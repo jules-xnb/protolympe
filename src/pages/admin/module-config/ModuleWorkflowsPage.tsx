@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDialogState } from '@/hooks/useDialogState';
-import { PageHeader } from '@/components/admin/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
@@ -39,7 +38,12 @@ import {
 import { toast } from 'sonner';
 import { WORKFLOW_TYPE_LABELS } from '@/lib/workflow-types';
 
-export default function ModuleWorkflowsPage() {
+interface ModuleWorkflowsPageProps {
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
+}
+
+export default function ModuleWorkflowsPage({ externalOpen, onExternalOpenChange }: ModuleWorkflowsPageProps) {
   const navigate = useNavigate();
   const cp = useClientPath();
   const { data: workflows = [], isLoading } = useWorkflows();
@@ -49,6 +53,14 @@ export default function ModuleWorkflowsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const formDialog = useDialogState<WorkflowWithDetails>();
   const deleteDialog = useDialogState<WorkflowWithDetails>();
+
+  useEffect(() => {
+    if (externalOpen) {
+      formDialog.open();
+      onExternalOpenChange?.(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalOpen]);
 
   const filteredWorkflows = searchQuery
     ? workflows.filter(w => w.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -91,17 +103,7 @@ export default function ModuleWorkflowsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader
-        title="Workflows"
-        description="Gérez les workflows de validation pour vos campagnes et processus métiers."
-      >
-        <Button onClick={handleCreate}>
-          Nouveau workflow
-          <Plus className="h-4 w-4" />
-        </Button>
-      </PageHeader>
-
+    <div className="py-6 space-y-6">
       <div className="flex items-center gap-3">
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

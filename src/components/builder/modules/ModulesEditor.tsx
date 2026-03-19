@@ -137,7 +137,7 @@ export const ModulesEditor = forwardRef<ModulesEditorHandle, ModulesEditorProps>
   const handleViewClick = (item: NavigationConfigWithRelations) => {
     // Module items navigate to the module config page
     if (item.client_module_id) {
-      navigate(cp(`/modules/${item.client_module_id}/display`));
+      navigate(cp(`/modules/${item.client_module_id}`));
       return;
     }
 

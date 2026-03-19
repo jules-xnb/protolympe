@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { ColumnDef } from '@tanstack/react-table';
 import {
@@ -9,7 +9,6 @@ import {
   type ModuleRole,
 } from '@/hooks/useModuleRoles';
 import { DataTable } from '@/components/admin/DataTable';
-import { PageHeader } from '@/components/admin/PageHeader';
 import { DeleteConfirmDialog } from '@/components/admin/DeleteConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +20,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Pencil, Trash2, Loader2 } from 'lucide-react';
 
 interface RoleFormData {
   name: string;
@@ -40,7 +39,12 @@ function generateSlug(name: string): string {
     .replace(/^_|_$/g, '');
 }
 
-export default function ModuleRolesPage() {
+interface ModuleRolesPageProps {
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
+}
+
+export default function ModuleRolesPage({ externalOpen, onExternalOpenChange }: ModuleRolesPageProps) {
   const { moduleId } = useParams<{ moduleId: string }>();
   const { data: roles, isLoading } = useModuleRoles(moduleId);
   const createRole = useCreateModuleRole();
@@ -51,6 +55,15 @@ export default function ModuleRolesPage() {
   const [editingRole, setEditingRole] = useState<ModuleRole | null>(null);
   const [form, setForm] = useState<RoleFormData>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<ModuleRole | null>(null);
+
+  useEffect(() => {
+    if (externalOpen) {
+      setEditingRole(null);
+      setForm(emptyForm);
+      setDialogOpen(true);
+      onExternalOpenChange?.(false);
+    }
+  }, [externalOpen, onExternalOpenChange]);
 
   const openCreate = () => {
     setEditingRole(null);
@@ -160,9 +173,7 @@ export default function ModuleRolesPage() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader title="Rôles du module" />
-
+    <div className="py-6 space-y-6">
       <DataTable
         columns={columns}
         data={roles || []}
@@ -170,11 +181,6 @@ export default function ModuleRolesPage() {
         searchPlaceholder="Rechercher un rôle..."
         isLoading={isLoading}
         hideColumnSelector
-        toolbarRight={
-          <Button onClick={openCreate}>
-            Ajouter un rôle <Plus className="h-4 w-4" />
-          </Button>
-        }
       />
 
       {/* Create / Edit dialog */}

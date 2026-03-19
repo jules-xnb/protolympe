@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDialogState } from '@/hooks/useDialogState';
 import { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/admin/DataTable';
-import { PageHeader } from '@/components/admin/PageHeader';
 import { BusinessObjectDefinitionFormDialog } from '@/components/admin/business-objects/BusinessObjectDefinitionFormDialog';
 import { DeleteConfirmDialog } from '@/components/admin/DeleteConfirmDialog';
 import { Button } from '@/components/ui/button';
@@ -23,7 +22,12 @@ import { CLIENT_ROUTES } from '@/lib/routes';
 import { Archive, Copy, FileText, Layers, MoreVertical, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function ModuleBoPage() {
+interface ModuleBoPageProps {
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
+}
+
+export default function ModuleBoPage({ externalOpen, onExternalOpenChange }: ModuleBoPageProps) {
   const navigate = useNavigate();
   const cp = useClientPath();
   const { data: definitions = [], isLoading } = useBusinessObjectDefinitions();
@@ -32,6 +36,13 @@ export default function ModuleBoPage() {
   const duplicateDialog = useDialogState<BusinessObjectDefinitionWithRelations>();
   const archiveDialog = useDialogState<BusinessObjectDefinitionWithRelations>();
   const archiveMutation = useArchiveBusinessObjectDefinition();
+
+  useEffect(() => {
+    if (externalOpen) {
+      setFormOpen(true);
+      onExternalOpenChange?.(false);
+    }
+  }, [externalOpen, onExternalOpenChange]);
 
   const activeDefinitions = definitions.filter(d => d.is_active);
 
@@ -117,21 +128,7 @@ export default function ModuleBoPage() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader
-        title="Objets Métiers"
-        description="Définissez les types d'objets métiers et leurs champs personnalisés."
-      >
-        <Button variant="ghost" onClick={() => navigate(cp(CLIENT_ROUTES.BUSINESS_OBJECTS_ARCHIVED))}>
-          Archives
-          <Archive className="h-4 w-4" />
-        </Button>
-        <Button onClick={() => setFormOpen(true)}>
-          Nouvel objet métier
-          <Plus className="h-4 w-4" />
-        </Button>
-      </PageHeader>
-
+    <div className="py-6 space-y-6">
       <DataTable
         columns={columns}
         data={activeDefinitions}

@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useModulePermissions, useUpdateModulePermissions } from '@/hooks/useModulePermissions';
 import { useClientModule } from '@/hooks/useModules';
 import { PermissionsMatrix } from '@/components/admin/modules/PermissionsMatrix';
-import { PageHeader } from '@/components/admin/PageHeader';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Loader2 } from 'lucide-react';
@@ -103,9 +102,7 @@ export default function ModulePermissionsPage() {
     ).filter(p => !catalogPerms.some(cp => cp.slug === p.slug));
 
     return (
-      <div className="p-6 space-y-6">
-        <PageHeader title="Permissions" />
-
+      <div className="py-6 space-y-6">
         <div className="space-y-2">
           <Label className="text-xs font-medium text-muted-foreground uppercase">Actions</Label>
           <PermissionsMatrix
@@ -156,8 +153,7 @@ export default function ModulePermissionsPage() {
 
   // Default: single matrix for other modules
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader title="Permissions" />
+    <div className="py-6 space-y-6">
       <PermissionsMatrix
         permissions={allPermissions}
         roles={data?.roles || []}

@@ -60,7 +60,6 @@ import { useClientPath } from '@/hooks/useClientPath';
 import { ADMIN_ROUTES, CLIENT_ROUTES, SHARED_ROUTES } from '@/lib/routes';
 import { SidebarNavItem } from '@/components/layout/SidebarNavItem';
 import { ClientSelectionDialog } from '@/components/layout/ClientSelectionDialog';
-import { ModuleConfigSidebar } from '@/components/admin/modules/ModuleConfigSidebar';
 
 // Navigation items for ADMIN/platform mode (visible to all, some filtered by role)
 const platformNavItems = [
@@ -112,9 +111,6 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const cp = useClientPath();
-
-  // Detect if we are inside a module config page (integrator mode)
-  const isInModuleConfig = /\/dashboard\/[^/]+\/modules\/[^/]+\/(general|display|bo|workflows|roles|permissions)(\/.*)?$/.test(location.pathname);
 
   const {
     mode,
@@ -384,9 +380,6 @@ export function AppSidebar() {
                 </SidebarGroupContent>
               </SidebarGroup>
             </>
-          ) : mode === 'integrator' && isInModuleConfig ? (
-            // Module config sidebar (replaces entire SidebarContent innards)
-            <ModuleConfigSidebar />
           ) : mode === 'integrator' ? (
             // Integrator mode: config items
             <>

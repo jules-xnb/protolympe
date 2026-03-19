@@ -1,7 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { db } from '../db/index.js';
-import { userSystemRoles } from '../db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { profiles } from '../db/schema.js';
+import { eq } from 'drizzle-orm';
 import type { JwtPayload } from '../lib/jwt.js';
 
 type Env = {
@@ -13,17 +13,13 @@ type Env = {
 export const adminMiddleware = createMiddleware<Env>(async (c, next) => {
   const user = c.get('user');
 
-  const roles = await db
-    .select()
-    .from(userSystemRoles)
-    .where(
-      and(
-        eq(userSystemRoles.userId, user.sub),
-        eq(userSystemRoles.persona, 'admin_delta')
-      )
-    );
+  const profile = await db
+    .select({ persona: profiles.persona })
+    .from(profiles)
+    .where(eq(profiles.id, user.sub))
+    .limit(1);
 
-  if (roles.length === 0) {
+  if (profile.length === 0 || profile[0].persona !== 'admin_delta') {
     return c.json({ error: 'Admin access required' }, 403);
   }
 

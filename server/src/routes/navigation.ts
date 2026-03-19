@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { navigationConfigs, viewConfigs } from '../db/schema.js';
+import { navigationConfigs } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { toSnakeCase } from '../lib/case-transform.js';
@@ -21,38 +21,9 @@ navigationRouter.use('*', authMiddleware);
 // Optional: include_view_configs=true to join view_configs data
 navigationRouter.get('/', async (c) => {
   const clientId = c.req.query('client_id');
-  const includeViewConfigs = c.req.query('include_view_configs') === 'true';
 
   if (!clientId) {
     return c.json({ error: 'Le paramètre client_id est requis' }, 400);
-  }
-
-  if (includeViewConfigs) {
-    const result = await db
-      .select({
-        nav: navigationConfigs,
-        vc_id: viewConfigs.id,
-        vc_name: viewConfigs.name,
-        vc_slug: viewConfigs.slug,
-        vc_type: viewConfigs.type,
-        vc_bo_definition_id: viewConfigs.boDefinitionId,
-      })
-      .from(navigationConfigs)
-      .leftJoin(viewConfigs, eq(navigationConfigs.viewConfigId, viewConfigs.id))
-      .where(eq(navigationConfigs.clientId, clientId))
-      .orderBy(navigationConfigs.displayOrder);
-
-    const mapped = result.map((row) => {
-      const nav = toSnakeCase(row.nav);
-      return {
-        ...nav,
-        view_configs: row.vc_id
-          ? { id: row.vc_id, name: row.vc_name, slug: row.vc_slug, type: row.vc_type, bo_definition_id: row.vc_bo_definition_id }
-          : null,
-      };
-    });
-
-    return c.json(mapped);
   }
 
   const result = await db
@@ -72,7 +43,6 @@ const createSchema = z.object({
   slug: z.string().min(1),
   icon: z.string().nullable().optional(),
   type: z.enum(['group', 'page', 'module']),
-  view_config_id: z.string().uuid().nullable().optional(),
   client_module_id: z.string().uuid().nullable().optional(),
   url: z.string().nullable().optional(),
   display_order: z.number().int().default(0),
@@ -98,7 +68,6 @@ navigationRouter.post('/', async (c) => {
       slug: data.slug,
       icon: data.icon ?? null,
       type: data.type,
-      viewConfigId: data.view_config_id ?? null,
       clientModuleId: data.client_module_id ?? null,
       url: data.url ?? null,
       displayOrder: data.display_order,
@@ -151,7 +120,6 @@ const updateSchema = z.object({
   slug: z.string().min(1).optional(),
   icon: z.string().nullable().optional(),
   type: z.enum(['group', 'page', 'module']).optional(),
-  view_config_id: z.string().uuid().nullable().optional(),
   client_module_id: z.string().uuid().nullable().optional(),
   url: z.string().nullable().optional(),
   display_order: z.number().int().optional(),
@@ -176,7 +144,6 @@ navigationRouter.patch('/:id', async (c) => {
       ...(data.slug !== undefined && { slug: data.slug }),
       ...(data.icon !== undefined && { icon: data.icon }),
       ...(data.type !== undefined && { type: data.type }),
-      ...(data.view_config_id !== undefined && { viewConfigId: data.view_config_id }),
       ...(data.client_module_id !== undefined && { clientModuleId: data.client_module_id }),
       ...(data.url !== undefined && { url: data.url }),
       ...(data.display_order !== undefined && { displayOrder: data.display_order }),

@@ -7,7 +7,6 @@ import {
   userClientMemberships,
   userFieldDefinitions,
   userFieldValues,
-  userEoAssignments,
 } from '../db/schema.js';
 import { eq, and, inArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
@@ -317,6 +316,7 @@ clientUsersRouter.post('/invite', async (c) => {
         passwordHash,
         firstName,
         lastName,
+        persona: 'client_user',
       })
       .returning();
     userId = newUser.id;
@@ -378,55 +378,6 @@ clientUsersRouter.patch('/memberships/:id', async (c) => {
   }
 
   return c.json(toSnakeCase(membership));
-});
-
-// =============================================
-// EO Assignments
-// =============================================
-
-// GET /client-users/eo-assignments?user_id=X — list user_eo_assignments
-// Also supports eo_ids=X,Y,Z for bulk queries
-clientUsersRouter.get('/eo-assignments', async (c) => {
-  const userId = c.req.query('user_id');
-  const eoIds = c.req.query('eo_ids');
-  const isActiveParam = c.req.query('is_active');
-
-  if (userId) {
-    const result = await db
-      .select()
-      .from(userEoAssignments)
-      .where(eq(userEoAssignments.userId, userId))
-      .orderBy(userEoAssignments.createdAt);
-    return c.json(toSnakeCase(result));
-  }
-
-  if (eoIds) {
-    const ids = eoIds.split(',').filter(Boolean);
-    if (ids.length === 0) return c.json([]);
-
-    let query = db
-      .select()
-      .from(userEoAssignments)
-      .where(inArray(userEoAssignments.eoId, ids))
-      .$dynamic();
-
-    if (isActiveParam === 'true') {
-      query = db
-        .select()
-        .from(userEoAssignments)
-        .where(
-          and(
-            inArray(userEoAssignments.eoId, ids),
-            eq(userEoAssignments.isActive, true),
-          )
-        );
-    }
-
-    const result = await query;
-    return c.json(toSnakeCase(result));
-  }
-
-  return c.json({ error: 'Le paramètre user_id ou eo_ids est requis' }, 400);
 });
 
 // POST /client-users/field-values/bulk — bulk query user_field_values by field_definition_id + user_ids

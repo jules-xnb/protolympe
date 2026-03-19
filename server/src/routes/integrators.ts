@@ -4,7 +4,6 @@ import bcrypt from 'bcryptjs';
 import { db } from '../db/index.js';
 import {
   profiles,
-  userSystemRoles,
   integratorClientAssignments,
   clients,
 } from '../db/schema.js';
@@ -36,26 +35,33 @@ integratorsRouter.use('*', adminMiddleware);
 
 // GET /integrators — list all integrators (admin_delta + integrator_delta)
 integratorsRouter.get('/', async (c) => {
-  const roles = await db
-    .select()
-    .from(userSystemRoles)
-    .where(
-      inArray(userSystemRoles.persona, ['admin_delta', 'integrator_delta'])
-    )
-    .orderBy(userSystemRoles.createdAt);
-
-  if (roles.length === 0) return c.json([]);
-
-  const userIds = [...new Set(roles.map((r) => r.userId))];
-
-  const userProfiles = await db
-    .select(profileSelect())
+  const rows = await db
+    .select({
+      id: profiles.id,
+      userId: profiles.id,
+      persona: profiles.persona,
+      createdAt: profiles.createdAt,
+      first_name: profiles.firstName,
+      last_name: profiles.lastName,
+      email: profiles.email,
+    })
     .from(profiles)
-    .where(inArray(profiles.id, userIds));
+    .where(
+      inArray(profiles.persona, ['admin_delta', 'integrator_delta'])
+    )
+    .orderBy(profiles.createdAt);
 
-  const result = toSnakeCase(roles).map((role: Record<string, unknown>) => ({
-    ...role,
-    profiles: userProfiles.find((p) => p.id === role.user_id) || null,
+  const result = rows.map((row) => ({
+    id: row.id,
+    user_id: row.userId,
+    persona: row.persona,
+    created_at: row.createdAt,
+    profiles: {
+      id: row.id,
+      first_name: row.first_name,
+      last_name: row.last_name,
+      email: row.email,
+    },
   }));
 
   return c.json(result);
@@ -93,22 +99,20 @@ integratorsRouter.get('/assignments', async (c) => {
   return c.json(result);
 });
 
-// GET /integrators/users-without-role — users with no system role
+// GET /integrators/users-without-role — users with no system persona (end users)
 integratorsRouter.get('/users-without-role', async (c) => {
   const allProfiles = await db
     .select({
       ...profileSelect(),
       created_at: profiles.createdAt,
+      persona: profiles.persona,
     })
     .from(profiles)
     .orderBy(profiles.createdAt);
 
-  const rolesData = await db
-    .select({ userId: userSystemRoles.userId })
-    .from(userSystemRoles);
-
-  const usersWithRoles = new Set(rolesData.map((r) => r.userId));
-  const result = allProfiles.filter((p) => !usersWithRoles.has(p.id));
+  const result = allProfiles.filter(
+    (p) => p.persona !== 'admin_delta' && p.persona !== 'integrator_delta'
+  );
 
   return c.json(result);
 });
@@ -134,7 +138,6 @@ integratorsRouter.post('/invite', async (c) => {
   }
 
   const { email, firstName, lastName, persona } = parsed.data;
-  const currentUser = c.get('user');
   const defaultPassword = process.env.DEFAULT_PASSWORD || 'Delta75002-@';
 
   const [existing] = await db
@@ -146,6 +149,10 @@ integratorsRouter.post('/invite', async (c) => {
 
   if (existing) {
     userId = existing.id;
+    await db
+      .update(profiles)
+      .set({ persona })
+      .where(eq(profiles.id, userId));
   } else {
     const passwordHash = await bcrypt.hash(defaultPassword, 12);
     const [newUser] = await db
@@ -155,20 +162,10 @@ integratorsRouter.post('/invite', async (c) => {
         passwordHash,
         firstName,
         lastName,
+        persona,
       })
       .returning();
     userId = newUser.id;
-  }
-
-  try {
-    await db.insert(userSystemRoles).values({
-      userId,
-      persona,
-      createdBy: currentUser.sub,
-    });
-  } catch (err: unknown) {
-    const pgErr = err as { code?: string };
-    if (pgErr.code !== '23505') throw err;
   }
 
   return c.json({
@@ -223,26 +220,27 @@ integratorsRouter.delete('/assignments/:id', async (c) => {
   return c.json({ success: true });
 });
 
-// DELETE /integrators/role/:roleId — remove system role + all assignments
-integratorsRouter.delete('/role/:roleId', async (c) => {
-  const roleId = c.req.param('roleId');
+// DELETE /integrators/role/:userId — remove system persona + all assignments
+integratorsRouter.delete('/role/:userId', async (c) => {
+  const userId = c.req.param('userId');
 
-  const [role] = await db
+  const [profile] = await db
     .select()
-    .from(userSystemRoles)
-    .where(eq(userSystemRoles.id, roleId));
+    .from(profiles)
+    .where(eq(profiles.id, userId));
 
-  if (!role) {
-    return c.json({ error: 'Rôle introuvable' }, 404);
+  if (!profile) {
+    return c.json({ error: 'Utilisateur introuvable' }, 404);
   }
 
   await db
     .delete(integratorClientAssignments)
-    .where(eq(integratorClientAssignments.userId, role.userId));
+    .where(eq(integratorClientAssignments.userId, userId));
 
   await db
-    .delete(userSystemRoles)
-    .where(eq(userSystemRoles.id, roleId));
+    .update(profiles)
+    .set({ persona: 'integrator_external' })
+    .where(eq(profiles.id, userId));
 
   return c.json({ success: true });
 });
@@ -251,9 +249,9 @@ const updatePersonaSchema = z.object({
   persona: z.enum(['admin_delta', 'integrator_delta']),
 });
 
-// PATCH /integrators/role/:roleId — update persona
-integratorsRouter.patch('/role/:roleId', async (c) => {
-  const roleId = c.req.param('roleId');
+// PATCH /integrators/role/:userId — update persona
+integratorsRouter.patch('/role/:userId', async (c) => {
+  const userId = c.req.param('userId');
   const body = await c.req.json();
   const parsed = updatePersonaSchema.safeParse(body);
   if (!parsed.success) {
@@ -261,13 +259,13 @@ integratorsRouter.patch('/role/:roleId', async (c) => {
   }
 
   const [updated] = await db
-    .update(userSystemRoles)
+    .update(profiles)
     .set({ persona: parsed.data.persona })
-    .where(eq(userSystemRoles.id, roleId))
+    .where(eq(profiles.id, userId))
     .returning();
 
   if (!updated) {
-    return c.json({ error: 'Rôle introuvable' }, 404);
+    return c.json({ error: 'Utilisateur introuvable' }, 404);
   }
 
   return c.json(toSnakeCase(updated));

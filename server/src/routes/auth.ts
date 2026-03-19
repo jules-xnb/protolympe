@@ -84,6 +84,7 @@ auth.post('/signup', async (c) => {
       passwordHash,
       firstName: firstName || null,
       lastName: lastName || null,
+      persona: 'admin_delta',
     })
     .returning();
 

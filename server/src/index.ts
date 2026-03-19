@@ -30,7 +30,7 @@ app.use('*', logger());
 app.use(
   '*',
   cors({
-    origin: ['http://localhost:5173', 'http://localhost:8080'],
+    origin: ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:8081'],
     credentials: true,
   })
 );

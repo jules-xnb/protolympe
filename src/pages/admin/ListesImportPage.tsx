@@ -21,10 +21,10 @@ import { reverseMapping, type ImportWizardConfig, type PreviewRow, type FieldMap
 // ---------------------------------------------------------------------------
 
 const FIELDS = [
-  { id: 'referential_name', label: 'Nom du référentiel', required: true },
-  { id: 'referential_slug', label: 'Slug du référentiel', required: false },
-  { id: 'referential_description', label: 'Description du référentiel', required: false },
-  { id: 'referential_tag', label: 'Tag du référentiel', required: false },
+  { id: 'referential_name', label: 'Nom de la liste', required: true },
+  { id: 'referential_slug', label: 'Slug de la liste', required: false },
+  { id: 'referential_description', label: 'Description de la liste', required: false },
+  { id: 'referential_tag', label: 'Tag de la liste', required: false },
   { id: 'value_code', label: 'Code de la valeur', required: false },
   { id: 'value_label', label: 'Libellé de la valeur', required: true },
   { id: 'value_parent_code', label: 'Code parent (hiérarchie)', required: false },
@@ -86,7 +86,7 @@ interface MappedValue {
   errorMessage?: string;
 }
 
-interface MappedReferential {
+interface MappedListe {
   name: string;
   slug: string;
   description: string | null;
@@ -95,14 +95,14 @@ interface MappedReferential {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers: build referential tree from preview rows
+// Helpers: build liste tree from preview rows
 // ---------------------------------------------------------------------------
 
 const MAX_DEPTH = 20;
 
-function buildReferentialTree(rows: ParsedRow[], mapping: FieldMapping): { referentials: MappedReferential[]; previewRows: PreviewRow[] } {
+function buildListeTree(rows: ParsedRow[], mapping: FieldMapping): { listes: MappedListe[]; previewRows: PreviewRow[] } {
   const r = reverseMapping(mapping);
-  const referentialMap = new Map<string, MappedReferential>();
+  const listeMap = new Map<string, MappedListe>();
   const previewRows: PreviewRow[] = [];
 
   rows.forEach((row, i) => {
@@ -114,17 +114,17 @@ function buildReferentialTree(rows: ParsedRow[], mapping: FieldMapping): { refer
         data: { refName, valueLabel },
         groupKey: refName || '__errors__',
         hasError: true,
-        errorMessage: `Ligne ${i + 2}: Nom du référentiel ou libellé manquant`,
+        errorMessage: `Ligne ${i + 2}: Nom de la liste ou libellé manquant`,
       });
       return;
     }
 
-    // Get or create referential
-    if (!referentialMap.has(refName)) {
+    // Get or create liste
+    if (!listeMap.has(refName)) {
       const slugCol = r['referential_slug'];
       const descCol = r['referential_description'];
       const tagCol = r['referential_tag'];
-      referentialMap.set(refName, {
+      listeMap.set(refName, {
         name: refName,
         slug: slugCol ? row[slugCol]?.trim() || generateSlug(refName) : generateSlug(refName),
         description: descCol ? row[descCol]?.trim() || null : null,
@@ -133,28 +133,28 @@ function buildReferentialTree(rows: ParsedRow[], mapping: FieldMapping): { refer
       });
     }
 
-    const ref = referentialMap.get(refName)!;
+    const liste = listeMap.get(refName)!;
     const valueCode = r['value_code'] ? row[r['value_code']]?.trim() : '';
     const rawParentCode = r['value_parent_code'] ? row[r['value_parent_code']]?.trim() : '';
     const parentCode = rawParentCode ? generateCode(rawParentCode) : '';
     const valueColor = r['value_color'] ? row[r['value_color']]?.trim() : '';
-    const valueOrder = r['value_order'] ? parseInt(row[r['value_order']]?.trim()) : ref.values.length;
+    const valueOrder = r['value_order'] ? parseInt(row[r['value_order']]?.trim()) : liste.values.length;
 
-    ref.values.push({
+    liste.values.push({
       code: valueCode || generateCode(valueLabel),
       label: valueLabel,
       parent_code: parentCode || null,
       color: valueColor || null,
-      display_order: isNaN(valueOrder) ? ref.values.length : valueOrder,
+      display_order: isNaN(valueOrder) ? liste.values.length : valueOrder,
       level: 0,
       hasError: false,
     });
   });
 
-  // Calculate levels and detect cycles for each referential
-  for (const ref of referentialMap.values()) {
+  // Calculate levels and detect cycles for each liste
+  for (const liste of listeMap.values()) {
     const codeToValue = new Map<string, MappedValue>();
-    ref.values.forEach(v => codeToValue.set(v.code, v));
+    liste.values.forEach(v => codeToValue.set(v.code, v));
 
     const calculateLevel = (value: MappedValue, visited: Set<string>, depth: number): number => {
       if (!value.parent_code) return 0;
@@ -173,18 +173,18 @@ function buildReferentialTree(rows: ParsedRow[], mapping: FieldMapping): { refer
       return calculateLevel(parent, visited, depth + 1) + 1;
     };
 
-    ref.values.forEach(v => {
+    liste.values.forEach(v => {
       v.level = calculateLevel(v, new Set(), 0);
     });
 
     // Generate PreviewRow entries for each value
-    for (const v of ref.values) {
+    for (const v of liste.values) {
       previewRows.push({
         data: {
-          refName: ref.name,
-          refSlug: ref.slug,
-          refDescription: ref.description || '',
-          refTag: ref.tag || '',
+          refName: liste.name,
+          refSlug: liste.slug,
+          refDescription: liste.description || '',
+          refTag: liste.tag || '',
           valueCode: v.code,
           valueLabel: v.label,
           parentCode: v.parent_code || '',
@@ -192,29 +192,29 @@ function buildReferentialTree(rows: ParsedRow[], mapping: FieldMapping): { refer
           displayOrder: String(v.display_order),
           level: String(v.level),
         },
-        groupKey: ref.name,
+        groupKey: liste.name,
         hasError: v.hasError,
         errorMessage: v.errorMessage,
       });
     }
   }
 
-  return { referentials: Array.from(referentialMap.values()), previewRows };
+  return { listes: Array.from(listeMap.values()), previewRows };
 }
 
 // ---------------------------------------------------------------------------
-// Helpers: group preview rows by referential
+// Helpers: group preview rows by liste
 // ---------------------------------------------------------------------------
 
-interface ReferentialGroup {
+interface ListeGroup {
   rows: PreviewRow[];
   tag: string;
   description: string;
   values: MappedValue[];
 }
 
-function groupByReferential(rows: PreviewRow[]): Array<[string, ReferentialGroup]> {
-  const groups = new Map<string, ReferentialGroup>();
+function groupByListe(rows: PreviewRow[]): Array<[string, ListeGroup]> {
+  const groups = new Map<string, ListeGroup>();
   for (const row of rows) {
     const key = row.groupKey || '__ungrouped__';
     if (!groups.has(key)) {
@@ -247,7 +247,7 @@ function groupByReferential(rows: PreviewRow[]): Array<[string, ReferentialGroup
 // ---------------------------------------------------------------------------
 
 interface PreviewValueRow {
-  referential: string;
+  liste: string;
   tag: string;
   label: string;
   code: string;
@@ -260,12 +260,12 @@ interface PreviewValueRow {
 
 const PREVIEW_COLUMNS: ColumnDef<PreviewValueRow>[] = [
   {
-    accessorKey: 'referential',
+    accessorKey: 'liste',
     header: 'Liste',
     maxSize: 99999,
     cell: ({ row }) => (
       <div className="flex items-center gap-2 min-w-0">
-        <p className="font-medium truncate">{row.original.referential}</p>
+        <p className="font-medium truncate">{row.original.liste}</p>
         {row.original.tag && (
           <Chip variant="outline" className="text-xs shrink-0">{row.original.tag}</Chip>
         )}
@@ -337,48 +337,48 @@ const PREVIEW_COLUMNS: ColumnDef<PreviewValueRow>[] = [
 // Page component
 // ---------------------------------------------------------------------------
 
-export default function ReferentialsImportPage() {
+export default function ListesImportPage() {
   const navigate = useNavigate();
   const cp = useClientPath();
   const { selectedClient } = useViewMode();
   const clientId = selectedClient?.id || '';
   // -- buildPreview --
   const buildPreview = useCallback((rows: ParsedRow[], mapping: FieldMapping): PreviewRow[] => {
-    const { previewRows } = buildReferentialTree(rows, mapping);
+    const { previewRows } = buildListeTree(rows, mapping);
     return previewRows;
   }, []);
 
-  // -- onImport (atomic: tout ou rien par référentiel) --
+  // -- onImport (atomic: tout ou rien par liste) --
   const onImport = useCallback(async (rows: ParsedRow[], mapping: FieldMapping, onProgress: (p: ImportProgress) => void) => {
-    const { referentials } = buildReferentialTree(rows, mapping);
-    const validRefs = referentials.filter(r => r.values.some(v => !v.hasError));
-    const totalValues = validRefs.reduce((sum, r) => sum + r.values.filter(v => !v.hasError).length, 0);
-    const total = validRefs.length + totalValues;
+    const { listes } = buildListeTree(rows, mapping);
+    const validListes = listes.filter(r => r.values.some(v => !v.hasError));
+    const totalValues = validListes.reduce((sum, r) => sum + r.values.filter(v => !v.hasError).length, 0);
+    const total = validListes.length + totalValues;
     onProgress({ current: 0, total });
     let success = 0, errors = 0, cur = 0;
     const details: Array<{ label: string; status: 'success' | 'error'; error?: string }> = [];
 
-    // Preview errors → details
-    for (const ref of referentials) {
-      for (const v of ref.values.filter(val => val.hasError)) {
-        details.push({ label: `${ref.name} > ${v.label}`, status: 'error', error: v.errorMessage || 'Erreur de validation' });
+    // Preview errors -> details
+    for (const liste of listes) {
+      for (const v of liste.values.filter(val => val.hasError)) {
+        details.push({ label: `${liste.name} > ${v.label}`, status: 'error', error: v.errorMessage || 'Erreur de validation' });
         errors++;
       }
     }
 
-    for (const ref of validRefs) {
+    for (const liste of validListes) {
       let refId: string | null = null;
       let refCreatedByUs = false;
       let refFailed = false;
 
       try {
-        // 1. Create referential
+        // 1. Create liste (API stays /api/referentials)
         const refData = await api.post<{ id: string }>('/api/referentials', {
           client_id: clientId,
-          name: ref.name,
-          slug: ref.slug + '_' + Date.now(),
-          description: ref.description,
-          tag: ref.tag,
+          name: liste.name,
+          slug: liste.slug + '_' + Date.now(),
+          description: liste.description,
+          tag: liste.tag,
         });
 
         refId = refData.id;
@@ -387,7 +387,7 @@ export default function ReferentialsImportPage() {
 
         // 2. Insert values level by level (batch per level)
         const codeToId = new Map<string, string>();
-        const validValues = ref.values.filter(v => !v.hasError);
+        const validValues = liste.values.filter(v => !v.hasError);
         const maxLevel = Math.max(0, ...validValues.map(v => v.level));
 
         for (let level = 0; level <= maxLevel; level++) {
@@ -418,20 +418,20 @@ export default function ReferentialsImportPage() {
           onProgress({ current: cur, total });
         }
 
-        // All succeeded for this referential
-        const validCount = ref.values.filter(v => !v.hasError).length;
+        // All succeeded for this liste
+        const validCount = liste.values.filter(v => !v.hasError).length;
         success += validCount;
-        for (const v of ref.values.filter(val => !val.hasError)) {
-          details.push({ label: `${ref.name} > ${v.label}`, status: 'success' });
+        for (const v of liste.values.filter(val => !val.hasError)) {
+          details.push({ label: `${liste.name} > ${v.label}`, status: 'success' });
         }
       } catch (e) {
         refFailed = true;
         const msg = e instanceof Error ? e.message : String(e);
-        const validCount = ref.values.filter(v => !v.hasError).length;
+        const validCount = liste.values.filter(v => !v.hasError).length;
         errors += validCount;
-        details.push({ label: `Référentiel "${ref.name}"`, status: 'error', error: msg });
-        for (const v of ref.values.filter(val => !val.hasError)) {
-          details.push({ label: `${ref.name} > ${v.label}`, status: 'error', error: 'Annulé (rollback)' });
+        details.push({ label: `Liste "${liste.name}"`, status: 'error', error: msg });
+        for (const v of liste.values.filter(val => !val.hasError)) {
+          details.push({ label: `${liste.name} > ${v.label}`, status: 'error', error: 'Annulé (rollback)' });
         }
         cur += validCount + 1;
         onProgress({ current: cur, total });
@@ -450,14 +450,14 @@ export default function ReferentialsImportPage() {
   const renderPreview = useCallback((rows: PreviewRow[], _previewErrors: string[], onCancel?: () => void) => {
     const errorRows = rows.filter(r => r.hasError);
     const validRows = rows.filter(r => !r.hasError);
-    const entries = groupByReferential(validRows);
-    const totalRefs = entries.length;
+    const entries = groupByListe(validRows);
+    const totalListes = entries.length;
     const totalValues = validRows.length;
     const totalErrors = errorRows.length;
 
-    const tableRows: PreviewValueRow[] = entries.flatMap(([refName, group]) =>
+    const tableRows: PreviewValueRow[] = entries.flatMap(([listeName, group]) =>
       group.values.filter(v => !v.hasError).map(v => ({
-        referential: refName,
+        liste: listeName,
         tag: group.tag,
         label: v.label,
         code: v.code,
@@ -472,7 +472,7 @@ export default function ReferentialsImportPage() {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-4 gap-3">
-          <StatBlock icon={<Database className="h-5 w-5" />} value={totalRefs} label="Listes" />
+          <StatBlock icon={<Database className="h-5 w-5" />} value={totalListes} label="Listes" />
           <StatBlock icon={<Hash className="h-5 w-5" />} value={totalValues + totalErrors} label="Valeurs" />
           <StatBlock icon={<CheckCircle2 className="h-5 w-5 text-success" />} value={totalValues} label="Valides" />
           <StatBlock icon={<AlertCircle className="h-5 w-5 text-destructive" />} value={totalErrors} label="Erreurs" valueClassName={totalErrors > 0 ? 'text-destructive' : ''} />
@@ -494,7 +494,7 @@ export default function ReferentialsImportPage() {
         <DataTable
           columns={PREVIEW_COLUMNS}
           data={tableRows}
-          searchColumns={['referential', 'label', 'code']}
+          searchColumns={['liste', 'label', 'code']}
           searchPlaceholder="Rechercher une liste..."
           hideColumnSelector
           paginationBelow
@@ -512,17 +512,17 @@ export default function ReferentialsImportPage() {
 
   if (!selectedClient) {
     return (
-      <EmptyState icon={Database} title="Sélectionnez un client pour importer des référentiels" />
+      <EmptyState icon={Database} title="Sélectionnez un client pour importer des listes" />
     );
   }
 
   const config: ImportWizardConfig = {
     title: 'Import des listes',
-    backPath: cp(CLIENT_ROUTES.REFERENTIALS),
+    backPath: cp(CLIENT_ROUTES.LISTES),
     fields: FIELDS,
     autoMap,
     templateContent,
-    templateFileName: 'template_referentiels.csv',
+    templateFileName: 'template_listes.csv',
     canProceed: (mapping) => {
       const m = new Set(Object.values(mapping));
       return m.has('referential_name') && m.has('value_label');
@@ -532,7 +532,7 @@ export default function ReferentialsImportPage() {
     renderPreview,
     hideDefaultStats: true,
     backLabel: 'Revenir à mes listes',
-    onImportComplete: (result) => { if (result.errorCount === 0) navigate(cp(CLIENT_ROUTES.REFERENTIALS)); },
+    onImportComplete: (result) => { if (result.errorCount === 0) navigate(cp(CLIENT_ROUTES.LISTES)); },
   };
 
   return <ImportWizard config={config} />;

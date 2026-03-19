@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { FloatingInput } from '@/components/ui/floating-input';
-import { useCreateReferential, useUpdateReferential, type Referential } from '@/hooks/useReferentials';
+import { useCreateListe, useUpdateListe, type Liste } from '@/hooks/useListes';
 import { toast } from 'sonner';
 import { generateSlug } from '@/lib/csv-parser';
 
@@ -21,43 +21,43 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-interface ReferentialFormDialogProps {
+interface ListeFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  referential?: Referential | null;
+  liste?: Liste | null;
 }
 
-export function ReferentialFormDialog({ open, onOpenChange, referential }: ReferentialFormDialogProps) {
-  const createMutation = useCreateReferential();
-  const updateMutation = useUpdateReferential();
+export function ListeFormDialog({ open, onOpenChange, liste }: ListeFormDialogProps) {
+  const createMutation = useCreateListe();
+  const updateMutation = useUpdateListe();
 
-  const isEditing = !!referential;
+  const isEditing = !!liste;
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   const defaultValues = useMemo<FormValues>(() => {
-    if (referential) {
+    if (liste) {
       return {
-        name: referential.name,
-        tag: referential.tag || '',
-        description: referential.description || '',
+        name: liste.name,
+        tag: liste.tag || '',
+        description: liste.description || '',
       };
     }
     return { name: '', tag: '', description: '' };
-  }, [referential]);
+  }, [liste]);
 
   const handleSubmit = async (values: FormValues) => {
-    const slug = isEditing ? referential.slug : generateSlug(values.name);
+    const slug = isEditing ? liste.slug : generateSlug(values.name);
 
     try {
       if (isEditing) {
         await updateMutation.mutateAsync({
-          id: referential.id,
+          id: liste.id,
           name: values.name,
           slug,
           description: values.description || null,
           tag: values.tag || null,
         });
-        toast.success('Référentiel mis à jour');
+        toast.success('Liste mise à jour');
       } else {
         await createMutation.mutateAsync({
           name: values.name,
@@ -65,7 +65,7 @@ export function ReferentialFormDialog({ open, onOpenChange, referential }: Refer
           description: values.description || null,
           tag: values.tag || null,
         });
-        toast.success('Référentiel créé');
+        toast.success('Liste créée');
       }
       onOpenChange(false);
     } catch (error: unknown) {
@@ -77,7 +77,7 @@ export function ReferentialFormDialog({ open, onOpenChange, referential }: Refer
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={isEditing ? 'Modifier le référentiel' : 'Nouvelle liste'}
+      title={isEditing ? 'Modifier la liste' : 'Nouvelle liste'}
       schema={schema}
       defaultValues={defaultValues}
       onSubmit={handleSubmit}

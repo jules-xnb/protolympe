@@ -1,16 +1,16 @@
 import { Button } from '@/components/ui/button';
 import { Plus, Pencil, ChevronRight, ChevronDown, Archive, ArchiveRestore } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ReferentialValue } from '@/hooks/useReferentials';
+import type { ListeValue } from '@/hooks/useListes';
 import type { TreeNode } from './types';
 
 interface TreeItemProps {
   node: TreeNode;
   depth: number;
   editingId: string | null;
-  onEdit: (value: ReferentialValue) => void;
-  onArchive: (value: ReferentialValue) => void;
-  onRestore?: (value: ReferentialValue) => void;
+  onEdit: (value: ListeValue) => void;
+  onArchive: (value: ListeValue) => void;
+  onRestore?: (value: ListeValue) => void;
   onAddChild: (parentId: string) => void;
   isArchiving: boolean;
   expandedIds: Set<string>;

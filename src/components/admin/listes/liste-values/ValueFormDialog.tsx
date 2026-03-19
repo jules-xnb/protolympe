@@ -17,17 +17,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { ReferentialValue } from '@/hooks/useReferentials';
+import type { ListeValue } from '@/hooks/useListes';
 import { PRESET_COLORS, type ValueFormData } from './types';
 
 interface ValueFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  editingValue: ReferentialValue | null;
+  editingValue: ListeValue | null;
   formData: ValueFormData;
   onFormDataChange: (data: ValueFormData) => void;
   onLabelChange: (label: string) => void;
-  availableParents: ReferentialValue[];
+  availableParents: ListeValue[];
   onSave: () => void;
   onCancel: () => void;
   isPending: boolean;

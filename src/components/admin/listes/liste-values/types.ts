@@ -1,4 +1,4 @@
-import type { ReferentialValue } from '@/hooks/useReferentials';
+import type { ListeValue } from '@/hooks/useListes';
 export { PRESET_COLORS, DEFAULT_COLOR } from '@/lib/constants';
 
 export interface ValueFormData {
@@ -8,12 +8,12 @@ export interface ValueFormData {
   parent_value_id: string | null;
 }
 
-export interface TreeNode extends ReferentialValue {
+export interface TreeNode extends ListeValue {
   children: TreeNode[];
 }
 
 // Build tree structure from flat list
-export function buildTree(values: ReferentialValue[]): TreeNode[] {
+export function buildTree(values: ListeValue[]): TreeNode[] {
   const map = new Map<string, TreeNode>();
   const roots: TreeNode[] = [];
 
@@ -43,7 +43,7 @@ export function buildTree(values: ReferentialValue[]): TreeNode[] {
 }
 
 // Get all descendants of a value (to prevent circular references)
-export function getDescendantIds(valueId: string, values: ReferentialValue[]): Set<string> {
+export function getDescendantIds(valueId: string, values: ListeValue[]): Set<string> {
   const descendants = new Set<string>();
   const addDescendants = (parentId: string) => {
     values.forEach(v => {
@@ -56,4 +56,3 @@ export function getDescendantIds(valueId: string, values: ReferentialValue[]): S
   addDescendants(valueId);
   return descendants;
 }
-

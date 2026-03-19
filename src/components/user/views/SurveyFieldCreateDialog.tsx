@@ -28,7 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { useReferentials } from '@/hooks/useReferentials';
+import { useListes } from '@/hooks/useListes';
 import { useCreateFieldDefinition } from '@/hooks/useFieldDefinitions';
 import { generateBaseSlug } from '@/lib/slug-utils';
 import { toast } from 'sonner';
@@ -62,7 +62,7 @@ export function SurveyFieldCreateDialog({
   onFieldCreated,
 }: SurveyFieldCreateDialogProps) {
   const { t } = useT();
-  const { data: referentials = [] } = useReferentials();
+  const { data: listes = [] } = useListes();
   const createField = useCreateFieldDefinition();
 
   const form = useForm<FieldFormData>({
@@ -180,7 +180,7 @@ export function SurveyFieldCreateDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {referentials.map((ref: { id: string; name: string }) => (
+                        {listes.map((ref: { id: string; name: string }) => (
                           <SelectItem key={ref.id} value={ref.id}>
                             {ref.name}
                           </SelectItem>

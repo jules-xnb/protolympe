@@ -3,9 +3,9 @@ import { api } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { STALE_TIME_LONG_MS } from '@/lib/constants';
 
-export function useReferentialValues(referentialId: string | null | undefined) {
+export function useListeValues(referentialId: string | null | undefined) {
   return useQuery({
-    queryKey: queryKeys.referentialValues.byReferential(referentialId!),
+    queryKey: queryKeys.listeValues.byReferential(referentialId!),
     queryFn: async () => {
       const data = await api.get<Array<{ id: string; label: string; code: string }>>(
         `/api/referentials/${referentialId!}/values`
@@ -18,16 +18,16 @@ export function useReferentialValues(referentialId: string | null | undefined) {
 }
 
 /**
- * Fetch referential values for a set of referential IDs and return a
+ * Fetch liste values for a set of liste IDs and return a
  * flat id -> label lookup map. Useful for rendering field values in
  * business-object instance tables.
  */
-export function useReferentialValueLabels(referentialIds: string[]) {
+export function useListeValueLabels(referentialIds: string[]) {
   return useQuery({
-    queryKey: queryKeys.referentialValues.forBo(referentialIds),
+    queryKey: queryKeys.listeValues.forBo(referentialIds),
     queryFn: async () => {
       if (referentialIds.length === 0) return [];
-      // Fetch values for each referential in parallel
+      // Fetch values for each liste in parallel
       const results = await Promise.all(
         referentialIds.map(refId =>
           api.get<Array<{ id: string; label: string; referential_id: string }>>(`/api/referentials/${refId}/values`)
@@ -39,13 +39,13 @@ export function useReferentialValueLabels(referentialIds: string[]) {
   });
 }
 
-export function useAllReferentialValues(fields: Array<{ referential_id?: string | null }>) {
+export function useAllListeValues(fields: Array<{ referential_id?: string | null }>) {
   const refIds = [...new Set(fields.map(f => f.referential_id).filter(Boolean))] as string[];
   return useQuery({
-    queryKey: queryKeys.referentialValues.batch(refIds),
+    queryKey: queryKeys.listeValues.batch(refIds),
     queryFn: async () => {
       if (refIds.length === 0) return new Map<string, Array<{ id: string; label: string; code: string }>>();
-      // Fetch values for each referential in parallel
+      // Fetch values for each liste in parallel
       const results = await Promise.all(
         refIds.map(refId =>
           api.get<Array<{ id: string; label: string; code: string; referential_id: string }>>(`/api/referentials/${refId}/values`)

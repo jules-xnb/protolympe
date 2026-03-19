@@ -11,6 +11,7 @@ import {
   SidebarSeparator,
 } from '@/components/ui/sidebar';
 import {
+  ArrowLeft,
   FileBox,
   Workflow,
   Shield,
@@ -28,6 +29,7 @@ export function ModuleConfigSidebar() {
   const catalog = module ? getModuleCatalog(module.module_slug) : undefined;
 
   const basePath = `/dashboard/${clientId}/modules/${moduleId}`;
+  const backPath = `/dashboard/${clientId}/modules`;
   const isActive = (path: string) => location.pathname === path;
 
   // Build nav sections based on catalog capabilities
@@ -54,6 +56,24 @@ export function ModuleConfigSidebar() {
     <>
       <SidebarGroup>
         <SidebarGroupContent>
+          {/* Back link */}
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip="Retour navigation"
+                className="transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <NavLink to={backPath}>
+                  <ArrowLeft className="h-5 w-5" />
+                  <span className={NAVBAR_STYLES.navItem}>Retour navigation</span>
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+
+          <SidebarSeparator className="my-2" />
+
           {/* Module name header */}
           <SidebarMenu>
             <SidebarMenuItem>

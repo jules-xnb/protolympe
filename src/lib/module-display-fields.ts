@@ -11,6 +11,8 @@
 export interface ModuleField {
   id: string;
   name: string;
+  /** Field type (maps to field-type-registry) */
+  type?: string;
   /** If true, the field cannot be hidden or reordered */
   locked?: boolean;
   /** If true, the field is not editable in the drawer */
@@ -34,38 +36,38 @@ export interface ModuleDisplayDefinition {
 // ---------------------------------------------------------------------------
 
 const ORGANISATION_FIELDS: ModuleField[] = [
-  { id: 'name', name: 'Nom', defaultVisible: true },
-  { id: 'code', name: 'Code', defaultVisible: true },
-  { id: 'description', name: 'Description' },
-  { id: 'email', name: 'Email' },
-  { id: 'phone', name: 'Téléphone' },
-  { id: 'website', name: 'Site web' },
-  { id: 'address', name: 'Adresse' },
-  { id: 'city', name: 'Ville' },
-  { id: 'postal_code', name: 'Code postal' },
-  { id: 'country', name: 'Pays' },
-  { id: 'manager_name', name: 'Manager' },
-  { id: 'cost_center', name: 'Centre de coût' },
-  { id: 'employee_count', name: 'Effectif' },
-  { id: 'is_active', name: 'Actif', defaultVisible: true },
-  { id: 'level', name: 'Niveau', defaultVisible: true, readOnly: true },
-  { id: 'parent', name: 'Parent', defaultVisible: true, readOnly: true },
+  { id: 'name', name: 'Nom', type: 'text', defaultVisible: true },
+  { id: 'code', name: 'Code', type: 'text', defaultVisible: true },
+  { id: 'description', name: 'Description', type: 'textarea' },
+  { id: 'email', name: 'Email', type: 'email' },
+  { id: 'phone', name: 'Téléphone', type: 'phone' },
+  { id: 'website', name: 'Site web', type: 'url' },
+  { id: 'address', name: 'Adresse', type: 'text' },
+  { id: 'city', name: 'Ville', type: 'text' },
+  { id: 'postal_code', name: 'Code postal', type: 'text' },
+  { id: 'country', name: 'Pays', type: 'select' },
+  { id: 'manager_name', name: 'Manager', type: 'text' },
+  { id: 'cost_center', name: 'Centre de coût', type: 'text' },
+  { id: 'employee_count', name: 'Effectif', type: 'number' },
+  { id: 'is_active', name: 'Actif', type: 'boolean', defaultVisible: true },
+  { id: 'level', name: 'Niveau', type: 'number', defaultVisible: true, readOnly: true },
+  { id: 'parent', name: 'Parent', type: 'eo_reference', defaultVisible: true, readOnly: true },
 ];
 
 const USER_FIELDS: ModuleField[] = [
-  { id: 'full_name', name: 'Utilisateur', defaultVisible: true, locked: true },
-  { id: 'email', name: 'Email', defaultVisible: true },
-  { id: 'status', name: 'Statut', defaultVisible: true },
-  { id: 'profiles', name: 'Profils', defaultVisible: true },
-  { id: 'member_since', name: 'Membre depuis', defaultVisible: true, readOnly: true },
+  { id: 'full_name', name: 'Utilisateur', type: 'text', defaultVisible: true, locked: true },
+  { id: 'email', name: 'Email', type: 'email', defaultVisible: true },
+  { id: 'status', name: 'Statut', type: 'select', defaultVisible: true },
+  { id: 'profiles', name: 'Profils', type: 'multiselect', defaultVisible: true },
+  { id: 'member_since', name: 'Membre depuis', type: 'date', defaultVisible: true, readOnly: true },
 ];
 
 const PROFILS_FIELDS: ModuleField[] = [
-  { id: 'name', name: 'Nom', defaultVisible: true, locked: true },
-  { id: 'roles', name: 'Rôles', defaultVisible: true, readOnly: true },
-  { id: 'eos', name: 'Entités organisationnelles', defaultVisible: true, readOnly: true },
-  { id: 'groups', name: 'Regroupements', defaultVisible: true, readOnly: true },
-  { id: 'user_count', name: "Nombre d'utilisateurs", defaultVisible: true, readOnly: true },
+  { id: 'name', name: 'Nom', type: 'text', defaultVisible: true, locked: true },
+  { id: 'roles', name: 'Rôles', type: 'multiselect', defaultVisible: true, readOnly: true },
+  { id: 'eos', name: 'Entités organisationnelles', type: 'multiselect', defaultVisible: true, readOnly: true },
+  { id: 'groups', name: 'Regroupements', type: 'multiselect', defaultVisible: true, readOnly: true },
+  { id: 'user_count', name: "Nombre d'utilisateurs", type: 'number', defaultVisible: true, readOnly: true },
 ];
 
 // ---------------------------------------------------------------------------
@@ -276,6 +278,26 @@ export function mergeWithDefaults(raw: Record<string, unknown>, moduleSlug: stri
     drawerSystemFields = oldFields.filter((f) => SYSTEM_FIELD_IDS.includes(f.field_id));
     drawerSections = [];
     drawerUnassignedFields = oldFields.filter((f) => !SYSTEM_FIELD_IDS.includes(f.field_id));
+  }
+
+  // Ensure 'level' is in system fields (migration from older configs)
+  if (drawerSystemFields && !drawerSystemFields.some((f) => f.field_id === 'level')) {
+    // Check if level is in unassigned and move it
+    const levelIdx = drawerUnassignedFields?.findIndex((f) => f.field_id === 'level') ?? -1;
+    if (levelIdx !== -1 && drawerUnassignedFields) {
+      const [levelField] = drawerUnassignedFields.splice(levelIdx, 1);
+      drawerSystemFields.push({ ...levelField, visible: true, editable: false });
+    } else {
+      // Add level from definition if it exists
+      const def = MODULE_DISPLAY_DEFINITIONS[moduleSlug];
+      const levelDef = def?.fields.find((f) => f.id === 'level');
+      if (levelDef) {
+        drawerSystemFields.push({ field_id: 'level', field_name: levelDef.name, visible: true, editable: false });
+      }
+    }
+    // Ensure correct order: name, parent, level, is_active
+    const SYSTEM_FIELD_ORDER = ['name', 'parent', 'level', 'is_active'];
+    drawerSystemFields.sort((a, b) => SYSTEM_FIELD_ORDER.indexOf(a.field_id) - SYSTEM_FIELD_ORDER.indexOf(b.field_id));
   }
 
   return {

@@ -7,7 +7,7 @@ import {
 } from '@/hooks/useSurveyResponses';
 import { useAddFieldComment } from '@/hooks/useSurveyResponseMutations';
 import { useSaveResponseValues, type AggregationFieldConfig } from '@/hooks/useSaveResponseValues';
-import { useAllReferentialValues } from '@/hooks/useReferentialValues';
+import { useAllListeValues } from '@/hooks/useListeValues';
 import { useBoFieldDefinitions } from '@/hooks/useBoFieldDefinitions';
 import { useObjectFieldValues } from '@/hooks/useBusinessObjectsWithFields';
 import { useQuery } from '@tanstack/react-query';
@@ -148,7 +148,7 @@ export function SurveyResponseFullPage({ response, onBack, activeTab }: SurveyRe
   }, [stepFields, allFieldDefinitions]);
 
   // Load all referential values at once
-  const { data: refValuesMap } = useAllReferentialValues(visibleFields);
+  const { data: refValuesMap } = useAllListeValues(visibleFields);
 
   // Group fields by section
   const sortedSections = useMemo(() => {

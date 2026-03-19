@@ -123,17 +123,17 @@ export const queryKeys = {
     underscored: () => ['eo_audit_log'] as const,
   },
 
-  // ── Referentials ───────────────────────────────────────────────────────
-  referentials: {
-    crudKey: 'referentials' as const,
-    withValues: (refId: string) => ['referential', refId] as const,
+  // ── Listes ─────────────────────────────────────────────────────────────
+  listes: {
+    crudKey: 'listes' as const,
+    withValues: (refId: string) => ['liste', refId] as const,
   },
 
-  // ── Referential Values ─────────────────────────────────────────────────
-  referentialValues: {
-    byReferential: (refId: string) => ['referential_values', refId] as const,
-    forBo: (refIds: string[]) => ['referential_values_for_bo', refIds] as const,
-    batch: (refIds: string[]) => ['referential_values', 'batch', refIds] as const,
+  // ── Liste Values ───────────────────────────────────────────────────────
+  listeValues: {
+    byReferential: (refId: string) => ['liste_values', refId] as const,
+    forBo: (refIds: string[]) => ['liste_values_for_bo', refIds] as const,
+    batch: (refIds: string[]) => ['liste_values', 'batch', refIds] as const,
   },
 
   // ── Reference Objects ──────────────────────────────────────────────────

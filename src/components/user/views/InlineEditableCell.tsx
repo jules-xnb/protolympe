@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useReferentialValues } from '@/hooks/useReferentialValues';
+import { useListeValues } from '@/hooks/useListeValues';
 import { useReferenceObjects } from '@/hooks/useReferenceObjects';
 import { useT } from '@/hooks/useT';
 import type { CampaignFieldColumn } from '@/hooks/useCampaignFieldColumns';
@@ -27,7 +27,7 @@ export function InlineEditableCell({ column, value, isEditable, isHiddenByCondit
   const isSelect = field_type === 'select' || field_type === 'multiselect';
   const isObjectRef = field_type === 'object_reference';
 
-  const { data: refValues } = useReferentialValues(isSelect ? referential_id : undefined);
+  const { data: refValues } = useListeValues(isSelect ? referential_id : undefined);
   const { data: refObjects } = useReferenceObjects(isObjectRef ? reference_object_definition_id : undefined);
 
   useEffect(() => {

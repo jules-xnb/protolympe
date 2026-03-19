@@ -24,7 +24,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useOrganizationalEntities } from '@/hooks/useOrganizationalEntities';
 import { useViewMode } from '@/contexts/ViewModeContext';
 import { useFieldDefinitions, type FieldDefinitionWithRelations } from '@/hooks/useFieldDefinitions';
-import { useAllReferentialValues } from '@/hooks/useReferentialValues';
+import { useAllListeValues } from '@/hooks/useListeValues';
 import { useCreateBusinessObject } from '@/hooks/useBusinessObjects';
 import type { Json } from '@/types/database';
 
@@ -189,7 +189,7 @@ export function BusinessObjectFormDialog({
     [allFields],
   );
 
-  const { data: refValuesMap } = useAllReferentialValues(customFields);
+  const { data: refValuesMap } = useAllListeValues(customFields);
 
   const [eoId, setEoId] = useState('');
   const [name, setName] = useState('');

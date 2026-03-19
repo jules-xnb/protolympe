@@ -15,15 +15,15 @@ referentialsRouter.use('*', authMiddleware);
 // =============================================
 
 const createValueSchema = z.object({
-  referentialId: z.string().uuid(),
+  referential_id: z.string().uuid(),
   label: z.string().min(1),
   code: z.string().optional(),
   description: z.string().optional(),
-  color: z.string().optional(),
+  color: z.string().nullable().optional(),
   icon: z.string().optional(),
-  displayOrder: z.number().int().optional(),
-  isActive: z.boolean().optional(),
-  parentId: z.string().uuid().nullable().optional(),
+  display_order: z.number().int().optional(),
+  is_active: z.boolean().optional(),
+  parent_value_id: z.string().uuid().nullable().optional(),
   level: z.number().int().optional(),
 });
 
@@ -35,9 +35,16 @@ referentialsRouter.post('/values', async (c) => {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
   }
 
+  const { referential_id, display_order, is_active, parent_value_id, ...rest } = parsed.data;
   const [value] = await db
     .insert(referentialValues)
-    .values(parsed.data)
+    .values({
+      referentialId: referential_id,
+      displayOrder: display_order,
+      isActive: is_active,
+      parentId: parent_value_id,
+      ...rest,
+    })
     .returning();
 
   return c.json(toSnakeCase(value), 201);
@@ -47,11 +54,11 @@ const updateValueSchema = z.object({
   label: z.string().min(1).optional(),
   code: z.string().optional(),
   description: z.string().optional(),
-  color: z.string().optional(),
+  color: z.string().nullable().optional(),
   icon: z.string().optional(),
-  displayOrder: z.number().int().optional(),
-  isActive: z.boolean().optional(),
-  parentId: z.string().uuid().nullable().optional(),
+  display_order: z.number().int().optional(),
+  is_active: z.boolean().optional(),
+  parent_value_id: z.string().uuid().nullable().optional(),
   level: z.number().int().optional(),
 });
 
@@ -64,10 +71,14 @@ referentialsRouter.patch('/values/:id', async (c) => {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
   }
 
+  const { display_order, is_active, parent_value_id, ...rest } = parsed.data;
   const [value] = await db
     .update(referentialValues)
     .set({
-      ...parsed.data,
+      ...rest,
+      ...(display_order !== undefined && { displayOrder: display_order }),
+      ...(is_active !== undefined && { isActive: is_active }),
+      ...(parent_value_id !== undefined && { parentId: parent_value_id }),
       updatedAt: new Date(),
     })
     .where(eq(referentialValues.id, id))

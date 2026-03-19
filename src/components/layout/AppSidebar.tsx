@@ -88,7 +88,7 @@ const integratorGroupsDef = [
     { title: 'Utilisateurs', path: CLIENT_ROUTES.USERS, icon: Users },
   ],
   [
-    { title: 'Listes', path: CLIENT_ROUTES.REFERENTIALS, icon: Database },
+    { title: 'Listes', path: CLIENT_ROUTES.LISTES, icon: Database },
     { title: 'Affichage & Design', path: CLIENT_ROUTES.DESIGN, icon: Palette },
   ],
 ];
@@ -334,7 +334,7 @@ export function AppSidebar() {
               </>
             )}
           </div>
-          {mode === 'integrator' && selectedClient && !collapsed && (
+          {mode === 'integrator' && selectedClient && !collapsed && !isInModuleConfig && (
             <div className="w-full bg-primary/5 px-4 py-2 flex flex-col gap-1">
               <Button
                 variant="ghost"

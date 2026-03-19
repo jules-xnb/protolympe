@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { EoFieldDefinition, EoFieldOption } from '@/hooks/useEoFieldDefinitions';
-import { useReferentialValues } from '@/hooks/useReferentialValues';
+import { useListeValues } from '@/hooks/useListeValues';
 import { validateCrossFieldRules } from '@/lib/eo/eo-cross-field-validation';
 import { getFieldFormat, applyFieldFormat } from '@/lib/eo/eo-field-format';
 
@@ -138,7 +138,7 @@ export function InlineFieldEditor({
 
   // Resolve referential options for select fields
   const refId = field.settings?.referential_id as string | undefined;
-  const { data: refValues } = useReferentialValues(refId || null);
+  const { data: refValues } = useListeValues(refId || null);
 
   // Select fields
   if (isSelectType) {

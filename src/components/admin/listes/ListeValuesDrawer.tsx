@@ -7,50 +7,50 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  useReferentialWithValues,
-  useCreateReferentialValue,
-  useUpdateReferentialValue,
-  useDeleteReferentialValue,
-  useRestoreReferentialValue,
-  useDeleteReferential,
-  useUpdateReferential,
-  type Referential,
-  type ReferentialValue,
-} from '@/hooks/useReferentials';
+  useListeWithValues,
+  useCreateListeValue,
+  useUpdateListeValue,
+  useDeleteListeValue,
+  useRestoreListeValue,
+  useDeleteListe,
+  useUpdateListe,
+  type Liste,
+  type ListeValue,
+} from '@/hooks/useListes';
 import { DeleteConfirmDialog } from '@/components/admin/DeleteConfirmDialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Plus, Loader2, Archive, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import { TreeItem } from './referential-values/TreeItem';
-import { ValueFormDialog } from './referential-values/ValueFormDialog';
-import { DrawerHeader } from './referential-values/DrawerHeader';
+import { TreeItem } from './liste-values/TreeItem';
+import { ValueFormDialog } from './liste-values/ValueFormDialog';
+import { DrawerHeader } from './liste-values/DrawerHeader';
 import {
   buildTree,
   getDescendantIds,
   DEFAULT_COLOR,
   type ValueFormData,
-} from './referential-values/types';
+} from './liste-values/types';
 import { generateCode } from '@/lib/format-utils';
 
-interface ReferentialValuesDrawerProps {
+interface ListeValuesDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  referential: Referential | null;
+  liste: Liste | null;
 }
 
-export function ReferentialValuesDrawer({ open, onOpenChange, referential }: ReferentialValuesDrawerProps) {
-  const { data, isLoading } = useReferentialWithValues(referential?.id);
-  const createMutation = useCreateReferentialValue();
-  const updateMutation = useUpdateReferentialValue();
-  const deleteMutation = useDeleteReferentialValue();
-  const restoreMutation = useRestoreReferentialValue();
-  const deleteReferentialMutation = useDeleteReferential();
-  const updateReferentialMutation = useUpdateReferential();
-  const archiveRefDialog = useDialogState();
-  const archiveValueDialog = useDialogState<ReferentialValue>();
+export function ListeValuesDrawer({ open, onOpenChange, liste }: ListeValuesDrawerProps) {
+  const { data, isLoading } = useListeWithValues(liste?.id);
+  const createMutation = useCreateListeValue();
+  const updateMutation = useUpdateListeValue();
+  const deleteMutation = useDeleteListeValue();
+  const restoreMutation = useRestoreListeValue();
+  const deleteListeMutation = useDeleteListe();
+  const updateListeMutation = useUpdateListe();
+  const archiveListeDialog = useDialogState();
+  const archiveValueDialog = useDialogState<ListeValue>();
   const [showArchivedValues, setShowArchivedValues] = useState(false);
 
-  const [editingValue, setEditingValue] = useState<ReferentialValue | null>(null);
+  const [editingValue, setEditingValue] = useState<ListeValue | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [formData, setFormData] = useState<ValueFormData>({
     code: '',
@@ -98,7 +98,7 @@ export function ReferentialValuesDrawer({ open, onOpenChange, referential }: Ref
     setIsAdding(false);
   };
 
-  const handleEdit = (value: ReferentialValue) => {
+  const handleEdit = (value: ListeValue) => {
     setEditingValue(value);
     setFormData({ code: value.code, label: value.label, color: value.color || '', parent_value_id: value.parent_value_id || null });
     setIsAdding(false);
@@ -117,7 +117,7 @@ export function ReferentialValuesDrawer({ open, onOpenChange, referential }: Ref
   };
 
   const handleSave = async () => {
-    if (!referential) return;
+    if (!liste) return;
     const parentValue = formData.parent_value_id ? values.find(v => v.id === formData.parent_value_id) : null;
     const level = parentValue ? parentValue.level + 1 : 0;
 
@@ -130,7 +130,7 @@ export function ReferentialValuesDrawer({ open, onOpenChange, referential }: Ref
         const labels = formData.label.split('\n').map(l => l.trim()).filter(Boolean);
         if (labels.length === 0) return;
 
-        // Deduplicate: existing codes in this referential + within the batch
+        // Deduplicate: existing codes in this liste + within the batch
         const existingCodes = new Set(allValues.map(v => v.code));
         const seenCodes = new Set<string>();
         const uniqueLabels: string[] = [];
@@ -155,7 +155,7 @@ export function ReferentialValuesDrawer({ open, onOpenChange, referential }: Ref
         for (let i = 0; i < uniqueLabels.length; i++) {
           const label = uniqueLabels[i];
           const code = generateCode(label);
-          await createMutation.mutateAsync({ referential_id: referential.id, code, label, color: formData.color || null, display_order: siblings.length + i, parent_value_id: formData.parent_value_id, level });
+          await createMutation.mutateAsync({ liste_id: liste.id, code, label, color: formData.color || null, display_order: siblings.length + i, parent_value_id: formData.parent_value_id, level });
           created++;
         }
         toast.success(created > 1 ? `${created} valeurs ajoutées` : 'Valeur ajoutée');
@@ -167,7 +167,7 @@ export function ReferentialValuesDrawer({ open, onOpenChange, referential }: Ref
     }
   };
 
-  const handleArchiveRequest = (value: ReferentialValue) => {
+  const handleArchiveRequest = (value: ListeValue) => {
     if (activeValues.some(v => v.parent_value_id === value.id)) {
       toast.error('Archivez d\'abord les valeurs enfants');
       return;
@@ -176,9 +176,9 @@ export function ReferentialValuesDrawer({ open, onOpenChange, referential }: Ref
   };
 
   const handleArchiveConfirm = async () => {
-    if (!referential || !archiveValueDialog.item) return;
+    if (!liste || !archiveValueDialog.item) return;
     try {
-      await deleteMutation.mutateAsync({ id: archiveValueDialog.item.id, referentialId: referential.id });
+      await deleteMutation.mutateAsync({ id: archiveValueDialog.item.id, listeId: liste.id });
       toast.success('Valeur archivée');
       if (editingValue?.id === archiveValueDialog.item.id) resetForm();
     } catch (error: unknown) {
@@ -188,10 +188,10 @@ export function ReferentialValuesDrawer({ open, onOpenChange, referential }: Ref
     archiveValueDialog.close();
   };
 
-  const handleRestore = async (value: ReferentialValue) => {
-    if (!referential) return;
+  const handleRestore = async (value: ListeValue) => {
+    if (!liste) return;
     try {
-      await restoreMutation.mutateAsync({ id: value.id, referentialId: referential.id });
+      await restoreMutation.mutateAsync({ id: value.id, listeId: liste.id });
       toast.success('Valeur restaurée');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -199,9 +199,9 @@ export function ReferentialValuesDrawer({ open, onOpenChange, referential }: Ref
     }
   };
 
-  const handleUpdateReferential = useCallback(async (data: { id: string; name?: string; description?: string | null; tag?: string | null }) => {
-    await updateReferentialMutation.mutateAsync(data);
-  }, [updateReferentialMutation]);
+  const handleUpdateListe = useCallback(async (data: { id: string; name?: string; description?: string | null; tag?: string | null }) => {
+    await updateListeMutation.mutateAsync(data);
+  }, [updateListeMutation]);
 
   return (
     <>
@@ -211,11 +211,11 @@ export function ReferentialValuesDrawer({ open, onOpenChange, referential }: Ref
     }}>
       <SheetContent className="flex flex-col" showClose={false}>
         <DrawerHeader
-          referential={referential}
-          onUpdateReferential={handleUpdateReferential}
-          isPending={updateReferentialMutation.isPending}
-          showArchive={!!(referential && !referential.is_system && !showArchivedValues)}
-          onArchive={() => archiveRefDialog.open()}
+          liste={liste}
+          onUpdateListe={handleUpdateListe}
+          isPending={updateListeMutation.isPending}
+          showArchive={!!(liste && !liste.is_system && !showArchivedValues)}
+          onArchive={() => archiveListeDialog.open()}
         />
 
         <div className="flex-1 flex flex-col gap-4 mt-4 min-h-0">
@@ -234,7 +234,7 @@ export function ReferentialValuesDrawer({ open, onOpenChange, referential }: Ref
             ) : values.length === 0 ? (
               <EmptyState
                 title="Aucune valeur"
-                description="Ajoutez des valeurs à ce référentiel"
+                description="Ajoutez des valeurs à cette liste"
               />
             ) : (
               <div className="space-y-1">
@@ -269,7 +269,7 @@ export function ReferentialValuesDrawer({ open, onOpenChange, referential }: Ref
 
     <ValueFormDialog open={isAdding || !!editingValue} onOpenChange={(open) => { if (!open) resetForm(); }} editingValue={editingValue} formData={formData} onFormDataChange={setFormData} onLabelChange={handleLabelChange} availableParents={availableParents} onSave={handleSave} onCancel={resetForm} isPending={isPending} />
 
-    <DeleteConfirmDialog open={archiveRefDialog.isOpen} onOpenChange={archiveRefDialog.onOpenChange} onConfirm={async () => { if (!referential) return; await deleteReferentialMutation.mutateAsync(referential.id); archiveRefDialog.close(); onOpenChange(false); }} title="Archiver le référentiel" description={`Êtes-vous sûr de vouloir archiver "${referential?.name}" ? Cette action supprimera également toutes ses valeurs.`} isDeleting={deleteReferentialMutation.isPending} />
+    <DeleteConfirmDialog open={archiveListeDialog.isOpen} onOpenChange={archiveListeDialog.onOpenChange} onConfirm={async () => { if (!liste) return; await deleteListeMutation.mutateAsync(liste.id); archiveListeDialog.close(); onOpenChange(false); }} title="Archiver la liste" description={`Êtes-vous sûr de vouloir archiver "${liste?.name}" ? Cette action supprimera également toutes ses valeurs.`} isDeleting={deleteListeMutation.isPending} />
     <DeleteConfirmDialog open={archiveValueDialog.isOpen} onOpenChange={archiveValueDialog.onOpenChange} onConfirm={handleArchiveConfirm} title="Archiver la valeur" description={`Êtes-vous sûr de vouloir archiver la valeur "${archiveValueDialog.item?.label}" ?`} isDeleting={deleteMutation.isPending} />
     </>
   );

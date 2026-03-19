@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Chip } from '@/components/ui/chip';
-import { useReferentialValues } from '@/hooks/useReferentialValues';
+import { useListeValues } from '@/hooks/useListeValues';
 import type { CampaignFieldColumn } from '@/hooks/useCampaignFieldColumns';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -125,7 +125,7 @@ function FilterValueInput({
   onChange: (v: string) => void;
 }) {
   const isSelect = ['select', 'multiselect'].includes(column.field_type);
-  const { data: refValues } = useReferentialValues(isSelect ? column.referential_id : undefined);
+  const { data: refValues } = useListeValues(isSelect ? column.referential_id : undefined);
 
   if (['checkbox', 'boolean'].includes(column.field_type)) {
     return (

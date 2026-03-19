@@ -5,33 +5,33 @@ import { createCrudHooks } from './createCrudHooks';
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/database';
 import { queryKeys } from '@/lib/query-keys';
 
-export type Referential = Tables<'referentials'>;
-export type ReferentialValue = Tables<'referential_values'>;
+export type Liste = Tables<'referentials'>;
+export type ListeValue = Tables<'referential_values'>;
 
 const crud = createCrudHooks({
   tableName: 'referentials',
-  queryKey: queryKeys.referentials.crudKey,
+  queryKey: queryKeys.listes.crudKey,
   defaultOrder: 'name',
 });
 
 // Standard CRUD via factory
-export const useReferentials = crud.useList;
-export const useArchivedReferentials = crud.useArchived;
-export const useCreateReferential = crud.useCreate;
-export const useUpdateReferential = crud.useUpdate;
-export const useDeleteReferential = crud.useArchive; // soft-delete = archive
-export const useRestoreReferential = crud.useRestore;
+export const useListes = crud.useList;
+export const useArchivedListes = crud.useArchived;
+export const useCreateListe = crud.useCreate;
+export const useUpdateListe = crud.useUpdate;
+export const useDeleteListe = crud.useArchive; // soft-delete = archive
+export const useRestoreListe = crud.useRestore;
 
 // Specific hooks not covered by factory
 
-export function useReferentialWithValues(referentialId: string | undefined) {
+export function useListeWithValues(referentialId: string | undefined) {
   return useQuery({
-    queryKey: queryKeys.referentials.withValues(referentialId!),
+    queryKey: queryKeys.listes.withValues(referentialId!),
     queryFn: async () => {
       if (!referentialId) return null;
       const [referential, values] = await Promise.all([
-        api.get<Referential>(`/api/referentials/${referentialId}`),
-        api.get<ReferentialValue[]>(`/api/referentials/${referentialId}/values`),
+        api.get<Liste>(`/api/referentials/${referentialId}`),
+        api.get<ListeValue[]>(`/api/referentials/${referentialId}/values`),
       ]);
       return { referential, values };
     },
@@ -39,38 +39,38 @@ export function useReferentialWithValues(referentialId: string | undefined) {
   });
 }
 
-// Referential Values mutations
-export function useCreateReferentialValue() {
+// Liste Values mutations
+export function useCreateListeValue() {
   const queryClient = useQueryClient();
   return useMutationWithToast({
     mutationFn: async (data: TablesInsert<'referential_values'>) => {
-      return await api.post<ReferentialValue>(
+      return await api.post<ListeValue>(
         '/api/referentials/values',
         data
       );
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.referentials.withValues(variables.referential_id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.listes.withValues(variables.referential_id) });
     },
   });
 }
 
-export function useUpdateReferentialValue() {
+export function useUpdateListeValue() {
   const queryClient = useQueryClient();
   return useMutationWithToast({
     mutationFn: async ({ id, ...data }: TablesUpdate<'referential_values'> & { id: string }) => {
-      return await api.patch<ReferentialValue>(
+      return await api.patch<ListeValue>(
         `/api/referentials/values/${id}`,
         data
       );
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.referentials.withValues(data.referential_id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.listes.withValues(data.referential_id) });
     },
   });
 }
 
-export function useDeleteReferentialValue() {
+export function useDeleteListeValue() {
   const queryClient = useQueryClient();
   return useMutationWithToast({
     mutationFn: async ({ id, referentialId }: { id: string; referentialId: string }) => {
@@ -78,12 +78,12 @@ export function useDeleteReferentialValue() {
       return referentialId;
     },
     onSuccess: (referentialId) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.referentials.withValues(referentialId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.listes.withValues(referentialId!) });
     },
   });
 }
 
-export function useRestoreReferentialValue() {
+export function useRestoreListeValue() {
   const queryClient = useQueryClient();
   return useMutationWithToast({
     mutationFn: async ({ id, referentialId }: { id: string; referentialId: string }) => {
@@ -91,7 +91,7 @@ export function useRestoreReferentialValue() {
       return referentialId;
     },
     onSuccess: (referentialId) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.referentials.withValues(referentialId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.listes.withValues(referentialId!) });
     },
   });
 }

@@ -77,7 +77,7 @@ function ConditionValueInput({
   const referentialId = sourceField?.referential_id;
 
   const { data: refValues } = useQuery({
-    queryKey: queryKeys.referentialValues.byReferential(referentialId!),
+    queryKey: queryKeys.listeValues.byReferential(referentialId!),
     queryFn: async () => {
       return api.get<Array<{ id: string; label: string; code: string }>>(
         `/api/referentials/${referentialId}/values?is_active=true`

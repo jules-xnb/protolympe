@@ -3,7 +3,7 @@ import { useClientPath } from '@/hooks/useClientPath';
 import { CLIENT_ROUTES } from '@/lib/routes';
 import { Chip } from '@/components/ui/chip';
 import { ArchivedItemsPage } from '@/components/admin/ArchivedItemsPage';
-import { useArchivedReferentials, useRestoreReferential, type Referential } from '@/hooks/useReferentials';
+import { useArchivedListes, useRestoreListe, type Liste } from '@/hooks/useListes';
 import { useViewMode } from '@/contexts/ViewModeContext';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Database, Tag } from 'lucide-react';
@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-const columns: ColumnDef<Referential, unknown>[] = [
+const columns: ColumnDef<Liste, unknown>[] = [
   {
     accessorKey: 'name',
     header: 'Nom',
@@ -63,11 +63,11 @@ const columns: ColumnDef<Referential, unknown>[] = [
   },
 ];
 
-export default function ReferentialsArchivedPage() {
+export default function ListesArchivedPage() {
   const cp = useClientPath();
   const { selectedClient } = useViewMode();
-  const { data: archivedReferentials = [], isLoading } = useArchivedReferentials();
-  const restoreMutation = useRestoreReferential();
+  const { data: archivedListes = [], isLoading } = useArchivedListes();
+  const restoreMutation = useRestoreListe();
 
   if (!selectedClient) {
     return <EmptyState icon={Database} title="Sélectionnez un client" />;
@@ -75,19 +75,19 @@ export default function ReferentialsArchivedPage() {
 
   return (
     <ArchivedItemsPage
-      title="Archives — Référentiels"
-      backRoute={cp(CLIENT_ROUTES.REFERENTIALS)}
-      data={archivedReferentials}
+      title="Archives — Listes"
+      backRoute={cp(CLIENT_ROUTES.LISTES)}
+      data={archivedListes}
       isLoading={isLoading}
       columns={columns}
       onRestore={async (id) => {
-        const item = archivedReferentials.find(r => r.id === id);
+        const item = archivedListes.find(r => r.id === id);
         await restoreMutation.mutateAsync(id);
         toast.success(`"${item?.name}" restauré`);
       }}
       isRestoring={restoreMutation.isPending}
       searchColumn="name"
-      searchPlaceholder="Rechercher un référentiel archivé..."
+      searchPlaceholder="Rechercher une liste archivée..."
     />
   );
 }

@@ -1,6 +1,6 @@
 import { Lock } from 'lucide-react';
-import type { Referential } from '@/hooks/useReferentials';
-import { useReferentialValues } from '@/hooks/useReferentialValues';
+import type { Liste } from '@/hooks/useListes';
+import { useListeValues } from '@/hooks/useListeValues';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -60,7 +60,7 @@ interface FieldTypeConfigProps {
   isSystemIsActive: boolean;
   showOptions: boolean;
   isTextType: boolean;
-  referentials?: Referential[];
+  referentials?: Liste[];
 }
 
 export function FieldTypeConfig({
@@ -78,7 +78,7 @@ export function FieldTypeConfig({
   referentials,
 }: FieldTypeConfigProps) {
   const isSelectType = ['select', 'multiselect'].includes(formData.field_type);
-  const { data: referentialValues = [] } = useReferentialValues(
+  const { data: listeValues = [] } = useListeValues(
     isSelectType ? formData.referential_id : undefined
   );
   const showDateFormat = ['date', 'datetime'].includes(formData.field_type);
@@ -92,7 +92,7 @@ export function FieldTypeConfig({
   // Build the list of available options for the auto-generate value picker
   const selectAutoGenOptions = isSelectType
     ? (formData.referential_id
-        ? referentialValues.map((v) => v.label)
+        ? listeValues.map((v) => v.label)
         : formData.options)
     : [];
 
@@ -249,7 +249,7 @@ export function FieldTypeConfig({
           formData={formData}
           onFormDataChange={onFormDataChange}
           referentials={referentials}
-          referentialValues={referentialValues}
+          referentialValues={listeValues}
         />
       )}
 

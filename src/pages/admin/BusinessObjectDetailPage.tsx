@@ -34,7 +34,7 @@ import {
 } from '@/hooks/useBusinessObjectDefinitions';
 import { useFieldDefinitions } from '@/hooks/useFieldDefinitions';
 import { useBusinessObjects, useArchivedBusinessObjects, useArchiveBusinessObject, type BusinessObjectWithValues, type PaginatedBusinessObjects } from '@/hooks/useBusinessObjects';
-import { useReferentialValueLabels } from '@/hooks/useReferentialValues';
+import { useListeValueLabels } from '@/hooks/useListeValues';
 import { useClientPath } from '@/hooks/useClientPath';
 import { CLIENT_ROUTES } from '@/lib/routes';
 import { DataTable } from '@/components/admin/DataTable';
@@ -71,7 +71,7 @@ export default function BusinessObjectDetailPage() {
   }, [fields]);
 
   // Fetch referential values for lookup
-  const { data: refValues = [] } = useReferentialValueLabels(referentialIds);
+  const { data: refValues = [] } = useListeValueLabels(referentialIds);
 
   // Build a lookup map: value ID -> label
   const refLabelMap = useMemo(() => {

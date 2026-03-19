@@ -49,10 +49,10 @@ export const CLIENT_ROUTES = {
   ROLES_IMPORT: '/roles/import',
   ROLES_ARCHIVED: '/roles/archived',
 
-  // Referentials
-  REFERENTIALS: '/referentials',
-  REFERENTIALS_IMPORT: '/referentials/import',
-  REFERENTIALS_ARCHIVED: '/referentials/archived',
+  // Listes
+  LISTES: '/listes',
+  LISTES_IMPORT: '/listes/import',
+  LISTES_ARCHIVED: '/listes/archived',
 
   // Business Objects
   BUSINESS_OBJECTS: '/business-objects',

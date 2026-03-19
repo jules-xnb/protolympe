@@ -51,6 +51,7 @@ app.route('/api/module-display-configs', moduleDisplayConfigsRouter);
 app.route('/api/navigation', navigationRouter);
 app.route('/api/organizational-entities', organizationalEntitiesRouter);
 app.route('/api/referentials', referentialsRouter);
+app.route('/api/listes', referentialsRouter);
 app.route('/api/profile-templates', profileTemplatesRouter);
 app.route('/api/client-users', clientUsersRouter);
 app.route('/api/business-objects', businessObjectsRouter);

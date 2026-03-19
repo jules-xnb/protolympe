@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useAllReferentialValues } from './useReferentialValues';
+import { useAllListeValues } from './useListeValues';
 import type { EoFieldDefinition } from './useEoFieldDefinitions';
 
 /**
@@ -17,7 +17,7 @@ export function useResolvedEoOptions(fields: EoFieldDefinition[]) {
     [fields],
   );
 
-  const { data: refValuesMap } = useAllReferentialValues(fieldsWithRef);
+  const { data: refValuesMap } = useAllListeValues(fieldsWithRef);
 
   const getOptions = useCallback(
     (field: EoFieldDefinition): { value: string; label: string }[] => {

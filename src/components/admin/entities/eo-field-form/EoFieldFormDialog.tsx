@@ -24,7 +24,7 @@ import {
 } from '@/lib/eo/eo-cross-field-validation';
 import { buildFieldPayload, buildViewFieldUpdates } from '@/lib/eo/eo-field-payload-builder';
 import { toast } from 'sonner';
-import { useReferentials } from '@/hooks/useReferentials';
+import { useListes } from '@/hooks/useListes';
 import { generateUniqueFieldSlug } from '@/lib/csv-parser';
 import { FieldTypeConfig } from './FieldTypeConfig';
 import { FieldValidationRules } from './FieldValidationRules';
@@ -60,7 +60,7 @@ export function EoFieldFormDialog({
   const [savingViews, setSavingViews] = useState(false);
   const [hasEoCardViews, setHasEoCardViews] = useState<boolean | null>(null);
 
-  const { data: referentials = [] } = useReferentials();
+  const { data: listes = [] } = useListes();
 
   // View selection (step 2)
   const {
@@ -359,7 +359,7 @@ export function EoFieldFormDialog({
             isSystemIsActive={isSystemIsActive}
             showOptions={showOptions}
             isTextType={isTextType}
-            referentials={referentials}
+            referentials={listes}
           />
 
           <FieldValidationRules

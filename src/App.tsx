@@ -40,10 +40,10 @@ const UsersImportPage = lazy(() => import("./pages/admin/UsersImportPage"));
 const UserFieldsPage = lazy(() => import("./pages/admin/UserFieldsPage"));
 const UserFieldsArchivedPage = lazy(() => import("./pages/admin/UserFieldsArchivedPage"));
 
-// Lazy-loaded pages — Referentials
-const ReferentialsPage = lazy(() => import("./pages/admin/ReferentialsPage"));
-const ReferentialsImportPage = lazy(() => import("./pages/admin/ReferentialsImportPage"));
-const ReferentialsArchivedPage = lazy(() => import("./pages/admin/ReferentialsArchivedPage"));
+// Lazy-loaded pages — Listes
+const ListesPage = lazy(() => import("./pages/admin/ListesPage"));
+const ListesImportPage = lazy(() => import("./pages/admin/ListesImportPage"));
+const ListesArchivedPage = lazy(() => import("./pages/admin/ListesArchivedPage"));
 
 // Lazy-loaded pages — Profile Templates
 const ProfileTemplatesPage = lazy(() => import("./pages/admin/ProfileTemplatesPage"));
@@ -135,7 +135,7 @@ const App = () => (
                 <Route path="business-objects/*" element={<LegacyRedirect base="business-objects" />} />
                 <Route path="users/*" element={<LegacyRedirect base="users" />} />
                 <Route path="entities/*" element={<LegacyRedirect base="entities" />} />
-                <Route path="referentials/*" element={<LegacyRedirect base="referentials" />} />
+                <Route path="listes/*" element={<LegacyRedirect base="listes" />} />
                 <Route path="roles/*" element={<LegacyRedirect base="roles" />} />
                 <Route path="modules/*" element={<LegacyRedirect base="modules" />} />
                 <Route path="workflows" element={<LegacyRedirect base="workflows" />} />
@@ -157,9 +157,9 @@ const App = () => (
                   <Route path="entities/fields/archived" element={<EoFieldsArchivedPage />} />
                   <Route path="entities/history" element={<EoHistoryPage />} />
                   <Route path="entities/:entityId/history" element={<EoHistoryPage />} />
-                  <Route path="referentials" element={<ReferentialsPage />} />
-                  <Route path="referentials/import" element={<ReferentialsImportPage />} />
-                  <Route path="referentials/archived" element={<ReferentialsArchivedPage />} />
+                  <Route path="listes" element={<ListesPage />} />
+                  <Route path="listes/import" element={<ListesImportPage />} />
+                  <Route path="listes/archived" element={<ListesArchivedPage />} />
                   <Route path="profiles" element={<ProfileTemplatesPage />} />
                   <Route path="profiles/archived" element={<ProfileTemplatesArchivedPage />} />
                   <Route path="business-objects" element={<BusinessObjectsPage />} />

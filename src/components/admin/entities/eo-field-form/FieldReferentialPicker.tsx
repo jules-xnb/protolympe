@@ -4,8 +4,7 @@ import {
   ChevronsUpDown,
   Check,
 } from 'lucide-react';
-import type { Referential } from '@/hooks/useReferentials';
-import { useReferentialValues } from '@/hooks/useReferentialValues';
+import type { Liste } from '@/hooks/useListes';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -16,7 +15,7 @@ import type { FieldTypeConfigFormData } from './FieldTypeConfig';
 interface FieldReferentialPickerProps {
   formData: FieldTypeConfigFormData;
   onFormDataChange: (updater: (prev: FieldTypeConfigFormData) => FieldTypeConfigFormData) => void;
-  referentials: Referential[];
+  referentials: Liste[];
   referentialValues: Array<{ id: string; label: string }>;
 }
 

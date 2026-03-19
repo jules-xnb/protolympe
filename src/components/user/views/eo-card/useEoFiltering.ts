@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { applyFilters } from '@/components/admin/dynamic-filters-utils';
 import type { FilterColumn, FilterRule, FilterLogic } from '@/components/admin/DynamicFilters';
 import { useEoFieldDefinitions } from '@/hooks/useEoFieldDefinitions';
-import { useAllReferentialValues } from '@/hooks/useReferentialValues';
+import { useAllListeValues } from '@/hooks/useListeValues';
 import {
   fetchEoFieldValuesForEos,
   matchesPreFilterValue,
@@ -95,7 +95,7 @@ export function useEoFiltering({
       .map(f => ({ referential_id: (f.settings?.referential_id as string) ?? null })),
     [fieldDefinitions],
   );
-  const { data: refValuesMap } = useAllReferentialValues(fieldsWithRef);
+  const { data: refValuesMap } = useAllListeValues(fieldsWithRef);
 
   // Get options for select fields (must be before filterColumns)
   const getFieldOptions = useCallback((fieldId: string): { value: string; label: string }[] => {

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { applyFilters } from '@/components/admin/dynamic-filters-utils';
 import type { FilterColumn, FilterRule, FilterLogic } from '@/components/admin/DynamicFilters';
 import { useEoFieldDefinitions } from '@/hooks/useEoFieldDefinitions';
-import { useAllReferentialValues } from '@/hooks/useReferentialValues';
+import { useAllListeValues } from '@/hooks/useListeValues';
 import { fetchEoFieldValuesForEos, normalizeJsonbScalar } from '@/components/user/views/eo-card/eo-field-filtering';
 import { useOrganizationalEntities } from '@/hooks/useOrganizationalEntities';
 import { useEoGroups } from '@/hooks/useEoGroups';
@@ -43,7 +43,7 @@ export function usePerimeterSelection(clientId?: string) {
       .map(f => ({ referential_id: f.settings?.referential_id as string | null })),
     [activeEoFieldDefs],
   );
-  const { data: refValuesMap } = useAllReferentialValues(fieldsWithRef);
+  const { data: refValuesMap } = useAllListeValues(fieldsWithRef);
 
   const NATIVE_FIELD_IDS = useMemo(() => new Set(['name', 'code']), []);
 

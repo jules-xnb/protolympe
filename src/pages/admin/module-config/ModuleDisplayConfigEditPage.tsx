@@ -72,11 +72,13 @@ import {
   type FilterField,
   type Prefilter,
   type DisplayTab,
+  type ModuleField,
   type GestionnaireConfig,
   type RepondantConfig,
   type UserAnonymizableField,
   type UserFieldAnonymization,
 } from '@/lib/module-display-fields';
+import { getFieldTypeLabel, getFieldTypeIcon } from '@/lib/field-type-registry';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -126,15 +128,34 @@ const ANONYMIZABLE_FIELDS: { field: UserAnonymizableField; label: string }[] = [
 
 type FieldCategory = 'text' | 'number' | 'boolean' | 'select' | 'date' | 'reference' | 'other';
 
-function getFieldCategory(fieldId: string): FieldCategory {
-  const numberFields = ['employee_count'];
-  const booleanFields = ['is_active'];
-  const selectFields = ['country'];
+const TYPE_TO_CATEGORY: Record<string, FieldCategory> = {
+  text: 'text', textarea: 'text', email: 'text', phone: 'text', url: 'text',
+  number: 'number', decimal: 'number',
+  boolean: 'boolean', checkbox: 'boolean',
+  select: 'select', multiselect: 'select',
+  date: 'date', datetime: 'date', time: 'date',
+  user_reference: 'reference', eo_reference: 'reference', object_reference: 'reference',
+};
 
-  if (numberFields.includes(fieldId)) return 'number';
-  if (booleanFields.includes(fieldId)) return 'boolean';
-  if (selectFields.includes(fieldId)) return 'select';
+function getFieldCategory(fieldId: string, moduleFields?: ModuleField[]): FieldCategory {
+  const field = moduleFields?.find(f => f.id === fieldId);
+  if (field?.type) return TYPE_TO_CATEGORY[field.type] ?? 'other';
   return 'text';
+}
+
+/** Inline chip showing the field type icon + label */
+function FieldTypeChip({ fieldId, moduleFields }: { fieldId: string; moduleFields: ModuleField[] }) {
+  const field = moduleFields.find(f => f.id === fieldId);
+  const fieldType = field?.type;
+  if (!fieldType) return null;
+  const Icon = getFieldTypeIcon(fieldType);
+  const label = getFieldTypeLabel(fieldType);
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </span>
+  );
 }
 
 const OPERATORS_BY_CATEGORY: Record<FieldCategory, string[]> = {
@@ -151,7 +172,7 @@ const OPERATORS_BY_CATEGORY: Record<FieldCategory, string[]> = {
 // Sortable row components
 // ---------------------------------------------------------------------------
 
-function SortableColumnRow({ column, onToggleVisibility }: { column: ListColumn; onToggleVisibility: () => void }) {
+function SortableColumnRow({ column, moduleFields, onToggleVisibility }: { column: ListColumn; moduleFields: ModuleField[]; onToggleVisibility: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.field_id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
 
@@ -163,6 +184,7 @@ function SortableColumnRow({ column, onToggleVisibility }: { column: ListColumn;
         </button>
       </TableCell>
       <TableCell className="font-medium">{column.field_name}</TableCell>
+      <TableCell><FieldTypeChip fieldId={column.field_id} moduleFields={moduleFields} /></TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end">
           <Switch checked={column.visible} onCheckedChange={onToggleVisibility} />
@@ -172,7 +194,7 @@ function SortableColumnRow({ column, onToggleVisibility }: { column: ListColumn;
   );
 }
 
-function SortableFilterRow({ filter, onRemove }: { filter: FilterField; onRemove: () => void }) {
+function SortableFilterRow({ filter, moduleFields, onRemove }: { filter: FilterField; moduleFields: ModuleField[]; onRemove: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: filter.field_id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
 
@@ -184,6 +206,7 @@ function SortableFilterRow({ filter, onRemove }: { filter: FilterField; onRemove
         </button>
       </TableCell>
       <TableCell className="font-medium">{filter.field_name}</TableCell>
+      <TableCell><FieldTypeChip fieldId={filter.field_id} moduleFields={moduleFields} /></TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end">
           <Switch checked onCheckedChange={onRemove} />
@@ -195,10 +218,12 @@ function SortableFilterRow({ filter, onRemove }: { filter: FilterField; onRemove
 
 function SortableDrawerFieldRow({
   field,
+  moduleFields,
   onToggleVisible,
   onToggleEditable,
 }: {
   field: DrawerField;
+  moduleFields: ModuleField[];
   onToggleVisible: () => void;
   onToggleEditable: () => void;
 }) {
@@ -211,6 +236,7 @@ function SortableDrawerFieldRow({
         <GripVertical className="h-4 w-4" />
       </button>
       <span className="flex-1 text-sm font-medium">{field.field_name}</span>
+      <FieldTypeChip fieldId={field.field_id} moduleFields={moduleFields} />
       <Switch checked={field.visible} onCheckedChange={onToggleVisible} />
       <Switch checked={field.editable} disabled={!field.visible} onCheckedChange={onToggleEditable} />
     </div>
@@ -220,6 +246,7 @@ function SortableDrawerFieldRow({
 function DroppableFieldList({
   containerId,
   fields,
+  moduleFields,
   onToggleVisible,
   onToggleEditable,
   selectable,
@@ -228,6 +255,7 @@ function DroppableFieldList({
 }: {
   containerId: string;
   fields: DrawerField[];
+  moduleFields: ModuleField[];
   onToggleVisible: (fieldId: string) => void;
   onToggleEditable: (fieldId: string) => void;
   selectable?: boolean;
@@ -254,6 +282,7 @@ function DroppableFieldList({
             <div className="flex-1">
               <SortableDrawerFieldRow
                 field={field}
+                moduleFields={moduleFields}
                 onToggleVisible={() => onToggleVisible(field.field_id)}
                 onToggleEditable={() => onToggleEditable(field.field_id)}
               />
@@ -267,6 +296,7 @@ function DroppableFieldList({
 
 function DrawerSectionBlock({
   section,
+  moduleFields,
   onRename,
   onDelete,
   onToggleVisible,
@@ -277,6 +307,7 @@ function DrawerSectionBlock({
   isLast,
 }: {
   section: DrawerSection;
+  moduleFields: ModuleField[];
   onRename: (name: string) => void;
   onDelete: () => void;
   onToggleVisible: (fieldId: string) => void;
@@ -322,6 +353,7 @@ function DrawerSectionBlock({
       <DroppableFieldList
         containerId={section.id}
         fields={section.fields}
+        moduleFields={moduleFields}
         onToggleVisible={onToggleVisible}
         onToggleEditable={onToggleEditable}
       />
@@ -824,6 +856,7 @@ export default function ModuleDisplayConfigEditPage() {
                     <TableRow>
                       <TableHead className="w-[40px]" />
                       <TableHead>Champ</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead className="text-right">Visible</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -832,6 +865,7 @@ export default function ModuleDisplayConfigEditPage() {
                       <SortableColumnRow
                         key={col.field_id}
                         column={col}
+                        moduleFields={fields}
                         onToggleVisibility={() => toggleColumnVisibility(col.field_id)}
                       />
                     ))}
@@ -859,36 +893,36 @@ export default function ModuleDisplayConfigEditPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Champ</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead className="text-center w-[100px]">Visible</TableHead>
                     <TableHead className="text-center w-[100px]">Éditable</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {(localConfig.drawer_system_fields ?? []).map((field) => {
-                    const isLocked = ['name', 'parent', 'level'].includes(field.field_id);
+                    // Niveau is always read-only (editable forced off)
+                    const isReadOnly = field.field_id === 'level';
                     return (
                       <TableRow key={field.field_id}>
                         <TableCell className="font-medium">
                           {field.field_name}
-                          {field.field_id === 'level' && (
+                          {isReadOnly && (
                             <span className="ml-2 text-xs text-muted-foreground">(lecture seule)</span>
                           )}
                         </TableCell>
+                        <TableCell><FieldTypeChip fieldId={field.field_id} moduleFields={fields} /></TableCell>
                         <TableCell className="text-center">
                           <div className="flex justify-center">
-                            {isLocked ? (
-                              <Switch checked disabled />
-                            ) : (
-                              <Switch checked={field.visible} onCheckedChange={() => toggleSystemFieldVisible(field.field_id)} />
-                            )}
+                            {/* All system fields are always visible */}
+                            <Switch checked disabled />
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex justify-center">
-                            {isLocked ? (
-                              <Switch checked disabled />
+                            {isReadOnly ? (
+                              <Switch checked={false} disabled />
                             ) : (
-                              <Switch checked={field.editable} disabled={!field.visible} onCheckedChange={() => toggleSystemFieldEditable(field.field_id)} />
+                              <Switch checked={field.editable} onCheckedChange={() => toggleSystemFieldEditable(field.field_id)} />
                             )}
                           </div>
                         </TableCell>
@@ -925,6 +959,7 @@ export default function ModuleDisplayConfigEditPage() {
                 <DrawerSectionBlock
                   key={section.id}
                   section={section}
+                  moduleFields={fields}
                   onRename={(name) => renameDrawerSection(section.id, name)}
                   onDelete={() => deleteDrawerSection(section.id)}
                   onToggleVisible={(fieldId) => toggleDrawerFieldVisible(fieldId, section.id)}
@@ -968,6 +1003,7 @@ export default function ModuleDisplayConfigEditPage() {
                 <DroppableFieldList
                   containerId="unassigned"
                   fields={localConfig.drawer_unassigned_fields ?? []}
+                  moduleFields={fields}
                   onToggleVisible={(fieldId) => toggleDrawerFieldVisible(fieldId, 'unassigned')}
                   onToggleEditable={(fieldId) => toggleDrawerFieldEditable(fieldId, 'unassigned')}
                   selectable
@@ -1162,6 +1198,7 @@ export default function ModuleDisplayConfigEditPage() {
                       <TableRow>
                         <TableHead className="w-[40px]" />
                         <TableHead>Champ</TableHead>
+                        <TableHead>Type</TableHead>
                         <TableHead className="text-right">Filtrable</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1170,6 +1207,7 @@ export default function ModuleDisplayConfigEditPage() {
                         <SortableFilterRow
                           key={filter.field_id}
                           filter={filter}
+                          moduleFields={fields}
                           onRemove={() => toggleFilter(filter.field_id)}
                         />
                       ))}
@@ -1184,6 +1222,7 @@ export default function ModuleDisplayConfigEditPage() {
                   <TableRow>
                     <TableHead className="w-[40px]" />
                     <TableHead>Champ</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead className="text-right">Filtrable</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1192,6 +1231,7 @@ export default function ModuleDisplayConfigEditPage() {
                     <TableRow key={field.id}>
                       <TableCell className="w-[40px]" />
                       <TableCell className="font-medium text-muted-foreground">{field.name}</TableCell>
+                      <TableCell><FieldTypeChip fieldId={field.id} moduleFields={fields} /></TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end">
                           <Switch checked={false} onCheckedChange={() => toggleFilter(field.id)} />
@@ -1208,162 +1248,167 @@ export default function ModuleDisplayConfigEditPage() {
         {/* Tab: Pré-filtres */}
         {tabs.includes('prefilters') && (
           <TabsContent value="prefilters" className="pt-4">
-            <div className="flex items-center justify-between mb-4">
-              {(localConfig.prefilters ?? []).length >= 2 && (
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm">Opérateur logique :</Label>
-                  <Select
-                    value={localConfig.prefilter_logic ?? 'and'}
-                    onValueChange={(v) => update({ prefilter_logic: v as 'and' | 'or' })}
-                  >
-                    <SelectTrigger className="w-24 h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="and">AND</SelectItem>
-                      <SelectItem value="or">OR</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <Button size="sm" variant="outline" onClick={addPrefilter} className="ml-auto">
+            <div className="flex justify-end mb-4">
+              <Button size="sm" variant="outline" onClick={addPrefilter}>
                 Ajouter une condition <Plus className="h-4 w-4" />
               </Button>
             </div>
             {(localConfig.prefilters ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">Aucun pré-filtre configuré.</p>
             ) : (
-              <div className="space-y-2">
-                {(localConfig.prefilters ?? []).map((pf, idx) => {
-                  const category = getFieldCategory(pf.field_id);
-                  const availableOperators = OPERATORS_BY_CATEGORY[category];
-                  const hideValue = pf.operator === 'is_empty' || pf.operator === 'is_not_empty';
-                  const isBetween = pf.operator === 'between';
-                  const isBoolean = category === 'boolean';
-                  const isDate = category === 'date';
-                  const isNumber = category === 'number';
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Champ</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Opérateur</TableHead>
+                    <TableHead>Valeur</TableHead>
+                    <TableHead className="text-center w-[100px]">Modifiable</TableHead>
+                    <TableHead className="w-[50px]" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(localConfig.prefilters ?? []).map((pf, idx) => {
+                    const category = getFieldCategory(pf.field_id, fields);
+                    const availableOperators = OPERATORS_BY_CATEGORY[category];
+                    const hideValue = pf.operator === 'is_empty' || pf.operator === 'is_not_empty';
+                    const isBetween = pf.operator === 'between';
+                    const isBoolean = category === 'boolean';
+                    const isDate = category === 'date';
+                    const isNumber = category === 'number';
 
-                  return (
-                    <div key={idx}>
-                      {idx > 0 && (
-                        <div className="flex justify-center py-1">
-                          <span className="text-xs font-medium text-muted-foreground bg-muted px-3 py-0.5 rounded-full">
-                            {(localConfig.prefilter_logic ?? 'and').toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <Select
-                          value={pf.field_id}
-                          onValueChange={(v) => {
-                            const field = fields.find((f) => f.id === v)!;
-                            updatePrefilter(idx, { field_id: v, field_name: field.name });
-                          }}
-                        >
-                          <SelectTrigger className="w-[180px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {fields.map((f) => (
-                              <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-                        <Select
-                          value={pf.operator}
-                          onValueChange={(v) => updatePrefilter(idx, { operator: v as Prefilter['operator'] })}
-                        >
-                          <SelectTrigger className="w-[160px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableOperators.map((op) => (
-                              <SelectItem key={op} value={op}>{OPERATOR_LABELS[op]}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-                        {!hideValue && (
-                          <div className="flex items-center gap-2 flex-1">
-                            {isBoolean ? (
-                              <Select
-                                value={pf.value ?? ''}
-                                onValueChange={(v) => updatePrefilter(idx, { value: v })}
-                              >
-                                <SelectTrigger className="w-[120px]">
-                                  <SelectValue placeholder="—" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="true">Oui</SelectItem>
-                                  <SelectItem value="false">Non</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            ) : isDate ? (
-                              <>
-                                <Input
-                                  type="date"
-                                  value={pf.value ?? ''}
-                                  onChange={(e) => updatePrefilter(idx, { value: e.target.value })}
-                                  className="flex-1"
-                                />
-                                {isBetween && (
-                                  <>
-                                    <span className="text-sm text-muted-foreground">et</span>
-                                    <Input
-                                      type="date"
-                                      value={pf.value2 ?? ''}
-                                      onChange={(e) => updatePrefilter(idx, { value2: e.target.value })}
-                                      className="flex-1"
-                                    />
-                                  </>
-                                )}
-                              </>
-                            ) : isNumber ? (
-                              <>
-                                <Input
-                                  type="number"
-                                  value={pf.value ?? ''}
-                                  onChange={(e) => updatePrefilter(idx, { value: e.target.value })}
-                                  placeholder="Valeur"
-                                  className="flex-1"
-                                />
-                                {isBetween && (
-                                  <>
-                                    <span className="text-sm text-muted-foreground">et</span>
-                                    <Input
-                                      type="number"
-                                      value={pf.value2 ?? ''}
-                                      onChange={(e) => updatePrefilter(idx, { value2: e.target.value })}
-                                      placeholder="Valeur"
-                                      className="flex-1"
-                                    />
-                                  </>
-                                )}
-                              </>
-                            ) : (
+                    return (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <Select
+                            value={pf.field_id}
+                            onValueChange={(v) => {
+                              const field = fields.find((f) => f.id === v)!;
+                              updatePrefilter(idx, { field_id: v, field_name: field.name });
+                            }}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {fields.map((f) => (
+                                <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell><FieldTypeChip fieldId={pf.field_id} moduleFields={fields} /></TableCell>
+                        <TableCell>
+                          <Select
+                            value={pf.operator}
+                            onValueChange={(v) => updatePrefilter(idx, { operator: v as Prefilter['operator'] })}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableOperators.map((op) => (
+                                <SelectItem key={op} value={op}>{OPERATOR_LABELS[op]}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          {hideValue ? (
+                            <span className="text-muted-foreground text-sm">—</span>
+                          ) : isBoolean ? (
+                            <Select
+                              value={pf.value ?? ''}
+                              onValueChange={(v) => updatePrefilter(idx, { value: v })}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="—" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="true">Oui</SelectItem>
+                                <SelectItem value="false">Non</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : isDate ? (
+                            <div className="flex items-center gap-2">
                               <Input
+                                type="date"
+                                value={pf.value ?? ''}
+                                onChange={(e) => updatePrefilter(idx, { value: e.target.value })}
+                              />
+                              {isBetween && (
+                                <>
+                                  <span className="text-sm text-muted-foreground">et</span>
+                                  <Input
+                                    type="date"
+                                    value={pf.value2 ?? ''}
+                                    onChange={(e) => updatePrefilter(idx, { value2: e.target.value })}
+                                  />
+                                </>
+                              )}
+                            </div>
+                          ) : isNumber ? (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
                                 value={pf.value ?? ''}
                                 onChange={(e) => updatePrefilter(idx, { value: e.target.value })}
                                 placeholder="Valeur"
-                                className="flex-1"
                               />
-                            )}
+                              {isBetween && (
+                                <>
+                                  <span className="text-sm text-muted-foreground">et</span>
+                                  <Input
+                                    type="number"
+                                    value={pf.value2 ?? ''}
+                                    onChange={(e) => updatePrefilter(idx, { value2: e.target.value })}
+                                    placeholder="Valeur"
+                                  />
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <Input
+                              value={pf.value ?? ''}
+                              onChange={(e) => updatePrefilter(idx, { value: e.target.value })}
+                              placeholder="Valeur"
+                            />
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex justify-center">
+                            <Switch
+                              checked={pf.is_user_editable}
+                              onCheckedChange={(checked) => updatePrefilter(idx, { is_user_editable: checked })}
+                            />
                           </div>
-                        )}
-
-                        <Switch
-                          checked={pf.is_user_editable}
-                          onCheckedChange={(checked) => updatePrefilter(idx, { is_user_editable: checked })}
-                        />
-
-                        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => removePrefilter(idx)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" onClick={() => removePrefilter(idx)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+            {(localConfig.prefilters ?? []).length >= 2 && (
+              <div className="flex items-center gap-2 mt-4">
+                <Label className="text-sm">Opérateur logique entre les conditions :</Label>
+                <Select
+                  value={localConfig.prefilter_logic ?? 'and'}
+                  onValueChange={(v) => update({ prefilter_logic: v as 'and' | 'or' })}
+                >
+                  <SelectTrigger className="w-24 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="and">AND</SelectItem>
+                    <SelectItem value="or">OR</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </TabsContent>

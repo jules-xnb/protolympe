@@ -9,17 +9,17 @@ import { Input } from '@/components/ui/input';
 import { Check, X, Tag, Archive } from 'lucide-react';
 import { Chip } from '@/components/ui/chip';
 import { toast } from 'sonner';
-import type { Referential } from '@/hooks/useReferentials';
+import type { Liste } from '@/hooks/useListes';
 
 interface DrawerHeaderProps {
-  referential: Referential | null;
-  onUpdateReferential: (data: { id: string; name?: string; description?: string | null; tag?: string | null }) => Promise<void>;
+  liste: Liste | null;
+  onUpdateListe: (data: { id: string; name?: string; description?: string | null; tag?: string | null }) => Promise<void>;
   isPending: boolean;
   showArchive?: boolean;
   onArchive?: () => void;
 }
 
-export function DrawerHeader({ referential, onUpdateReferential, isPending, showArchive, onArchive }: DrawerHeaderProps) {
+export function DrawerHeader({ liste, onUpdateListe, isPending, showArchive, onArchive }: DrawerHeaderProps) {
   const [isEditingTag, setIsEditingTag] = useState(false);
   const [editTag, setEditTag] = useState('');
 
@@ -27,7 +27,7 @@ export function DrawerHeader({ referential, onUpdateReferential, isPending, show
     <SheetHeader className="flex-row items-start justify-between space-y-0">
       {/* Left: title + tag */}
       <div className="flex flex-col gap-1 flex-1 min-w-0 pr-2">
-        <SheetTitle className="truncate">{referential?.name}</SheetTitle>
+        <SheetTitle className="truncate">{liste?.name}</SheetTitle>
 
         <div className="mt-1">
           {isEditingTag ? (
@@ -35,9 +35,9 @@ export function DrawerHeader({ referential, onUpdateReferential, isPending, show
               className="flex items-center gap-1"
               onSubmit={async (e) => {
                 e.preventDefault();
-                if (!referential) return;
+                if (!liste) return;
                 try {
-                  await onUpdateReferential({ id: referential.id, tag: editTag.trim() || null });
+                  await onUpdateListe({ id: liste.id, tag: editTag.trim() || null });
                   setIsEditingTag(false);
                   toast.success('Tag mis à jour');
                 } catch (err: unknown) {
@@ -65,13 +65,13 @@ export function DrawerHeader({ referential, onUpdateReferential, isPending, show
               variant="outline"
               className="cursor-pointer gap-1.5 text-xs font-normal"
               onClick={() => {
-                setEditTag(referential?.tag || '');
+                setEditTag(liste?.tag || '');
                 setIsEditingTag(true);
               }}
               title="Cliquer pour modifier le tag"
             >
               <Tag className="h-3 w-3" />
-              {referential?.tag || <span className="italic text-muted-foreground">Ajouter un tag</span>}
+              {liste?.tag || <span className="italic text-muted-foreground">Ajouter un tag</span>}
             </Chip>
           )}
         </div>

@@ -34,8 +34,8 @@ import {
   useUpdateFieldDefinition,
   type FieldDefinitionWithRelations,
 } from '@/hooks/useFieldDefinitions';
-import { useReferentials } from '@/hooks/useReferentials';
-import { useReferentialValues } from '@/hooks/useReferentialValues';
+import { useListes } from '@/hooks/useListes';
+import { useListeValues } from '@/hooks/useListeValues';
 import { useBusinessObjectDefinitions } from '@/hooks/useBusinessObjectDefinitions';
 import { useEoFieldDefinitions } from '@/hooks/useEoFieldDefinitions';
 import { useUserFieldDefinitions } from '@/hooks/useUserFieldDefinitions';
@@ -79,7 +79,7 @@ export function FieldDefinitionFormDialog({
 }: FieldDefinitionFormDialogProps) {
   const createMutation = useCreateFieldDefinition();
   const updateMutation = useUpdateFieldDefinition();
-  const { data: referentials = [] } = useReferentials();
+  const { data: listes = [] } = useListes();
   const { data: businessObjects = [] } = useBusinessObjectDefinitions();
   const { selectedClient } = useViewMode();
   const { data: eoFieldDefs = [] } = useEoFieldDefinitions(selectedClient?.id);
@@ -123,7 +123,7 @@ export function FieldDefinitionFormDialog({
   });
 
   const showReferential = ['select', 'multiselect'].includes(formData.field_type);
-  const { data: referentialValues = [] } = useReferentialValues(showReferential ? formData.referential_id : undefined);
+  const { data: listeValues = [] } = useListeValues(showReferential ? formData.referential_id : undefined);
   const showObjectReference = formData.field_type === 'object_reference';
   const showFormula = formData.field_type === 'calculated';
   const showDocumentConfig = formData.field_type === 'document';
@@ -473,7 +473,7 @@ export function FieldDefinitionFormDialog({
                     className="w-full justify-between font-normal"
                   >
                     {formData.referential_id
-                      ? referentials.find((r: { id: string; name: string }) => r.id === formData.referential_id)?.name || 'Sélectionner une liste'
+                      ? listes.find((r: { id: string; name: string }) => r.id === formData.referential_id)?.name || 'Sélectionner une liste'
                       : 'Sélectionner une liste'}
                     <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -494,7 +494,7 @@ export function FieldDefinitionFormDialog({
                           <Check className={cn('h-4 w-4 mr-2', !formData.referential_id ? 'opacity-100' : 'opacity-0')} />
                           Aucune
                         </CommandItem>
-                        {referentials.map((ref: { id: string; name: string }) => (
+                        {listes.map((ref: { id: string; name: string }) => (
                           <CommandItem
                             key={ref.id}
                             value={ref.name}
@@ -515,15 +515,15 @@ export function FieldDefinitionFormDialog({
               <p className="text-xs text-muted-foreground">Les valeurs seront issues de cette liste</p>
 
               {/* Default value picker */}
-              {formData.referential_id && referentialValues.length > 0 && (() => {
+              {formData.referential_id && listeValues.length > 0 && (() => {
                 const isMulti = formData.field_type === 'multiselect';
                 const selectedIds = isMulti && formData.default_value ? formData.default_value.split(',').filter(Boolean) : [];
                 const selectedLabels = isMulti
-                  ? selectedIds.map(id => referentialValues.find(rv => rv.id === id)?.label).filter(Boolean)
+                  ? selectedIds.map(id => listeValues.find(rv => rv.id === id)?.label).filter(Boolean)
                   : [];
                 const displayLabel = isMulti
                   ? (selectedLabels.length > 0 ? selectedLabels.join(', ') : 'Aucune')
-                  : (formData.default_value ? referentialValues.find(rv => rv.id === formData.default_value)?.label || 'Aucune' : 'Aucune');
+                  : (formData.default_value ? listeValues.find(rv => rv.id === formData.default_value)?.label || 'Aucune' : 'Aucune');
                 return (
                 <div className="space-y-2 mt-3">
                   <Label>Valeur{isMulti ? 's' : ''} par défaut</Label>
@@ -557,7 +557,7 @@ export function FieldDefinitionFormDialog({
                                 Aucune
                               </CommandItem>
                             )}
-                            {referentialValues.map((rv) => {
+                            {listeValues.map((rv) => {
                               const isSelected = isMulti ? selectedIds.includes(rv.id) : formData.default_value === rv.id;
                               return (
                                 <CommandItem

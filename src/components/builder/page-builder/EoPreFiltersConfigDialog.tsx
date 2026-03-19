@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Plus, Trash2, Filter } from 'lucide-react';
 import type { EoPreFilterConfig, PreFilterOperator } from './types';
 import type { EoFieldDefinition } from '@/hooks/useEoFieldDefinitions';
-import { useReferentialWithValues } from '@/hooks/useReferentials';
+import { useListeWithValues } from '@/hooks/useListes';
 
 const FILTERABLE_FIELD_TYPES = ['text', 'number', 'select', 'boolean', 'date'];
 
@@ -45,7 +45,7 @@ function SelectOptionsForField({
   value: string; 
   onChange: (val: string) => void;
 }) {
-  const { data, isLoading } = useReferentialWithValues(referentialId);
+  const { data, isLoading } = useListeWithValues(referentialId);
   
   // Use referential values if available, otherwise use inline options
   const options = referentialId && data?.values 

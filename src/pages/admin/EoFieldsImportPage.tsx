@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useViewMode } from '@/contexts/ViewModeContext';
 import { useEoFieldDefinitions } from '@/hooks/useEoFieldDefinitions';
-import { useReferentials } from '@/hooks/useReferentials';
+import { useListes } from '@/hooks/useListes';
 import { ImportWizard } from '@/components/admin/import/ImportWizard';
 import { generateUniqueFieldSlug, parseBoolean } from '@/lib/csv-parser';
 import {
@@ -100,14 +100,14 @@ export default function EoFieldsImportPage() {
   const { selectedClient } = useViewMode();
   const clientId = selectedClient?.id || '';
   const { data: existingFields = [] } = useEoFieldDefinitions(clientId || undefined);
-  const { data: referentials = [] } = useReferentials();
+  const { data: listes = [] } = useListes();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggle = (n: string) => setExpanded(p => { const s = new Set(p); if (s.has(n)) { s.delete(n); } else { s.add(n); } return s; });
 
   // Build a map of referential name (lowercase) → id for quick lookup
   const referentialsByName = new Map(
-    referentials.map((r: { id: string; name: string }) => [r.name.toLowerCase(), r.id])
+    listes.map((r: { id: string; name: string }) => [r.name.toLowerCase(), r.id])
   );
 
   // -- buildPreview --

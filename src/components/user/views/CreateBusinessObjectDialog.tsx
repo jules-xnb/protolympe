@@ -137,7 +137,7 @@ export function CreateBusinessObjectDialog({
   }, [formFields, fieldDefinitions]);
 
   const { data: referentialValues = {} } = useQuery<Record<string, ReferentialValue[]>>({
-    queryKey: queryKeys.referentialValues.forBo(referentialIds),
+    queryKey: queryKeys.listeValues.forBo(referentialIds),
     queryFn: async () => {
       if (referentialIds.length === 0) return {};
       const data = await api.get<ReferentialValueWithGroup[]>(`/api/referentials/values?referential_ids=${referentialIds.join(',')}&is_active=true`);

@@ -7,9 +7,9 @@ import { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/admin/DataTable';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { DeleteConfirmDialog } from '@/components/admin/DeleteConfirmDialog';
-import { ReferentialFormDialog } from '@/components/admin/referentials/ReferentialFormDialog';
+import { ListeFormDialog } from '@/components/admin/listes/ListeFormDialog';
 
-import { ReferentialValuesDrawer } from '@/components/admin/referentials/ReferentialValuesDrawer';
+import { ListeValuesDrawer } from '@/components/admin/listes/ListeValuesDrawer';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -20,48 +20,48 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useReferentials, useDeleteReferential, type Referential } from '@/hooks/useReferentials';
+import { useListes, useDeleteListe, type Liste } from '@/hooks/useListes';
 import { useViewMode } from '@/contexts/ViewModeContext';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Database, Upload, Tag, Download, ArrowUpDown, Archive } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { toast } from 'sonner';
 
-export default function ReferentialsPage() {
+export default function ListesPage() {
   const navigate = useNavigate();
   const cp = useClientPath();
   const { selectedClient } = useViewMode();
-  const { data: referentials = [], isLoading } = useReferentials();
-  const deleteMutation = useDeleteReferential();
+  const { data: listes = [], isLoading } = useListes();
+  const deleteMutation = useDeleteListe();
 
 
   const [formOpen, setFormOpen] = useState(false);
-  const valuesDrawer = useDialogState<Referential>();
-  const deleteDialog = useDialogState<Referential>();
+  const valuesDrawer = useDialogState<Liste>();
+  const deleteDialog = useDialogState<Liste>();
 
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [tagFilterOpen, setTagFilterOpen] = useState(false);
 
-  // Get unique tags from referentials
+  // Get unique tags from listes
   const availableTags = useMemo(() => {
     const tags = new Set<string>();
-    referentials.forEach((r: Referential) => {
+    listes.forEach((r: Liste) => {
       if (r.tag) tags.add(r.tag);
     });
     return Array.from(tags).sort();
-  }, [referentials]);
+  }, [listes]);
 
-  // Filter referentials by selected tag
-  const filteredReferentials = useMemo(() => {
-    if (selectedTags.size === 0) return referentials;
-    return referentials.filter((r: Referential) => r.tag && selectedTags.has(r.tag));
-  }, [referentials, selectedTags]);
-
-
+  // Filter listes by selected tag
+  const filteredListes = useMemo(() => {
+    if (selectedTags.size === 0) return listes;
+    return listes.filter((r: Liste) => r.tag && selectedTags.has(r.tag));
+  }, [listes, selectedTags]);
 
 
-  const handleRowClick = (referential: Referential) => {
-    valuesDrawer.open(referential);
+
+
+  const handleRowClick = (liste: Liste) => {
+    valuesDrawer.open(liste);
   };
 
   const handleDelete = async () => {
@@ -69,7 +69,7 @@ export default function ReferentialsPage() {
 
     try {
       await deleteMutation.mutateAsync(deleteDialog.item.id);
-      toast.success('Référentiel supprimé');
+      toast.success('Liste supprimée');
       deleteDialog.close();
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Erreur lors de la suppression');
@@ -77,10 +77,10 @@ export default function ReferentialsPage() {
   };
 
   const handleExport = async () => {
-    if (referentials.length === 0) return;
+    if (listes.length === 0) return;
 
-    // Fetch all values for all referentials in one query
-    const refIds = referentials.map((r: Referential) => r.id);
+    // Fetch all values for all listes in one query
+    const refIds = listes.map((r: Liste) => r.id);
     let allValues: Array<{ id: string; referential_id: string; code: string; label: string; description: string | null; color: string | null; parent_value_id: string | null; display_order: number }>;
     try {
       allValues = await api.get<typeof allValues>(
@@ -104,8 +104,8 @@ export default function ReferentialsPage() {
     const csvRows: string[] = [];
     csvRows.push(['referential_name', 'referential_slug', 'referential_tag', 'value_code', 'value_label', 'value_description', 'value_color', 'parent_code'].join(';'));
 
-    // Group values by referential, keeping referentials without values too
-    for (const ref of referentials) {
+    // Group values by liste, keeping listes without values too
+    for (const ref of listes) {
       const refValues = (allValues || []).filter(v => v.referential_id === ref.id);
       if (refValues.length === 0) {
         csvRows.push([ref.name, ref.slug, ref.tag || '', '', '', '', '', ''].join(';'));
@@ -124,13 +124,13 @@ export default function ReferentialsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `referentiels_${selectedClient?.slug || 'export'}.csv`;
+    a.download = `listes_${selectedClient?.slug || 'export'}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Export CSV téléchargé');
   };
 
-  const columns: ColumnDef<Referential>[] = [
+  const columns: ColumnDef<Liste>[] = [
     {
       accessorKey: 'name',
       header: 'Nom',
@@ -172,7 +172,7 @@ export default function ReferentialsPage() {
 
   if (!selectedClient) {
     return (
-      <EmptyState icon={Database} title="Sélectionnez un client pour gérer ses référentiels" />
+      <EmptyState icon={Database} title="Sélectionnez un client pour gérer ses listes" />
     );
   }
 
@@ -186,7 +186,7 @@ export default function ReferentialsPage() {
           onClick: () => setFormOpen(true),
         }}
       >
-        <Button variant="ghost" onClick={() => navigate(cp(CLIENT_ROUTES.REFERENTIALS_ARCHIVED))}>
+        <Button variant="ghost" onClick={() => navigate(cp(CLIENT_ROUTES.LISTES_ARCHIVED))}>
           Archives
           <Archive className="h-4 w-4" />
         </Button>
@@ -198,11 +198,11 @@ export default function ReferentialsPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => navigate(cp(CLIENT_ROUTES.REFERENTIALS_IMPORT))}>
+            <DropdownMenuItem onClick={() => navigate(cp(CLIENT_ROUTES.LISTES_IMPORT))}>
               <Upload className="mr-2 h-4 w-4" />
               Importer
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleExport} disabled={referentials.length === 0}>
+            <DropdownMenuItem onClick={handleExport} disabled={listes.length === 0}>
               <Download className="mr-2 h-4 w-4" />
               Exporter
             </DropdownMenuItem>
@@ -212,7 +212,7 @@ export default function ReferentialsPage() {
 
       <DataTable
         columns={columns}
-        data={filteredReferentials}
+        data={filteredListes}
         searchColumns={['name', 'tag']}
         searchPlaceholder="Rechercher par nom ou tag..."
         isLoading={isLoading}
@@ -268,24 +268,24 @@ export default function ReferentialsPage() {
         hideColumnSelector
       />
 
-      <ReferentialFormDialog
+      <ListeFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
-        referential={null}
+        liste={null}
       />
 
-      <ReferentialValuesDrawer
+      <ListeValuesDrawer
         open={valuesDrawer.isOpen}
         onOpenChange={valuesDrawer.onOpenChange}
-        referential={valuesDrawer.item}
+        liste={valuesDrawer.item}
       />
 
       <DeleteConfirmDialog
         open={deleteDialog.isOpen}
         onOpenChange={deleteDialog.onOpenChange}
         onConfirm={handleDelete}
-        title="Supprimer le référentiel"
-        description={`Êtes-vous sûr de vouloir supprimer le référentiel "${deleteDialog.item?.name}" ? Cette action supprimera également toutes ses valeurs.`}
+        title="Supprimer la liste"
+        description={`Êtes-vous sûr de vouloir supprimer la liste "${deleteDialog.item?.name}" ? Cette action supprimera également toutes ses valeurs.`}
         isDeleting={deleteMutation.isPending}
       />
 

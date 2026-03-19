@@ -19,7 +19,7 @@ export interface ModuleField {
   defaultVisible?: boolean;
 }
 
-export type DisplayTab = 'views' | 'columns' | 'drawer' | 'filters' | 'prefilters' | 'anonymization' | 'gestionnaire' | 'repondant';
+export type DisplayTab = 'general' | 'views' | 'columns' | 'drawer' | 'filters' | 'prefilters' | 'anonymization' | 'gestionnaire' | 'repondant';
 
 export interface ModuleDisplayDefinition {
   fields: ModuleField[];
@@ -75,21 +75,21 @@ const PROFILS_FIELDS: ModuleField[] = [
 const MODULE_DISPLAY_DEFINITIONS: Record<string, ModuleDisplayDefinition> = {
   organisation: {
     fields: ORGANISATION_FIELDS,
-    tabs: ['views', 'columns', 'drawer', 'filters', 'prefilters'],
+    tabs: ['general', 'views', 'columns', 'drawer', 'filters', 'prefilters'],
     availableViews: ['list', 'tree', 'canvas'],
     defaultView: 'list',
   },
   user: {
     fields: USER_FIELDS,
-    tabs: ['columns', 'drawer', 'filters', 'anonymization'],
+    tabs: ['general', 'columns', 'drawer', 'filters', 'anonymization'],
   },
   profils: {
     fields: PROFILS_FIELDS,
-    tabs: ['columns', 'drawer'],
+    tabs: ['general', 'columns', 'drawer'],
   },
   collecte_valeur: {
     fields: [],
-    tabs: ['gestionnaire', 'repondant'],
+    tabs: ['general', 'gestionnaire', 'repondant'],
   },
 };
 
@@ -226,8 +226,11 @@ export function buildDefaultConfig(moduleSlug: string): DisplayConfigData {
     }));
 
     // New drawer structure
-    const SYSTEM_FIELD_IDS = ['name', 'parent', 'is_active'];
-    const systemFields = def.fields.filter((f) => SYSTEM_FIELD_IDS.includes(f.id));
+    const SYSTEM_FIELD_IDS = ['name', 'parent', 'level', 'is_active'];
+    const SYSTEM_FIELD_ORDER = ['name', 'parent', 'level', 'is_active'];
+    const systemFields = SYSTEM_FIELD_ORDER
+      .map(id => def.fields.find(f => f.id === id))
+      .filter((f): f is ModuleField => f !== undefined);
     const otherFields = def.fields.filter((f) => !SYSTEM_FIELD_IDS.includes(f.id));
 
     config.drawer_system_fields = systemFields.map((f) => ({
@@ -267,7 +270,7 @@ export function mergeWithDefaults(raw: Record<string, unknown>, moduleSlug: stri
 
   if (!drawerSystemFields && !drawerSections && !drawerUnassignedFields && raw.drawer_fields) {
     const oldFields = raw.drawer_fields as DrawerField[];
-    const SYSTEM_FIELD_IDS = ['name', 'parent', 'is_active'];
+    const SYSTEM_FIELD_IDS = ['name', 'parent', 'level', 'is_active'];
     drawerSystemFields = oldFields.filter((f) => SYSTEM_FIELD_IDS.includes(f.field_id));
     drawerSections = [];
     drawerUnassignedFields = oldFields.filter((f) => !SYSTEM_FIELD_IDS.includes(f.field_id));

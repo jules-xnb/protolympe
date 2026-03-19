@@ -97,6 +97,7 @@ const OPERATOR_LABELS: Record<string, string> = {
 };
 
 const TAB_LABELS: Record<DisplayTab, string> = {
+  general: 'Général',
   views: 'Vues',
   columns: 'Colonnes',
   drawer: 'Drawer',
@@ -710,16 +711,6 @@ export default function ModuleDisplayConfigEditPage() {
         )}
       </PageHeader>
 
-      <div className="flex items-center gap-3 max-w-sm">
-        <Label className="shrink-0">Nom</Label>
-        <Input
-          value={configName}
-          onChange={(e) => setConfigName(e.target.value)}
-          onBlur={saveConfigName}
-          placeholder="Nom de la configuration"
-        />
-      </div>
-
       <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList>
           {tabs.map((tab) => (
@@ -728,6 +719,24 @@ export default function ModuleDisplayConfigEditPage() {
             </TabsTrigger>
           ))}
         </TabsList>
+
+        {/* Tab: Général */}
+        {tabs.includes('general') && (
+          <TabsContent value="general" className="space-y-6 pt-4">
+            <div className="space-y-2 max-w-md">
+              <Label className="text-base font-medium">Nom de la page (utilisateur final)</Label>
+              <p className="text-sm text-muted-foreground">
+                Ce nom sera affiché comme titre de la page pour les utilisateurs finaux.
+              </p>
+              <Input
+                value={configName}
+                onChange={(e) => setConfigName(e.target.value)}
+                onBlur={saveConfigName}
+                placeholder="Nom de la configuration"
+              />
+            </div>
+          </TabsContent>
+        )}
 
         {/* Tab: Vues */}
         {tabs.includes('views') && (

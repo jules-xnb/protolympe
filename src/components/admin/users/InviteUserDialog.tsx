@@ -166,10 +166,12 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
   const handleSubmit = async (values: BaseFormValues) => {
     if (!validateCustomFields()) return;
 
-    const fullName = [values.firstName, values.lastName].filter(Boolean).join(' ') || undefined;
-
     try {
-      const result = await inviteMutation.mutateAsync({ email: values.email, fullName }) as {
+      const result = await inviteMutation.mutateAsync({
+        email: values.email,
+        firstName: values.firstName,
+        lastName: values.lastName,
+      }) as {
         userId: string;
         membershipId: string;
       };

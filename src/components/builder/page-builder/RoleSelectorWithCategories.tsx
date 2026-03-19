@@ -1,18 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Chip } from '@/components/ui/chip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronRight, FolderOpen } from 'lucide-react';
-import { api } from '@/lib/api-client';
 import type { InheritedRole } from './block-config/BlockConfigPanel';
-import { queryKeys } from '@/lib/query-keys';
-
-interface RoleCategory {
-  id: string;
-  name: string;
-  display_order: number;
-}
+import { MODULE_CATALOG } from '@/lib/module-catalog';
 
 interface RoleSelectorWithCategoriesProps {
   roles: InheritedRole[];
@@ -22,6 +14,10 @@ interface RoleSelectorWithCategoriesProps {
   noBorder?: boolean;
 }
 
+interface RoleWithModule extends InheritedRole {
+  module_slug?: string;
+}
+
 export function RoleSelectorWithCategories({
   roles,
   selectedRoles,
@@ -29,53 +25,38 @@ export function RoleSelectorWithCategories({
   maxHeight = 'h-64',
   noBorder = false,
 }: RoleSelectorWithCategoriesProps) {
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
 
-  // Fetch role categories
-  const categoryIds = useMemo(() => 
-    [...new Set(roles.map(r => r.category_id).filter(Boolean))] as string[],
-    [roles]
-  );
-
-  const { data: categories = [] } = useQuery<RoleCategory[]>({
-    queryKey: queryKeys.roleCategories.selector(categoryIds),
-    queryFn: async () => {
-      if (categoryIds.length === 0) return [];
-      const data = await api.get<RoleCategory[]>(
-        `/api/roles/categories?ids=${categoryIds.join(',')}`
-      );
-      return data ?? [];
-    },
-    enabled: categoryIds.length > 0,
-  });
-
-  // Group roles by category
+  // Group roles by module_slug (from the role data) or put in "other" group
   const groupedRoles = useMemo(() => {
-    const groups: { category: RoleCategory | null; roles: InheritedRole[] }[] = [];
-    
-    // Add categorized roles
-    categories.forEach(cat => {
-      const rolesInCategory = roles.filter(r => r.category_id === cat.id);
-      if (rolesInCategory.length > 0) {
-        groups.push({ category: cat, roles: rolesInCategory });
-      }
-    });
-    
-    // Add uncategorized roles
-    const uncategorized = roles.filter(r => !r.category_id);
-    if (uncategorized.length > 0) {
-      groups.push({ category: null, roles: uncategorized });
-    }
-    
-    return groups;
-  }, [roles, categories]);
+    const groups: { moduleSlug: string; moduleLabel: string; roles: RoleWithModule[] }[] = [];
+    const moduleMap = new Map<string, RoleWithModule[]>();
 
-  // Expand all categories by default when they load
-  useEffect(() => {
-    if (categories.length > 0) {
-      setExpandedCategories(new Set(categories.map(c => c.id)));
+    for (const role of roles as RoleWithModule[]) {
+      const slug = role.module_slug || '__other__';
+      const list = moduleMap.get(slug) ?? [];
+      list.push(role);
+      moduleMap.set(slug, list);
     }
-  }, [categories]);
+
+    for (const [slug, moduleRoles] of moduleMap) {
+      const catalog = slug !== '__other__' ? MODULE_CATALOG[slug] : undefined;
+      groups.push({
+        moduleSlug: slug,
+        moduleLabel: catalog?.label ?? (slug === '__other__' ? 'Autres' : slug),
+        roles: moduleRoles,
+      });
+    }
+
+    return groups;
+  }, [roles]);
+
+  // Expand all modules by default when they load
+  useEffect(() => {
+    if (groupedRoles.length > 0) {
+      setExpandedModules(new Set(groupedRoles.map(g => g.moduleSlug)));
+    }
+  }, [groupedRoles]);
 
   const handleRoleToggle = (roleId: string, checked: boolean) => {
     if (checked) {
@@ -85,12 +66,12 @@ export function RoleSelectorWithCategories({
     }
   };
 
-  const handleCategoryToggle = (categoryId: string | null, checked: boolean) => {
-    const rolesInCategory = roles.filter(r => 
-      categoryId ? r.category_id === categoryId : !r.category_id
+  const handleModuleToggle = (moduleSlug: string, checked: boolean) => {
+    const rolesInModule = (roles as RoleWithModule[]).filter(r =>
+      moduleSlug === '__other__' ? !r.module_slug : r.module_slug === moduleSlug
     );
-    const roleIds = rolesInCategory.map(r => r.id);
-    
+    const roleIds = rolesInModule.map(r => r.id);
+
     if (checked) {
       onSelectionChange([...new Set([...selectedRoles, ...roleIds])]);
     } else {
@@ -98,25 +79,25 @@ export function RoleSelectorWithCategories({
     }
   };
 
-  const toggleCategory = (categoryId: string) => {
-    setExpandedCategories(prev => {
+  const toggleModule = (moduleSlug: string) => {
+    setExpandedModules(prev => {
       const next = new Set(prev);
-      if (next.has(categoryId)) {
-        next.delete(categoryId);
+      if (next.has(moduleSlug)) {
+        next.delete(moduleSlug);
       } else {
-        next.add(categoryId);
+        next.add(moduleSlug);
       }
       return next;
     });
   };
 
-  const getCategorySelectionState = (categoryId: string | null) => {
-    const rolesInCategory = roles.filter(r => 
-      categoryId ? r.category_id === categoryId : !r.category_id
+  const getModuleSelectionState = (moduleSlug: string) => {
+    const rolesInModule = (roles as RoleWithModule[]).filter(r =>
+      moduleSlug === '__other__' ? !r.module_slug : r.module_slug === moduleSlug
     );
-    const selectedCount = rolesInCategory.filter(r => selectedRoles.includes(r.id)).length;
+    const selectedCount = rolesInModule.filter(r => selectedRoles.includes(r.id)).length;
     if (selectedCount === 0) return 'none';
-    if (selectedCount === rolesInCategory.length) return 'all';
+    if (selectedCount === rolesInModule.length) return 'all';
     return 'partial';
   };
 
@@ -125,8 +106,8 @@ export function RoleSelectorWithCategories({
 
   if (roles.length === 0) {
     return (
-      <div 
-        className={noBorder ? 'p-3' : 'border rounded-md p-3'} 
+      <div
+        className={noBorder ? 'p-3' : 'border rounded-md p-3'}
         style={{ height: `${heightPx}px` }}
       >
         <p className="text-sm text-muted-foreground text-center py-8">
@@ -137,104 +118,71 @@ export function RoleSelectorWithCategories({
   }
 
   return (
-    <div 
-      className={noBorder ? '' : 'border rounded-md'} 
+    <div
+      className={noBorder ? '' : 'border rounded-md'}
       style={{ height: `${heightPx}px` }}
     >
       <div className="h-full overflow-y-auto p-3">
         <div className="space-y-2">
-          {groupedRoles.map(({ category, roles: categoryRoles }) => {
-            const categoryKey = category?.id || 'uncategorized';
-            const isExpanded = category ? expandedCategories.has(category.id) : true;
-            const selectionState = getCategorySelectionState(category?.id || null);
-            
+          {groupedRoles.map(({ moduleSlug, moduleLabel, roles: moduleRoles }) => {
+            const isExpanded = expandedModules.has(moduleSlug);
+            const selectionState = getModuleSelectionState(moduleSlug);
+
             return (
-              <div key={categoryKey} className="space-y-1">
-                {category ? (
-                  <Collapsible open={isExpanded} onOpenChange={() => toggleCategory(category.id)}>
-                    <div className="flex items-center gap-2 py-1">
-                      <Checkbox
-                        checked={selectionState === 'all'}
-                        ref={(el) => {
-                          if (el) {
-                            (el as HTMLButtonElement & { indeterminate: boolean }).indeterminate = selectionState === 'partial';
-                          }
-                        }}
-                        onCheckedChange={(checked) => 
-                          handleCategoryToggle(category.id, !!checked)
+              <div key={moduleSlug} className="space-y-1">
+                <Collapsible open={isExpanded} onOpenChange={() => toggleModule(moduleSlug)}>
+                  <div className="flex items-center gap-2 py-1">
+                    <Checkbox
+                      checked={selectionState === 'all'}
+                      ref={(el) => {
+                        if (el) {
+                          (el as HTMLButtonElement & { indeterminate: boolean }).indeterminate = selectionState === 'partial';
                         }
-                      />
-                      <CollapsibleTrigger className="flex items-center gap-1.5 flex-1 hover:bg-muted/50 rounded px-1 -ml-1">
-                        {isExpanded ? (
-                          <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        )}
-                        <span className="text-sm font-medium">{category.name}</span>
-                        <Chip variant="default" className="ml-auto text-xs">
-                          {categoryRoles.filter(r => selectedRoles.includes(r.id)).length}/{categoryRoles.length}
-                        </Chip>
-                      </CollapsibleTrigger>
-                    </div>
-                    <CollapsibleContent>
-                      <div className="ml-6 space-y-1 border-l pl-3">
-                        {categoryRoles.map(role => (
-                          <div key={role.id} className="flex items-center space-x-2 py-0.5">
-                            <Checkbox
-                              id={`role-${role.id}`}
-                              checked={selectedRoles.includes(role.id)}
-                              onCheckedChange={(checked) => 
-                                handleRoleToggle(role.id, !!checked)
-                              }
-                            />
-                            <label
-                              htmlFor={`role-${role.id}`}
-                              className="text-sm font-normal flex items-center gap-2 cursor-pointer flex-1"
-                            >
-                              {role.color && (
-                                <div 
-                                  className="w-2 h-2 rounded-full shrink-0" 
-                                  style={{ backgroundColor: role.color }}
-                                />
-                              )}
-                              {role.name}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                ) : (
-                  // Uncategorized roles - show directly
-                  <div className="space-y-1">
-                    <div className="text-xs font-medium text-muted-foreground uppercase py-1">
-                      Sans catégorie
-                    </div>
-                    {categoryRoles.map(role => (
-                      <div key={role.id} className="flex items-center space-x-2 py-0.5">
-                        <Checkbox
-                          id={`role-${role.id}`}
-                          checked={selectedRoles.includes(role.id)}
-                          onCheckedChange={(checked) => 
-                            handleRoleToggle(role.id, !!checked)
-                          }
-                        />
-                        <label
-                          htmlFor={`role-${role.id}`}
-                          className="text-sm font-normal flex items-center gap-2 cursor-pointer flex-1"
-                        >
-                          {role.color && (
-                            <div 
-                              className="w-2 h-2 rounded-full shrink-0" 
-                              style={{ backgroundColor: role.color }}
-                            />
-                          )}
-                          {role.name}
-                        </label>
-                      </div>
-                    ))}
+                      }}
+                      onCheckedChange={(checked) =>
+                        handleModuleToggle(moduleSlug, !!checked)
+                      }
+                    />
+                    <CollapsibleTrigger className="flex items-center gap-1.5 flex-1 hover:bg-muted/50 rounded px-1 -ml-1">
+                      {isExpanded ? (
+                        <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className="text-sm font-medium">{moduleLabel}</span>
+                      <Chip variant="default" className="ml-auto text-xs">
+                        {moduleRoles.filter(r => selectedRoles.includes(r.id)).length}/{moduleRoles.length}
+                      </Chip>
+                    </CollapsibleTrigger>
                   </div>
-                )}
+                  <CollapsibleContent>
+                    <div className="ml-6 space-y-1 border-l pl-3">
+                      {moduleRoles.map(role => (
+                        <div key={role.id} className="flex items-center space-x-2 py-0.5">
+                          <Checkbox
+                            id={`role-${role.id}`}
+                            checked={selectedRoles.includes(role.id)}
+                            onCheckedChange={(checked) =>
+                              handleRoleToggle(role.id, !!checked)
+                            }
+                          />
+                          <label
+                            htmlFor={`role-${role.id}`}
+                            className="text-sm font-normal flex items-center gap-2 cursor-pointer flex-1"
+                          >
+                            {role.color && (
+                              <div
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: role.color }}
+                              />
+                            )}
+                            {role.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             );
           })}

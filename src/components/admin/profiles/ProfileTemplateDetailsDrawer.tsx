@@ -20,9 +20,9 @@ import {
   Shield,
   Users,
   GitBranch,
-
   X,
 } from 'lucide-react';
+import { MODULE_CATALOG } from '@/lib/module-catalog';
 import { api } from '@/lib/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query-keys';
@@ -131,13 +131,13 @@ export function ProfileTemplateDetailsDrawer({
                     <div className="space-y-2">
                       {Object.entries(
                         template.roles.reduce<Record<string, typeof template.roles>>((acc, r) => {
-                          const cat = r.role_category_name || 'Sans catégorie';
-                          (acc[cat] ??= []).push(r);
+                          const moduleLabel = MODULE_CATALOG[r.module_slug]?.label || r.module_slug;
+                          (acc[moduleLabel] ??= []).push(r);
                           return acc;
                         }, {})
-                      ).map(([category, roles]) => (
-                        <div key={category}>
-                          <p className="text-xs text-muted-foreground mb-1">{category}</p>
+                      ).map(([moduleName, roles]) => (
+                        <div key={moduleName}>
+                          <p className="text-xs text-muted-foreground mb-1">{moduleName}</p>
                           <div className="flex flex-wrap gap-1.5">
                             {roles.map(role => (
                               <Chip

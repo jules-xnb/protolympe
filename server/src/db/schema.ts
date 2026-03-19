@@ -267,45 +267,8 @@ export const eoExportHistory = pgTable('eo_export_history', {
 });
 
 // =============================================
-// Roles
+// Roles (global roles removed — module_roles is the only role system)
 // =============================================
-
-export const roleCategories = pgTable('role_categories', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  slug: text('slug').notNull(),
-  description: text('description'),
-  isRequired: boolean('is_required').default(false).notNull(),
-  isActive: boolean('is_active').default(true).notNull(),
-  isArchived: boolean('is_archived').default(false).notNull(),
-  displayOrder: integer('display_order').default(0).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
-export const roles = pgTable('roles', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  slug: text('slug').notNull(),
-  description: text('description'),
-  color: text('color'),
-  isActive: boolean('is_active').default(true).notNull(),
-  isArchived: boolean('is_archived').default(false).notNull(),
-  categoryId: uuid('category_id').references(() => roleCategories.id, { onDelete: 'set null' }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
-export const userRoleAssignments = pgTable('user_role_assignments', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
-  roleId: uuid('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
-  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
-  assignedBy: uuid('assigned_by').references(() => profiles.id),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
 
 // =============================================
 // Business Objects
@@ -464,7 +427,7 @@ export const nodeFields = pgTable('node_fields', {
 export const nodeFieldRoleOverrides = pgTable('node_field_role_overrides', {
   id: uuid('id').primaryKey().defaultRandom(),
   nodeFieldId: uuid('node_field_id').notNull().references(() => nodeFields.id, { onDelete: 'cascade' }),
-  roleId: uuid('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+  roleId: uuid('role_id').notNull(),
   isEditable: boolean('is_editable'),
   isVisible: boolean('is_visible'),
   isRequired: boolean('is_required'),
@@ -475,7 +438,7 @@ export const nodeFieldRoleOverrides = pgTable('node_field_role_overrides', {
 export const nodeRolePermissions = pgTable('node_role_permissions', {
   id: uuid('id').primaryKey().defaultRandom(),
   nodeId: uuid('node_id').notNull().references(() => workflowNodes.id, { onDelete: 'cascade' }),
-  roleId: uuid('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+  roleId: uuid('role_id').notNull(),
   canView: boolean('can_view').default(false).notNull(),
   canEdit: boolean('can_edit').default(false).notNull(),
   canExecuteTransition: boolean('can_execute_transition').default(false).notNull(),
@@ -553,7 +516,7 @@ export const surveyValidationRules = pgTable('survey_validation_rules', {
 export const surveyResponsePermissions = pgTable('survey_response_permissions', {
   id: uuid('id').primaryKey().defaultRandom(),
   surveyId: uuid('survey_id').notNull().references(() => surveys.id, { onDelete: 'cascade' }),
-  roleId: uuid('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+  roleId: uuid('role_id').notNull(),
   canView: boolean('can_view').default(false).notNull(),
   canEdit: boolean('can_edit').default(false).notNull(),
   canValidate: boolean('can_validate').default(false).notNull(),
@@ -597,10 +560,10 @@ export const profileTemplateEoGroups = pgTable('profile_template_eo_groups', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const profileTemplateRoles = pgTable('profile_template_roles', {
+export const profileTemplateModuleRoles = pgTable('profile_template_module_roles', {
   id: uuid('id').primaryKey().defaultRandom(),
   templateId: uuid('template_id').notNull().references(() => profileTemplates.id, { onDelete: 'cascade' }),
-  roleId: uuid('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+  moduleRoleId: uuid('module_role_id').notNull().references(() => moduleRoles.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -646,8 +609,8 @@ export const viewConfigWidgets = pgTable('view_config_widgets', {
 export const viewPermissions = pgTable('view_permissions', {
   id: uuid('id').primaryKey().defaultRandom(),
   viewConfigId: uuid('view_config_id').notNull().references(() => viewConfigs.id, { onDelete: 'cascade' }),
-  roleId: uuid('role_id').references(() => roles.id, { onDelete: 'cascade' }),
-  categoryId: uuid('category_id').references(() => roleCategories.id, { onDelete: 'cascade' }),
+  roleId: uuid('role_id'),
+  categoryId: uuid('category_id'),
   canView: boolean('can_view').default(false),
   fieldOverrides: jsonb('field_overrides'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -656,8 +619,8 @@ export const viewPermissions = pgTable('view_permissions', {
 export const navPermissions = pgTable('nav_permissions', {
   id: uuid('id').primaryKey().defaultRandom(),
   navigationConfigId: uuid('navigation_config_id').notNull().references(() => navigationConfigs.id, { onDelete: 'cascade' }),
-  roleId: uuid('role_id').references(() => roles.id, { onDelete: 'cascade' }),
-  categoryId: uuid('category_id').references(() => roleCategories.id, { onDelete: 'cascade' }),
+  roleId: uuid('role_id'),
+  categoryId: uuid('category_id'),
   isVisible: boolean('is_visible').default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });

@@ -316,7 +316,6 @@ export function EoFieldFormDialog({
       if (updatedCount > 0) {
         toast.success(`Champ créé et ajouté à ${updatedCount} vue${updatedCount > 1 ? 's' : ''}`);
         queryClient.invalidateQueries({ queryKey: queryKeys.viewConfigs.all() });
-        queryClient.invalidateQueries({ queryKey: queryKeys.roleUsages.all() });
       }
 
       onOpenChange(false);

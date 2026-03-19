@@ -12,8 +12,7 @@ import { FloatingInput } from '@/components/ui/floating-input';
 import { UserCog, Loader2 } from 'lucide-react';
 import { useOrganizationalEntities } from '@/hooks/useOrganizationalEntities';
 import { useEoFieldDefinitions, useAllEoFieldValues } from '@/hooks/useEoFieldDefinitions';
-import { useRolesByClient } from '@/hooks/useRoles';
-import { useRoleCategoriesByClient } from '@/hooks/useRoleCategories';
+import { useModuleRolesByClient, groupRolesByModule } from '@/hooks/useModuleRolesByClient';
 import { useEoGroups } from '@/hooks/useEoGroups';
 import { useAllEoGroupMembers, type EoGroupMember } from '@/hooks/useEoGroupMembers';
 import {
@@ -54,7 +53,7 @@ export function ProfileTemplateFormDialog({
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
   const [eoSearch, setEoSearch] = useState('');
   const [roleSearch, setRoleSearch] = useState('');
-  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [expandedModules, setExpandedModules] = useState<string[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [expandedEoIds, setExpandedEoIds] = useState<string[]>([]);
@@ -64,9 +63,8 @@ export function ProfileTemplateFormDialog({
   const [eoFilters, setEoFilters] = useState<Record<string, string>>({});
 
   const { data: entities = [] } = useOrganizationalEntities(clientId);
-  const { data: roles = [] } = useRolesByClient(clientId);
-  const { data: categoriesData } = useRoleCategoriesByClient(clientId);
-  const categories = useMemo(() => categoriesData ?? [], [categoriesData]);
+  const { data: allModuleRoles = [] } = useModuleRolesByClient(clientId);
+  const modules = useMemo(() => groupRolesByModule(allModuleRoles), [allModuleRoles]);
   const { data: eoGroups = [] } = useEoGroups(clientId);
   const { data: eoFieldDefs = [] } = useEoFieldDefinitions(clientId);
   const { data: allFieldValues = [] } = useAllEoFieldValues(clientId);
@@ -133,7 +131,7 @@ export function ProfileTemplateFormDialog({
         if (e.include_descendants) descMap[e.eo_id] = true;
       });
       setEoDescendants(descMap);
-      setSelectedRoleIds(source.roles.map(r => r.role_id));
+      setSelectedRoleIds(source.roles.map(r => r.module_role_id));
       setSelectedGroupIds(source.groups?.map(g => g.group_id) || []);
     } else {
       setName('');
@@ -150,10 +148,6 @@ export function ProfileTemplateFormDialog({
     setRolesExpanded(false);
     setEoFilters({});
   }, [source, isEditing, open]);
-
-  useEffect(() => {
-    setExpandedCategories([]);
-  }, [categories]);
 
   // EO IDs implicitly selected via ancestor's include_descendants
   const implicitlySelectedEoIds = useMemo(() => {
@@ -230,29 +224,6 @@ export function ProfileTemplateFormDialog({
     return filtered;
   }, [entities, eoSearch, expandedEoIds, eoFilters, fieldValuesByEo]);
 
-  const filteredRoles = useMemo(() => {
-    if (!roleSearch.trim()) return roles;
-    const query = roleSearch.toLowerCase();
-    return roles.filter(r =>
-      r.name.toLowerCase().includes(query) ||
-      r.role_categories?.name?.toLowerCase().includes(query)
-    );
-  }, [roles, roleSearch]);
-
-  const rolesByCategory = useMemo(() => {
-    const grouped: Record<string, typeof roles> = {};
-    const uncategorized: typeof roles = [];
-    filteredRoles.forEach((role) => {
-      if (role.category_id) {
-        if (!grouped[role.category_id]) grouped[role.category_id] = [];
-        grouped[role.category_id].push(role);
-      } else {
-        uncategorized.push(role);
-      }
-    });
-    return { grouped, uncategorized };
-  }, [filteredRoles]);
-
   const toggleEoExpand = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setExpandedEoIds(prev =>
@@ -303,9 +274,9 @@ export function ProfileTemplateFormDialog({
     );
   };
 
-  const toggleCategory = (id: string) => {
-    setExpandedCategories(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+  const toggleModule = (slug: string) => {
+    setExpandedModules(prev =>
+      prev.includes(slug) ? prev.filter(x => x !== slug) : [...prev, slug]
     );
   };
 
@@ -404,7 +375,7 @@ export function ProfileTemplateFormDialog({
             {!eoExpanded && !groupsExpanded && !rolesExpanded && (
               <SelectionBadges
                 entities={entities}
-                roles={roles}
+                roles={allModuleRoles}
                 eoGroups={eoGroups}
                 selectedEoIds={selectedEoIds}
                 selectedRoleIds={selectedRoleIds}
@@ -439,16 +410,13 @@ export function ProfileTemplateFormDialog({
               />
             ) : rolesExpanded ? (
               <RoleSelector
-                roles={roles}
-                categories={categories}
-                filteredRoles={filteredRoles}
-                rolesByCategory={rolesByCategory}
+                modules={modules}
                 selectedRoleIds={selectedRoleIds}
-                expandedCategories={expandedCategories}
+                expandedModules={expandedModules}
                 roleSearch={roleSearch}
                 onRoleSearchChange={setRoleSearch}
                 onRoleToggle={handleRoleToggle}
-                onCategoryToggle={toggleCategory}
+                onModuleToggle={toggleModule}
                 expanded
                 onSetExpanded={setRolesExpanded}
               />
@@ -469,16 +437,13 @@ export function ProfileTemplateFormDialog({
                 />
 
                 <RoleSelector
-                  roles={roles}
-                  categories={categories}
-                  filteredRoles={filteredRoles}
-                  rolesByCategory={rolesByCategory}
+                  modules={modules}
                   selectedRoleIds={selectedRoleIds}
-                  expandedCategories={expandedCategories}
+                  expandedModules={expandedModules}
                   roleSearch={roleSearch}
                   onRoleSearchChange={setRoleSearch}
                   onRoleToggle={handleRoleToggle}
-                  onCategoryToggle={toggleCategory}
+                  onModuleToggle={toggleModule}
                   onSetExpanded={setRolesExpanded}
                 />
               </div>

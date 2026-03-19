@@ -54,8 +54,8 @@ import {
   useDeleteViewPermission,
   type ViewPermissionWithRelations,
 } from '@/hooks/useViewPermissions';
-import { useRoles } from '@/hooks/useRoles';
-import { useRoleCategories } from '@/hooks/useRoleCategories';
+import { useModuleRolesByClient } from '@/hooks/useModuleRolesByClient';
+import { useViewMode } from '@/contexts/ViewModeContext';
 import { FieldPermissionsDialog } from './FieldPermissionsDialog';
 import type { ViewConfig } from '@/hooks/useViewConfigs';
 
@@ -69,10 +69,10 @@ export function ViewPermissionsEditor({ viewConfig }: ViewPermissionsEditorProps
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [_editingPermission, _setEditingPermission] = useState<ViewPermissionWithRelations | null>(null);
   const [fieldPermissionsOpen, setFieldPermissionsOpen] = useState<ViewPermissionWithRelations | null>(null);
-  
+
+  const { selectedClient } = useViewMode();
   const { data: permissions = [], isLoading } = useViewPermissions(viewConfig.id);
-  const { data: roles = [] } = useRoles();
-  const { data: categories = [] } = useRoleCategories();
+  const { data: moduleRoles = [] } = useModuleRolesByClient(selectedClient?.id);
   
   const createMutation = useCreateViewPermission();
   const updateMutation = useUpdateViewPermission();
@@ -181,9 +181,9 @@ export function ViewPermissionsEditor({ viewConfig }: ViewPermissionsEditorProps
   const getTargetOptions = (): { id: string; label: string }[] => {
     switch (formData.target) {
       case 'role':
-        return roles.map((r: { id: string; name: string }) => ({ id: r.id, label: r.name }));
+        return moduleRoles.map((r) => ({ id: r.id, label: r.name }));
       case 'category':
-        return categories.map((c: { id: string; name: string }) => ({ id: c.id, label: c.name }));
+        return [];
       default:
         return [];
     }

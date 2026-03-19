@@ -45,11 +45,6 @@ const ReferentialsPage = lazy(() => import("./pages/admin/ReferentialsPage"));
 const ReferentialsImportPage = lazy(() => import("./pages/admin/ReferentialsImportPage"));
 const ReferentialsArchivedPage = lazy(() => import("./pages/admin/ReferentialsArchivedPage"));
 
-// Lazy-loaded pages — Roles
-const RolesPage = lazy(() => import("./pages/admin/RolesPage"));
-const RolesImportPage = lazy(() => import("./pages/admin/RolesImportPage"));
-const RolesArchivedPage = lazy(() => import("./pages/admin/RolesArchivedPage"));
-
 // Lazy-loaded pages — Profile Templates
 const ProfileTemplatesPage = lazy(() => import("./pages/admin/ProfileTemplatesPage"));
 const ProfileTemplatesArchivedPage = lazy(() => import("./pages/admin/ProfileTemplatesArchivedPage"));
@@ -165,9 +160,6 @@ const App = () => (
                   <Route path="referentials" element={<ReferentialsPage />} />
                   <Route path="referentials/import" element={<ReferentialsImportPage />} />
                   <Route path="referentials/archived" element={<ReferentialsArchivedPage />} />
-                  <Route path="roles" element={<RolesPage />} />
-                  <Route path="roles/import" element={<RolesImportPage />} />
-                  <Route path="roles/archived" element={<RolesArchivedPage />} />
                   <Route path="profiles" element={<ProfileTemplatesPage />} />
                   <Route path="profiles/archived" element={<ProfileTemplatesArchivedPage />} />
                   <Route path="business-objects" element={<BusinessObjectsPage />} />

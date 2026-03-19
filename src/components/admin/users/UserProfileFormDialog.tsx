@@ -16,8 +16,7 @@ import {
 } from 'lucide-react';
 import { useOrganizationalEntities } from '@/hooks/useOrganizationalEntities';
 import { useEoFieldDefinitions, useAllEoFieldValues } from '@/hooks/useEoFieldDefinitions';
-import { useRolesByClient } from '@/hooks/useRoles';
-import { useRoleCategoriesByClient } from '@/hooks/useRoleCategories';
+import { useModuleRolesByClient, groupRolesByModule } from '@/hooks/useModuleRolesByClient';
 import { useEoGroups } from '@/hooks/useEoGroups';
 import { useAllEoGroupMembers, type EoGroupMember } from '@/hooks/useEoGroupMembers';
 import {
@@ -55,7 +54,7 @@ export function UserProfileFormDialog({
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
   const [eoSearch, setEoSearch] = useState('');
   const [roleSearch, setRoleSearch] = useState('');
-  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [expandedModules, setExpandedModules] = useState<string[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [expandedEoIds, setExpandedEoIds] = useState<string[]>([]);
@@ -63,8 +62,8 @@ export function UserProfileFormDialog({
   const [eoFilters, setEoFilters] = useState<Record<string, string>>({});
 
   const { data: entities = [] } = useOrganizationalEntities(clientId);
-  const { data: roles = [] } = useRolesByClient(clientId);
-  const { data: categories = [] } = useRoleCategoriesByClient(clientId);
+  const { data: allModuleRoles = [] } = useModuleRolesByClient(clientId);
+  const modules = useMemo(() => groupRolesByModule(allModuleRoles), [allModuleRoles]);
   const { data: eoGroups = [] } = useEoGroups(clientId);
   const { data: eoFieldDefs = [] } = useEoFieldDefinitions(clientId);
   const { data: allFieldValues = [] } = useAllEoFieldValues(clientId);
@@ -148,11 +147,6 @@ export function UserProfileFormDialog({
     setEoFilters({});
   }, [profile, open]);
 
-  // Collapse all categories by default
-  useEffect(() => {
-    setExpandedCategories([]);
-  }, [categories]);
-
   // EO IDs implicitly selected via ancestor's include_descendants
   const implicitlySelectedEoIds = useMemo(() => {
     const set = new Set<string>();
@@ -185,7 +179,7 @@ export function UserProfileFormDialog({
     return set;
   }, [entities]);
 
-  // Filter entities: apply search, then apply tree expand/collapse, then selection filter
+  // Filter entities
   const filteredEntities = useMemo(() => {
     let filtered = entities;
     if (eoSearch.trim()) {
@@ -231,33 +225,6 @@ export function UserProfileFormDialog({
     });
     return filtered;
   }, [entities, eoSearch, expandedEoIds, eoFilters, fieldValuesByEo]);
-
-  // Filter roles
-  const filteredRoles = useMemo(() => {
-    if (!roleSearch.trim()) return roles;
-    const query = roleSearch.toLowerCase();
-    return roles.filter(r =>
-      r.name.toLowerCase().includes(query) ||
-      r.role_categories?.name?.toLowerCase().includes(query)
-    );
-  }, [roles, roleSearch]);
-
-  // Group roles by category
-  const rolesByCategory = useMemo(() => {
-    const grouped: Record<string, typeof roles> = {};
-    const uncategorized: typeof roles = [];
-
-    filteredRoles.forEach((role) => {
-      if (role.category_id) {
-        if (!grouped[role.category_id]) grouped[role.category_id] = [];
-        grouped[role.category_id].push(role);
-      } else {
-        uncategorized.push(role);
-      }
-    });
-
-    return { grouped, uncategorized };
-  }, [filteredRoles]);
 
   const toggleEoExpand = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -312,9 +279,9 @@ export function UserProfileFormDialog({
     );
   };
 
-  const toggleCategory = (id: string) => {
-    setExpandedCategories(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+  const toggleModule = (slug: string) => {
+    setExpandedModules(prev =>
+      prev.includes(slug) ? prev.filter(x => x !== slug) : [...prev, slug]
     );
   };
 
@@ -403,7 +370,6 @@ export function UserProfileFormDialog({
 
         <div className="flex-1 overflow-hidden">
           <div className="space-y-4">
-            {/* Name — hidden in expanded EO view */}
             {!eoExpanded && (
             <div className="space-y-2">
               <Label htmlFor="name">Nom du profil *</Label>
@@ -416,11 +382,10 @@ export function UserProfileFormDialog({
             </div>
             )}
 
-            {/* Selected items badges — hidden in expanded EO view */}
             {!eoExpanded && (
               <SelectionBadges
                 entities={entities}
-                roles={roles}
+                roles={allModuleRoles}
                 eoGroups={eoGroups}
                 selectedEoIds={selectedEoIds}
                 selectedRoleIds={selectedRoleIds}
@@ -432,7 +397,6 @@ export function UserProfileFormDialog({
               />
             )}
 
-            {/* EO expanded view or 3-column grid */}
             {eoExpanded ? (
               <EoTreeSelectorExpanded
                 {...eoTreeProps}
@@ -457,16 +421,13 @@ export function UserProfileFormDialog({
               />
 
               <RoleSelector
-                roles={roles}
-                categories={categories}
-                filteredRoles={filteredRoles}
-                rolesByCategory={rolesByCategory}
+                modules={modules}
                 selectedRoleIds={selectedRoleIds}
-                expandedCategories={expandedCategories}
+                expandedModules={expandedModules}
                 roleSearch={roleSearch}
                 onRoleSearchChange={setRoleSearch}
                 onRoleToggle={handleRoleToggle}
-                onCategoryToggle={toggleCategory}
+                onModuleToggle={toggleModule}
               />
             </div>
             )}

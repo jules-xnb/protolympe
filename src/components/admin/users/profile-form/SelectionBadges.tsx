@@ -6,12 +6,12 @@ import {
   Users,
 } from 'lucide-react';
 import type { OrganizationalEntity } from '@/hooks/useOrganizationalEntities';
-import type { RoleWithCategory } from '@/hooks/useRoles';
+import type { ModuleRoleWithModule } from '@/hooks/useModuleRolesByClient';
 import type { EoGroup } from '@/hooks/useEoGroups';
 
 interface SelectionBadgesProps {
   entities: OrganizationalEntity[];
-  roles: RoleWithCategory[];
+  roles: ModuleRoleWithModule[];
   eoGroups: EoGroup[];
   selectedEoIds: string[];
   selectedRoleIds: string[];

@@ -119,7 +119,7 @@ export function useForkViewForRole() {
         newNavConfigId: newNav.id,
       };
     },
-    invalidateKeys: [queryKeys.roleUsages.all(), queryKeys.navigationConfigs.all(), queryKeys.viewConfigs.all(), queryKeys.roles.usedIds("", "")],
+    invalidateKeys: [queryKeys.navigationConfigs.all(), queryKeys.viewConfigs.all()],
     successMessage: 'Vue personnalisée créée pour ce rôle',
     errorMessage: 'Erreur lors de la personnalisation',
   });

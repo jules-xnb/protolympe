@@ -1,9 +1,23 @@
-import type { RoleUsageItem } from '@/hooks/useRoleUsages';
 import type { BlockType } from '@/types/builder-types';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+export interface RoleUsageItem {
+  id: string;
+  moduleName: string;
+  moduleId: string;
+  viewName: string;
+  viewConfigId: string;
+  navConfigId: string;
+  blockIndex: number;
+  blockType: BlockType;
+  blockConfig: Record<string, unknown>;
+  blockTitle: string | null;
+  hasAccess: boolean;
+  sharedRoleCount: number;
+}
 
 export interface NavConfigRow {
   id: string;

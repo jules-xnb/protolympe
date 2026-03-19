@@ -72,7 +72,7 @@ export function useIntegratorAssignments() {
 // Invite a new integrator (creates account if needed)
 export function useInviteIntegrator() {
   return useMutationWithToast({
-    mutationFn: (data: { email: string; fullName: string; persona: 'admin_delta' | 'integrator_delta' }) =>
+    mutationFn: (data: { email: string; firstName: string; lastName: string; persona: 'admin_delta' | 'integrator_delta' }) =>
       api.post<{ success: boolean; userId: string; message: string }>('/api/integrators/invite', data),
     invalidateKeys: [queryKeys.adminData.integrators(), queryKeys.adminData.usersWithoutRole()],
     successMessage: 'Intégrateur ajouté avec succès',

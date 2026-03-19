@@ -37,10 +37,10 @@ export interface ProfileTemplate {
   }>;
   roles: Array<{
     id: string;
-    role_id: string;
+    module_role_id: string;
     role_name: string;
     role_color: string | null;
-    role_category_name: string | null;
+    module_slug: string;
   }>;
   groups: Array<{
     group_id: string;

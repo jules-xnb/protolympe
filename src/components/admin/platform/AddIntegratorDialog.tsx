@@ -34,9 +34,13 @@ export function AddIntegratorDialog({ open, onOpenChange }: AddIntegratorDialogP
   const inviteIntegrator = useInviteIntegrator();
 
   const handleSubmit = async (values: FormValues) => {
-    const fullName = `${values.firstName} ${values.lastName}`.trim();
     try {
-      await inviteIntegrator.mutateAsync({ email: values.email, fullName, persona: values.persona });
+      await inviteIntegrator.mutateAsync({
+        email: values.email,
+        firstName: values.firstName,
+        lastName: values.lastName,
+        persona: values.persona,
+      });
       onOpenChange(false);
     } catch {
       // Error handled by mutation

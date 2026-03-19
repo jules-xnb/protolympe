@@ -71,9 +71,8 @@ export function useRolesForAssignment(enabled: boolean) {
         id: string;
         name: string;
         color: string | null;
-        category_id: string | null;
-        role_categories: { name: string } | null;
-      }>>(`/api/roles?client_id=${selectedClient.id}`);
+        module_slug: string;
+      }>>(`/api/module-roles/by-client?client_id=${selectedClient.id}`);
     },
     enabled: enabled && !!selectedClient?.id,
   });
@@ -83,11 +82,12 @@ export function useInviteClientUser() {
   const { selectedClient } = useViewMode();
 
   return useMutationWithToast({
-    mutationFn: async ({ email, fullName }: { email: string; fullName?: string }) => {
+    mutationFn: async ({ email, firstName, lastName }: { email: string; firstName: string; lastName: string }) => {
       if (!selectedClient?.id) throw new Error('No client selected');
       return api.post('/api/client-users/invite', {
         email,
-        fullName,
+        firstName,
+        lastName,
         clientId: selectedClient.id,
       });
     },

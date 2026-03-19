@@ -18,44 +18,36 @@ import {
   Search,
   ChevronDown,
   ChevronRight,
-  Layers,
   Maximize2,
   Minimize2,
+  Box,
 } from 'lucide-react';
-import type { RoleWithCategory } from '@/hooks/useRoles';
-import type { RoleCategory } from '@/hooks/useRoleCategories';
+import type { ModuleWithRoles, ModuleRoleWithModule } from '@/hooks/useModuleRolesByClient';
 
 interface RoleSelectorProps {
-  roles: RoleWithCategory[];
-  categories: RoleCategory[];
-  filteredRoles: RoleWithCategory[];
-  rolesByCategory: {
-    grouped: Record<string, RoleWithCategory[]>;
-    uncategorized: RoleWithCategory[];
-  };
+  modules: ModuleWithRoles[];
   selectedRoleIds: string[];
-  expandedCategories: string[];
+  expandedModules: string[];
   roleSearch: string;
   onRoleSearchChange: (value: string) => void;
   onRoleToggle: (id: string) => void;
-  onCategoryToggle: (id: string) => void;
+  onModuleToggle: (slug: string) => void;
   expanded?: boolean;
   onSetExpanded?: (expanded: boolean) => void;
 }
 
 export function RoleSelector({
-  categories,
-  rolesByCategory,
+  modules,
   selectedRoleIds,
-  expandedCategories,
+  expandedModules,
   roleSearch,
   onRoleSearchChange,
   onRoleToggle,
-  onCategoryToggle,
+  onModuleToggle,
   expanded,
   onSetExpanded,
 }: RoleSelectorProps) {
-  const renderRoleItem = (role: RoleWithCategory) => (
+  const renderRoleItem = (role: ModuleRoleWithModule) => (
     <label
       key={role.id}
       className={cn(
@@ -75,30 +67,15 @@ export function RoleSelector({
     </label>
   );
 
-  const renderCategorySection = (category: RoleCategory, categoryRoles: RoleWithCategory[]) => {
-    const isExpanded = expandedCategories.includes(category.id);
-
-    return (
-      <Collapsible
-        key={category.id}
-        open={isExpanded}
-        onOpenChange={() => onCategoryToggle(category.id)}
-      >
-        <CollapsibleTrigger className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer w-full">
-          {isExpanded ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          )}
-          <Layers className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">{category.name}</span>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="pl-6 space-y-1">
-          {categoryRoles.map(renderRoleItem)}
-        </CollapsibleContent>
-      </Collapsible>
+  const filteredModules = modules.map(mod => {
+    if (!roleSearch.trim()) return mod;
+    const query = roleSearch.toLowerCase();
+    const filtered = mod.roles.filter(r =>
+      r.name.toLowerCase().includes(query) ||
+      mod.moduleLabel.toLowerCase().includes(query)
     );
-  };
+    return { ...mod, roles: filtered };
+  }).filter(mod => mod.roles.length > 0);
 
   return (
     <div className="border rounded-lg p-3 space-y-2">
@@ -132,33 +109,33 @@ export function RoleSelector({
       </div>
       <ScrollArea className="h-[300px]">
         <div className="space-y-1 pr-2">
-          {categories.map((category) => {
-            const categoryRoles = rolesByCategory.grouped[category.id] || [];
-            if (categoryRoles.length === 0) return null;
-            return renderCategorySection(category, categoryRoles);
-          })}
+          {filteredModules.map((mod) => {
+            const isExpanded = expandedModules.includes(mod.moduleSlug);
 
-          {rolesByCategory.uncategorized.length > 0 && (
-            <Collapsible
-              open={expandedCategories.includes('uncategorized')}
-              onOpenChange={() => onCategoryToggle('uncategorized')}
-            >
-              <CollapsibleTrigger className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer w-full">
-                {expandedCategories.includes('uncategorized') ? (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                )}
-                <Layers className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground italic">
-                  Sans catégorie
-                </span>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pl-6 space-y-1">
-                {rolesByCategory.uncategorized.map(renderRoleItem)}
-              </CollapsibleContent>
-            </Collapsible>
-          )}
+            return (
+              <Collapsible
+                key={mod.moduleSlug}
+                open={isExpanded}
+                onOpenChange={() => onModuleToggle(mod.moduleSlug)}
+              >
+                <CollapsibleTrigger className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer w-full">
+                  {isExpanded ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <Box className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">{mod.moduleLabel}</span>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {mod.roles.filter(r => selectedRoleIds.includes(r.id)).length}/{mod.roles.length}
+                  </span>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pl-6 space-y-1">
+                  {mod.roles.map(renderRoleItem)}
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })}
         </div>
       </ScrollArea>
     </div>

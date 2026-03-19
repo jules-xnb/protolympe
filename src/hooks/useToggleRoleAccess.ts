@@ -27,7 +27,7 @@ export function useToggleRoleAccess() {
         });
       }
     },
-    invalidateKeys: [queryKeys.roleUsages.all(), queryKeys.roles.usedIds("", ""), queryKeys.navPermissions.byConfig(""), queryKeys.navPermissions.all()],
+    invalidateKeys: [queryKeys.navPermissions.byConfig(""), queryKeys.navPermissions.all()],
     errorMessage: 'Erreur lors de la modification de l\'accès',
   });
 }

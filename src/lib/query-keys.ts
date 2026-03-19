@@ -141,32 +141,6 @@ export const queryKeys = {
     byDefinition: (defId: string) => ['reference_objects', defId] as const,
   },
 
-  // ── Roles ──────────────────────────────────────────────────────────────
-  roles: {
-    crudKey: 'roles' as const,
-    all: () => ['roles'] as const,
-    byClient: (clientId?: string) => ['roles', clientId] as const,
-    byClientExplicit: (clientId: string) => ['roles', 'client', clientId] as const,
-    archived: (clientId?: string) => ['roles', 'archived', clientId] as const,
-    usedIds: (clientId: string, cacheKey: string) => ['used-role-ids', clientId, cacheKey] as const,
-    assignments: (roleId: string) => ['role-assignments', roleId] as const,
-    assignmentsFull: () => ['user-role-assignments-full'] as const,
-  },
-
-  // ── Role Categories ────────────────────────────────────────────────────
-  roleCategories: {
-    crudKey: 'role_categories' as const,
-    byClient: (clientId: string) => ['role_categories', 'client', clientId] as const,
-    detail: (id: string) => ['role_categories', id] as const,
-    selector: (categoryIds: string[]) => ['role_categories_selector', categoryIds] as const,
-  },
-
-  // ── Role Usages ────────────────────────────────────────────────────────
-  roleUsages: {
-    byRole: (roleId: string, clientId: string) => ['role-usages', roleId, clientId] as const,
-    all: () => ['role-usages'] as const,
-  },
-
   // ── Clients ────────────────────────────────────────────────────────────
   clients: {
     all: () => ['clients'] as const,

@@ -4,10 +4,11 @@ import { db } from '../db/index.js';
 import {
   profileTemplates,
   profileTemplateEos,
-  profileTemplateRoles,
+  profileTemplateModuleRoles,
   profileTemplateEoGroups,
   userProfileTemplates,
-  roles,
+  moduleRoles,
+  clientModules,
   organizationalEntities,
   eoGroups,
 } from '../db/schema.js';
@@ -108,15 +109,18 @@ profileTemplatesRouter.get('/:id', async (c) => {
       .where(eq(profileTemplateEos.templateId, id)),
     db
       .select({
-        id: profileTemplateRoles.id,
-        templateId: profileTemplateRoles.templateId,
-        roleId: profileTemplateRoles.roleId,
-        createdAt: profileTemplateRoles.createdAt,
-        roleName: roles.name,
+        id: profileTemplateModuleRoles.id,
+        templateId: profileTemplateModuleRoles.templateId,
+        moduleRoleId: profileTemplateModuleRoles.moduleRoleId,
+        createdAt: profileTemplateModuleRoles.createdAt,
+        roleName: moduleRoles.name,
+        roleColor: moduleRoles.color,
+        moduleSlug: clientModules.moduleSlug,
       })
-      .from(profileTemplateRoles)
-      .leftJoin(roles, eq(profileTemplateRoles.roleId, roles.id))
-      .where(eq(profileTemplateRoles.templateId, id)),
+      .from(profileTemplateModuleRoles)
+      .leftJoin(moduleRoles, eq(profileTemplateModuleRoles.moduleRoleId, moduleRoles.id))
+      .leftJoin(clientModules, eq(moduleRoles.clientModuleId, clientModules.id))
+      .where(eq(profileTemplateModuleRoles.templateId, id)),
     db
       .select({
         id: profileTemplateEoGroups.id,
@@ -309,21 +313,24 @@ profileTemplatesRouter.get('/:id/roles', async (c) => {
 
   const result = await db
     .select({
-      id: profileTemplateRoles.id,
-      templateId: profileTemplateRoles.templateId,
-      roleId: profileTemplateRoles.roleId,
-      createdAt: profileTemplateRoles.createdAt,
-      roleName: roles.name,
+      id: profileTemplateModuleRoles.id,
+      templateId: profileTemplateModuleRoles.templateId,
+      moduleRoleId: profileTemplateModuleRoles.moduleRoleId,
+      createdAt: profileTemplateModuleRoles.createdAt,
+      roleName: moduleRoles.name,
+      roleColor: moduleRoles.color,
+      moduleSlug: clientModules.moduleSlug,
     })
-    .from(profileTemplateRoles)
-    .leftJoin(roles, eq(profileTemplateRoles.roleId, roles.id))
-    .where(eq(profileTemplateRoles.templateId, id));
+    .from(profileTemplateModuleRoles)
+    .leftJoin(moduleRoles, eq(profileTemplateModuleRoles.moduleRoleId, moduleRoles.id))
+    .leftJoin(clientModules, eq(moduleRoles.clientModuleId, clientModules.id))
+    .where(eq(profileTemplateModuleRoles.templateId, id));
 
   return c.json(toSnakeCase(result));
 });
 
 const addRoleSchema = z.object({
-  roleId: z.string().uuid(),
+  moduleRoleId: z.string().uuid(),
 });
 
 // POST /profile-templates/:id/roles — add role to template
@@ -336,10 +343,10 @@ profileTemplatesRouter.post('/:id/roles', async (c) => {
   }
 
   const [link] = await db
-    .insert(profileTemplateRoles)
+    .insert(profileTemplateModuleRoles)
     .values({
       templateId,
-      roleId: parsed.data.roleId,
+      moduleRoleId: parsed.data.moduleRoleId,
     })
     .returning();
 
@@ -351,8 +358,8 @@ profileTemplatesRouter.delete('/roles/:id', async (c) => {
   const id = c.req.param('id');
 
   const [deleted] = await db
-    .delete(profileTemplateRoles)
-    .where(eq(profileTemplateRoles.id, id))
+    .delete(profileTemplateModuleRoles)
+    .where(eq(profileTemplateModuleRoles.id, id))
     .returning();
 
   if (!deleted) {

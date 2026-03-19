@@ -38,14 +38,11 @@ export interface UserPermissionContext {
   roles: UserRoleInfo[];
 }
 
-interface RoleWithCategory {
+interface ModuleRoleRow {
   id: string;
   name: string;
   color: string | null;
-  category_id: string | null;
-  role_categories: { id: string; name: string } | null;
-  // API may return flattened fields
-  category_name?: string | null;
+  module_slug: string;
 }
 
 interface EoRow {
@@ -86,9 +83,9 @@ export function useUserPermissions() {
         return emptyContext;
       }
 
-      // Fetch roles with their categories (get all roles for client, then filter)
+      // Fetch module roles for client, then filter to assigned ones
       const rolesPromise = allRoleIds.length > 0
-        ? api.get<RoleWithCategory[]>(`/api/roles?client_id=${selectedClient.id}`).then(
+        ? api.get<ModuleRoleRow[]>(`/api/module-roles/by-client?client_id=${selectedClient.id}`).then(
             allRoles => allRoles.filter(r => allRoleIds.includes(r.id))
           )
         : Promise.resolve([]);
@@ -103,7 +100,7 @@ export function useUserPermissions() {
       const [roles, eos] = await Promise.all([rolesPromise, eosPromise]);
 
       // Build the permission context
-      const categoryIds = [...new Set(roles.map(r => r.category_id).filter(Boolean))] as string[];
+      const categoryIds: string[] = [];
       const eoPaths = eos.map(e => e.path);
 
       // Build role info array
@@ -111,8 +108,8 @@ export function useUserPermissions() {
         role_id: role.id,
         role_name: role.name,
         role_color: role.color,
-        category_id: role.category_id,
-        category_name: role.role_categories?.name || role.category_name || null,
+        category_id: null,
+        category_name: null,
         eo_id: null,
         eo_name: null,
         eo_code: null,

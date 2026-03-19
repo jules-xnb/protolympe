@@ -48,6 +48,6 @@ export function useUpdateBlockConfig() {
 
       return data;
     },
-    invalidateKeys: [queryKeys.roleUsages.all(), queryKeys.viewConfigs.all()],
+    invalidateKeys: [queryKeys.viewConfigs.all()],
   });
 }

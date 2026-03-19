@@ -1,7 +1,7 @@
 import { Chip } from '@/components/ui/chip';
 import { Button } from '@/components/ui/button';
 import { Building2, X } from 'lucide-react';
-import type { RoleWithCategory } from '@/hooks/useRoles';
+import type { ModuleRoleWithModule } from '@/hooks/useModuleRolesByClient';
 
 interface Entity {
   id: string;
@@ -10,7 +10,7 @@ interface Entity {
 
 interface SelectionBadgesProps {
   entities: Entity[];
-  roles: RoleWithCategory[];
+  roles: ModuleRoleWithModule[];
   selectedEoIds: string[];
   selectedRoleIds: string[];
   eoDescendants: Record<string, boolean>;

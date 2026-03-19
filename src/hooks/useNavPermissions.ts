@@ -82,7 +82,7 @@ export function useCreateNavPermission() {
       const result = await api.post<NavPermission>('/api/view-configs/nav-permissions', data);
       return result;
     },
-    invalidateKeys: [queryKeys.navPermissions.byConfig(""), queryKeys.navPermissions.all(), queryKeys.roleUsages.all()],
+    invalidateKeys: [queryKeys.navPermissions.byConfig(""), queryKeys.navPermissions.all()],
   });
 }
 
@@ -97,7 +97,7 @@ export function useUpdateNavPermission() {
       });
       return result;
     },
-    invalidateKeys: [queryKeys.navPermissions.byConfig(""), queryKeys.navPermissions.all(), queryKeys.roleUsages.all()],
+    invalidateKeys: [queryKeys.navPermissions.byConfig(""), queryKeys.navPermissions.all()],
   });
 }
 
@@ -145,13 +145,13 @@ export function useNavPermissionRoleNames(clientId: string | undefined) {
         is_visible: boolean | null;
       }>>(`/api/view-configs/nav-permissions?nav_config_ids=${configIds.join(',')}`);
 
-      // Fetch all active roles for this client
+      // Fetch all active module roles for this client
       const allRoles = await api.get<Array<{
         id: string;
         name: string;
         color: string | null;
-        category_id: string | null;
-      }>>(`/api/roles?client_id=${clientId}&is_active=true`);
+        module_slug: string;
+      }>>(`/api/module-roles/by-client?client_id=${clientId}`);
 
       const allRolesList = allRoles || [];
       const roleInfoById = new Map(allRolesList.map(r => [r.id, { name: r.name, color: r.color as string | null }]));
@@ -177,16 +177,6 @@ export function useNavPermissionRoleNames(clientId: string | undefined) {
           .filter(p => p.role_id && p.is_visible !== false)
           .forEach(p => effectiveRoleIds.add(p.role_id!));
 
-        const grantedCategoryIds = configPerms
-          .filter(p => p.category_id && !p.role_id && p.is_visible !== false)
-          .map(p => p.category_id!);
-
-        if (grantedCategoryIds.length > 0) {
-          allRolesList
-            .filter(r => r.category_id && grantedCategoryIds.includes(r.category_id) && !excludedRoleIds.has(r.id))
-            .forEach(r => effectiveRoleIds.add(r.id));
-        }
-
         const infos = [...effectiveRoleIds]
           .map(id => roleInfoById.get(id))
           .filter((r): r is NavPermRoleInfo => !!r);
@@ -204,6 +194,6 @@ export function useDeleteNavPermission() {
     mutationFn: async ({ id, navigationConfigId: _navigationConfigId }: { id: string; navigationConfigId: string }) => {
       await api.delete(`/api/view-configs/nav-permissions/${id}`);
     },
-    invalidateKeys: [queryKeys.navPermissions.byConfig(""), queryKeys.navPermissions.all(), queryKeys.roleUsages.all()],
+    invalidateKeys: [queryKeys.navPermissions.byConfig(""), queryKeys.navPermissions.all()],
   });
 }

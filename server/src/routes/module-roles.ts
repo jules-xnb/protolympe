@@ -1,14 +1,41 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { moduleRoles } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { moduleRoles, clientModules } from '../db/schema.js';
+import { eq, and } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 
 const moduleRolesRouter = new Hono();
 
 moduleRolesRouter.use('*', authMiddleware);
+
+// GET /module-roles/by-client?client_id=X — all module roles for a client (grouped by module)
+moduleRolesRouter.get('/by-client', async (c) => {
+  const clientId = c.req.query('client_id');
+  if (!clientId) {
+    return c.json({ error: 'Le paramètre client_id est requis' }, 400);
+  }
+
+  const result = await db
+    .select({
+      id: moduleRoles.id,
+      clientModuleId: moduleRoles.clientModuleId,
+      name: moduleRoles.name,
+      slug: moduleRoles.slug,
+      color: moduleRoles.color,
+      description: moduleRoles.description,
+      isActive: moduleRoles.isActive,
+      createdAt: moduleRoles.createdAt,
+      moduleSlug: clientModules.moduleSlug,
+    })
+    .from(moduleRoles)
+    .innerJoin(clientModules, eq(moduleRoles.clientModuleId, clientModules.id))
+    .where(and(eq(clientModules.clientId, clientId), eq(clientModules.isActive, true)))
+    .orderBy(clientModules.moduleSlug, moduleRoles.name);
+
+  return c.json(toSnakeCase(result));
+});
 
 // GET /module-roles?module_id=X — list roles for a client module
 moduleRolesRouter.get('/', async (c) => {

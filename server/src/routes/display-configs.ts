@@ -28,10 +28,10 @@ import type { JwtPayload } from '../lib/jwt.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
-const app = new Hono<Env>();
+const router = new Hono<Env>();
 
-app.use('*', authMiddleware);
-app.use('*', async (c, next) => {
+router.use('*', authMiddleware);
+router.use('*', async (c, next) => {
   const moduleId = c.req.param('moduleId') as string | undefined;
   if (moduleId) {
     const err = await verifyModuleClientAccess(c, moduleId);
@@ -234,7 +234,7 @@ const setCvDisplayConfigFieldsSchema = z.object({
 // ─── ORG Display Configs — /modules/:moduleId/org/display-configs ────────────
 
 // GET /modules/:moduleId/org/display-configs
-app.get('/modules/:moduleId/org/display-configs', async (c) => {
+router.get('/modules/:moduleId/org/display-configs', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -252,7 +252,7 @@ app.get('/modules/:moduleId/org/display-configs', async (c) => {
 });
 
 // POST /modules/:moduleId/org/display-configs
-app.post('/modules/:moduleId/org/display-configs', async (c) => {
+router.post('/modules/:moduleId/org/display-configs', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -282,7 +282,7 @@ app.post('/modules/:moduleId/org/display-configs', async (c) => {
 });
 
 // PATCH /modules/:moduleId/org/display-configs/:id
-app.patch('/modules/:moduleId/org/display-configs/:id', async (c) => {
+router.patch('/modules/:moduleId/org/display-configs/:id', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -320,7 +320,7 @@ app.patch('/modules/:moduleId/org/display-configs/:id', async (c) => {
 });
 
 // DELETE /modules/:moduleId/org/display-configs/:id
-app.delete('/modules/:moduleId/org/display-configs/:id', async (c) => {
+router.delete('/modules/:moduleId/org/display-configs/:id', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -344,7 +344,7 @@ app.delete('/modules/:moduleId/org/display-configs/:id', async (c) => {
 });
 
 // PUT /modules/:moduleId/org/display-configs/:id/roles
-app.put('/modules/:moduleId/org/display-configs/:id/roles', async (c) => {
+router.put('/modules/:moduleId/org/display-configs/:id/roles', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -381,7 +381,7 @@ app.put('/modules/:moduleId/org/display-configs/:id/roles', async (c) => {
 });
 
 // PUT /modules/:moduleId/org/display-configs/:id/fields
-app.put('/modules/:moduleId/org/display-configs/:id/fields', async (c) => {
+router.put('/modules/:moduleId/org/display-configs/:id/fields', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -427,7 +427,7 @@ app.put('/modules/:moduleId/org/display-configs/:id/fields', async (c) => {
 // ─── USERS Display Configs — /modules/:moduleId/users/display-configs ─────────
 
 // GET /modules/:moduleId/users/display-configs
-app.get('/modules/:moduleId/users/display-configs', async (c) => {
+router.get('/modules/:moduleId/users/display-configs', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -445,7 +445,7 @@ app.get('/modules/:moduleId/users/display-configs', async (c) => {
 });
 
 // POST /modules/:moduleId/users/display-configs
-app.post('/modules/:moduleId/users/display-configs', async (c) => {
+router.post('/modules/:moduleId/users/display-configs', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -474,7 +474,7 @@ app.post('/modules/:moduleId/users/display-configs', async (c) => {
 });
 
 // PATCH /modules/:moduleId/users/display-configs/:id
-app.patch('/modules/:moduleId/users/display-configs/:id', async (c) => {
+router.patch('/modules/:moduleId/users/display-configs/:id', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -511,7 +511,7 @@ app.patch('/modules/:moduleId/users/display-configs/:id', async (c) => {
 });
 
 // DELETE /modules/:moduleId/users/display-configs/:id
-app.delete('/modules/:moduleId/users/display-configs/:id', async (c) => {
+router.delete('/modules/:moduleId/users/display-configs/:id', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -535,7 +535,7 @@ app.delete('/modules/:moduleId/users/display-configs/:id', async (c) => {
 });
 
 // PUT /modules/:moduleId/users/display-configs/:id/roles
-app.put('/modules/:moduleId/users/display-configs/:id/roles', async (c) => {
+router.put('/modules/:moduleId/users/display-configs/:id/roles', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -572,7 +572,7 @@ app.put('/modules/:moduleId/users/display-configs/:id/roles', async (c) => {
 });
 
 // PUT /modules/:moduleId/users/display-configs/:id/fields
-app.put('/modules/:moduleId/users/display-configs/:id/fields', async (c) => {
+router.put('/modules/:moduleId/users/display-configs/:id/fields', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -619,7 +619,7 @@ app.put('/modules/:moduleId/users/display-configs/:id/fields', async (c) => {
 // ─── PROFILS Display Configs — /modules/:moduleId/profils/display-configs ─────
 
 // GET /modules/:moduleId/profils/display-configs
-app.get('/modules/:moduleId/profils/display-configs', async (c) => {
+router.get('/modules/:moduleId/profils/display-configs', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -637,7 +637,7 @@ app.get('/modules/:moduleId/profils/display-configs', async (c) => {
 });
 
 // POST /modules/:moduleId/profils/display-configs
-app.post('/modules/:moduleId/profils/display-configs', async (c) => {
+router.post('/modules/:moduleId/profils/display-configs', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -666,7 +666,7 @@ app.post('/modules/:moduleId/profils/display-configs', async (c) => {
 });
 
 // PATCH /modules/:moduleId/profils/display-configs/:id
-app.patch('/modules/:moduleId/profils/display-configs/:id', async (c) => {
+router.patch('/modules/:moduleId/profils/display-configs/:id', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -703,7 +703,7 @@ app.patch('/modules/:moduleId/profils/display-configs/:id', async (c) => {
 });
 
 // DELETE /modules/:moduleId/profils/display-configs/:id
-app.delete('/modules/:moduleId/profils/display-configs/:id', async (c) => {
+router.delete('/modules/:moduleId/profils/display-configs/:id', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -727,7 +727,7 @@ app.delete('/modules/:moduleId/profils/display-configs/:id', async (c) => {
 });
 
 // PUT /modules/:moduleId/profils/display-configs/:id/roles
-app.put('/modules/:moduleId/profils/display-configs/:id/roles', async (c) => {
+router.put('/modules/:moduleId/profils/display-configs/:id/roles', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -764,7 +764,7 @@ app.put('/modules/:moduleId/profils/display-configs/:id/roles', async (c) => {
 });
 
 // PUT /modules/:moduleId/profils/display-configs/:id/fields
-app.put('/modules/:moduleId/profils/display-configs/:id/fields', async (c) => {
+router.put('/modules/:moduleId/profils/display-configs/:id/fields', async (c) => {
   const user = c.get('user');
   if (!isAdminOrIntegrator(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -809,7 +809,7 @@ app.put('/modules/:moduleId/profils/display-configs/:id/fields', async (c) => {
 // ─── CV FORM Display Configs — /modules/:moduleId/cv/forms/:formId/display-configs
 
 // GET /modules/:moduleId/cv/forms/:formId/display-configs
-app.get('/modules/:moduleId/cv/forms/:formId/display-configs', async (c) => {
+router.get('/modules/:moduleId/cv/forms/:formId/display-configs', async (c) => {
   const user = c.get('user');
   if (!isAdminIntegratorOrCvConfigurer(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -834,7 +834,7 @@ app.get('/modules/:moduleId/cv/forms/:formId/display-configs', async (c) => {
 });
 
 // POST /modules/:moduleId/cv/forms/:formId/display-configs
-app.post('/modules/:moduleId/cv/forms/:formId/display-configs', async (c) => {
+router.post('/modules/:moduleId/cv/forms/:formId/display-configs', async (c) => {
   const user = c.get('user');
   if (!isAdminIntegratorOrCvConfigurer(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -866,7 +866,7 @@ app.post('/modules/:moduleId/cv/forms/:formId/display-configs', async (c) => {
 });
 
 // PATCH /modules/:moduleId/cv/forms/:formId/display-configs/:id
-app.patch('/modules/:moduleId/cv/forms/:formId/display-configs/:id', async (c) => {
+router.patch('/modules/:moduleId/cv/forms/:formId/display-configs/:id', async (c) => {
   const user = c.get('user');
   if (!isAdminIntegratorOrCvConfigurer(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -901,7 +901,7 @@ app.patch('/modules/:moduleId/cv/forms/:formId/display-configs/:id', async (c) =
 });
 
 // DELETE /modules/:moduleId/cv/forms/:formId/display-configs/:id
-app.delete('/modules/:moduleId/cv/forms/:formId/display-configs/:id', async (c) => {
+router.delete('/modules/:moduleId/cv/forms/:formId/display-configs/:id', async (c) => {
   const user = c.get('user');
   if (!isAdminIntegratorOrCvConfigurer(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -925,7 +925,7 @@ app.delete('/modules/:moduleId/cv/forms/:formId/display-configs/:id', async (c) 
 });
 
 // PUT /modules/:moduleId/cv/forms/:formId/display-configs/:id/roles
-app.put('/modules/:moduleId/cv/forms/:formId/display-configs/:id/roles', async (c) => {
+router.put('/modules/:moduleId/cv/forms/:formId/display-configs/:id/roles', async (c) => {
   const user = c.get('user');
   if (!isAdminIntegratorOrCvConfigurer(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -962,7 +962,7 @@ app.put('/modules/:moduleId/cv/forms/:formId/display-configs/:id/roles', async (
 });
 
 // PUT /modules/:moduleId/cv/forms/:formId/display-configs/:id/fields
-app.put('/modules/:moduleId/cv/forms/:formId/display-configs/:id/fields', async (c) => {
+router.put('/modules/:moduleId/cv/forms/:formId/display-configs/:id/fields', async (c) => {
   const user = c.get('user');
   if (!isAdminIntegratorOrCvConfigurer(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -1005,7 +1005,7 @@ app.put('/modules/:moduleId/cv/forms/:formId/display-configs/:id/fields', async 
 // ─── CV LISTING Display Configs — /modules/:moduleId/cv/display-configs ───────
 
 // GET /modules/:moduleId/cv/display-configs
-app.get('/modules/:moduleId/cv/display-configs', async (c) => {
+router.get('/modules/:moduleId/cv/display-configs', async (c) => {
   const user = c.get('user');
   if (!isAdminIntegratorOrCvConfigurer(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -1023,7 +1023,7 @@ app.get('/modules/:moduleId/cv/display-configs', async (c) => {
 });
 
 // POST /modules/:moduleId/cv/display-configs
-app.post('/modules/:moduleId/cv/display-configs', async (c) => {
+router.post('/modules/:moduleId/cv/display-configs', async (c) => {
   const user = c.get('user');
   if (!isAdminIntegratorOrCvConfigurer(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -1052,7 +1052,7 @@ app.post('/modules/:moduleId/cv/display-configs', async (c) => {
 });
 
 // PATCH /modules/:moduleId/cv/display-configs/:id
-app.patch('/modules/:moduleId/cv/display-configs/:id', async (c) => {
+router.patch('/modules/:moduleId/cv/display-configs/:id', async (c) => {
   const user = c.get('user');
   if (!isAdminIntegratorOrCvConfigurer(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -1089,7 +1089,7 @@ app.patch('/modules/:moduleId/cv/display-configs/:id', async (c) => {
 });
 
 // DELETE /modules/:moduleId/cv/display-configs/:id
-app.delete('/modules/:moduleId/cv/display-configs/:id', async (c) => {
+router.delete('/modules/:moduleId/cv/display-configs/:id', async (c) => {
   const user = c.get('user');
   if (!isAdminIntegratorOrCvConfigurer(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -1113,7 +1113,7 @@ app.delete('/modules/:moduleId/cv/display-configs/:id', async (c) => {
 });
 
 // PUT /modules/:moduleId/cv/display-configs/:id/roles
-app.put('/modules/:moduleId/cv/display-configs/:id/roles', async (c) => {
+router.put('/modules/:moduleId/cv/display-configs/:id/roles', async (c) => {
   const user = c.get('user');
   if (!isAdminIntegratorOrCvConfigurer(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -1150,7 +1150,7 @@ app.put('/modules/:moduleId/cv/display-configs/:id/roles', async (c) => {
 });
 
 // PUT /modules/:moduleId/cv/display-configs/:id/fields
-app.put('/modules/:moduleId/cv/display-configs/:id/fields', async (c) => {
+router.put('/modules/:moduleId/cv/display-configs/:id/fields', async (c) => {
   const user = c.get('user');
   if (!isAdminIntegratorOrCvConfigurer(user.persona)) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -1191,4 +1191,4 @@ app.put('/modules/:moduleId/cv/display-configs/:id/fields', async (c) => {
   return c.json(toSnakeCase(rows));
 });
 
-export default app;
+export default router;

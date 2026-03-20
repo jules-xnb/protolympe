@@ -28,7 +28,7 @@ import type { JwtPayload } from '../lib/jwt.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
-const app = new Hono<Env>();
+const router = new Hono<Env>();
 
 // ─── Client access guard for module-scoped routes ─────────────────────────────
 
@@ -50,8 +50,8 @@ async function verifyModuleClientAccess(
 }
 
 
-app.use('*', authMiddleware);
-app.use('*', async (c, next) => {
+router.use('*', authMiddleware);
+router.use('*', async (c, next) => {
   const moduleId = c.req.param('moduleId') as string | undefined;
   if (moduleId) {
     const err = await verifyModuleClientAccess(c, moduleId);
@@ -236,7 +236,7 @@ async function requireManageCampaign(
 // ─── Campaigns ───────────────────────────────────────────────────────────────
 
 // 1. GET /campaigns
-app.get('/campaigns', async (c) => {
+router.get('/campaigns', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
@@ -265,7 +265,7 @@ app.get('/campaigns', async (c) => {
 });
 
 // 2. GET /campaigns/:id
-app.get('/campaigns/:id', async (c) => {
+router.get('/campaigns/:id', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
 
@@ -292,7 +292,7 @@ app.get('/campaigns/:id', async (c) => {
 });
 
 // 3. POST /campaigns — Launch campaign (client_user with can_manage_campaign)
-app.post('/campaigns', async (c) => {
+router.post('/campaigns', async (c) => {
   const moduleId = c.req.param('moduleId') as string;
   const user = c.get('user');
 
@@ -341,7 +341,7 @@ app.post('/campaigns', async (c) => {
 });
 
 // 4. PATCH /campaigns/:id — Update campaign
-app.patch('/campaigns/:id', async (c) => {
+router.patch('/campaigns/:id', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
   const user = c.get('user');
@@ -393,7 +393,7 @@ app.patch('/campaigns/:id', async (c) => {
 });
 
 // 5. PATCH /campaigns/:id/close — Close campaign
-app.patch('/campaigns/:id/close', async (c) => {
+router.patch('/campaigns/:id/close', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
   const user = c.get('user');
@@ -434,7 +434,7 @@ app.patch('/campaigns/:id/close', async (c) => {
 // ─── Targets ─────────────────────────────────────────────────────────────────
 
 // 6. GET /campaigns/:id/targets
-app.get('/campaigns/:id/targets', async (c) => {
+router.get('/campaigns/:id/targets', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
@@ -471,7 +471,7 @@ app.get('/campaigns/:id/targets', async (c) => {
 });
 
 // 7. POST /campaigns/:id/targets — Add targets
-app.post('/campaigns/:id/targets', async (c) => {
+router.post('/campaigns/:id/targets', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
   const user = c.get('user');
@@ -592,7 +592,7 @@ app.post('/campaigns/:id/targets', async (c) => {
 });
 
 // 8. DELETE /campaigns/:id/targets/:targetId
-app.delete('/campaigns/:id/targets/:targetId', async (c) => {
+router.delete('/campaigns/:id/targets/:targetId', async (c) => {
   const { id, targetId } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
   const user = c.get('user');
@@ -639,7 +639,7 @@ app.delete('/campaigns/:id/targets/:targetId', async (c) => {
 // ─── Responses ────────────────────────────────────────────────────────────────
 
 // 9. GET /campaigns/:id/responses
-app.get('/campaigns/:id/responses', async (c) => {
+router.get('/campaigns/:id/responses', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
@@ -691,7 +691,7 @@ app.get('/campaigns/:id/responses', async (c) => {
 });
 
 // 10. GET /responses/:id
-app.get('/responses/:id', async (c) => {
+router.get('/responses/:id', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
 
@@ -732,7 +732,7 @@ app.get('/responses/:id', async (c) => {
 });
 
 // 11. PATCH /responses/:id — Save field values
-app.patch('/responses/:id', async (c) => {
+router.patch('/responses/:id', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
   const user = c.get('user');
@@ -858,7 +858,7 @@ app.patch('/responses/:id', async (c) => {
 });
 
 // 12. POST /responses/:id/transition — Execute status transition
-app.post('/responses/:id/transition', async (c) => {
+router.post('/responses/:id/transition', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
   const user = c.get('user');
@@ -950,7 +950,7 @@ app.post('/responses/:id/transition', async (c) => {
 // ─── Prefill ─────────────────────────────────────────────────────────────────
 
 // 13. GET /responses/:id/prefill
-app.get('/responses/:id/prefill', async (c) => {
+router.get('/responses/:id/prefill', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
 
@@ -1006,7 +1006,7 @@ app.get('/responses/:id/prefill', async (c) => {
 // ─── Comments ─────────────────────────────────────────────────────────────────
 
 // 14. GET /responses/:id/comments
-app.get('/responses/:id/comments', async (c) => {
+router.get('/responses/:id/comments', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
 
@@ -1044,7 +1044,7 @@ app.get('/responses/:id/comments', async (c) => {
 });
 
 // 15. POST /responses/:id/comments
-app.post('/responses/:id/comments', async (c) => {
+router.post('/responses/:id/comments', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
   const user = c.get('user');
@@ -1100,7 +1100,7 @@ app.post('/responses/:id/comments', async (c) => {
 // ─── Documents ───────────────────────────────────────────────────────────────
 
 // 16. GET /responses/:id/documents
-app.get('/responses/:id/documents', async (c) => {
+router.get('/responses/:id/documents', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
 
@@ -1138,7 +1138,7 @@ app.get('/responses/:id/documents', async (c) => {
 });
 
 // 17. POST /responses/:id/documents
-app.post('/responses/:id/documents', async (c) => {
+router.post('/responses/:id/documents', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
   const user = c.get('user');
@@ -1195,7 +1195,7 @@ app.post('/responses/:id/documents', async (c) => {
 });
 
 // 18. DELETE /responses/:id/documents/:docId
-app.delete('/responses/:id/documents/:docId', async (c) => {
+router.delete('/responses/:id/documents/:docId', async (c) => {
   const { id, docId } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
   const user = c.get('user');
@@ -1246,7 +1246,7 @@ app.delete('/responses/:id/documents/:docId', async (c) => {
 // ─── Campaign Export / Import ─────────────────────────────────────────────────
 
 // GET /campaigns/:id/export — Export responses with field values as CSV
-app.get('/campaigns/:id/export', async (c) => {
+router.get('/campaigns/:id/export', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
 
@@ -1336,7 +1336,7 @@ app.get('/campaigns/:id/export', async (c) => {
 });
 
 // POST /campaigns/:id/import — Import response values from CSV
-app.post('/campaigns/:id/import', async (c) => {
+router.post('/campaigns/:id/import', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
   const user = c.get('user');
@@ -1451,7 +1451,7 @@ app.post('/campaigns/:id/import', async (c) => {
 // ─── Audit ────────────────────────────────────────────────────────────────────
 
 // 19. GET /responses/:id/audit
-app.get('/responses/:id/audit', async (c) => {
+router.get('/responses/:id/audit', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
 
@@ -1488,4 +1488,4 @@ app.get('/responses/:id/audit', async (c) => {
   return c.json(logs.map(auditToSnake));
 });
 
-export default app;
+export default router;

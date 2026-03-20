@@ -13,6 +13,7 @@ import { eq, and } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { signAccessToken } from '../lib/jwt.js';
+import type { JwtPayload } from '../lib/jwt.js';
 import { validatePassword } from '../lib/password-policy.js';
 import { decrypt } from '../lib/encryption.js';
 import bcrypt from 'bcryptjs';
@@ -29,7 +30,9 @@ import {
   ClientSecretPost,
 } from 'openid-client';
 
-const router = new Hono();
+type Env = { Variables: { user: JwtPayload } };
+
+const router = new Hono<Env>();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -72,7 +75,14 @@ router.post('/signin', rateLimit(5, 60_000), async (c) => {
   const { email, password } = parsed.data;
 
   const [account] = await db
-    .select()
+    .select({
+      id: accounts.id,
+      email: accounts.email,
+      persona: accounts.persona,
+      passwordHash: accounts.passwordHash,
+      failedLoginAttempts: accounts.failedLoginAttempts,
+      lockedUntil: accounts.lockedUntil,
+    })
     .from(accounts)
     .where(eq(accounts.email, email))
     .limit(1);
@@ -172,7 +182,11 @@ router.post('/refresh', async (c) => {
 
   // Fetch account
   const [account] = await db
-    .select()
+    .select({
+      id: accounts.id,
+      email: accounts.email,
+      persona: accounts.persona,
+    })
     .from(accounts)
     .where(eq(accounts.id, result.userId))
     .limit(1);
@@ -244,7 +258,10 @@ router.patch('/password', authMiddleware, async (c) => {
   }
 
   const [account] = await db
-    .select()
+    .select({
+      id: accounts.id,
+      passwordHash: accounts.passwordHash,
+    })
     .from(accounts)
     .where(eq(accounts.id, user.sub))
     .limit(1);
@@ -288,7 +305,7 @@ router.post('/forgot-password', rateLimit(3, 60_000), async (c) => {
   const { email } = parsed.data;
 
   const [account] = await db
-    .select()
+    .select({ id: accounts.id })
     .from(accounts)
     .where(eq(accounts.email, email))
     .limit(1);
@@ -341,7 +358,12 @@ router.post('/reset-password', rateLimit(5, 60_000), async (c) => {
   const now = new Date();
 
   const [stored] = await db
-    .select()
+    .select({
+      id: passwordResetTokens.id,
+      userId: passwordResetTokens.userId,
+      expiresAt: passwordResetTokens.expiresAt,
+      usedAt: passwordResetTokens.usedAt,
+    })
     .from(passwordResetTokens)
     .where(eq(passwordResetTokens.tokenHash, tokenHash))
     .limit(1);
@@ -446,7 +468,11 @@ router.get('/sso/callback', async (c) => {
 
   // 2. Fetch SSO config
   const [ssoConfig] = await db
-    .select()
+    .select({
+      clientSecret: clientSsoConfigs.clientSecret,
+      issuerUrl: clientSsoConfigs.issuerUrl,
+      clientIdOidc: clientSsoConfigs.clientIdOidc,
+    })
     .from(clientSsoConfigs)
     .where(and(eq(clientSsoConfigs.clientId, clientId), eq(clientSsoConfigs.isEnabled, true)));
   if (!ssoConfig) return c.json({ error: 'SSO non configuré' }, 400);
@@ -552,7 +578,11 @@ router.get('/sso/:clientId', async (c) => {
 
   // 1. Fetch client SSO config
   const [ssoConfig] = await db
-    .select()
+    .select({
+      clientSecret: clientSsoConfigs.clientSecret,
+      issuerUrl: clientSsoConfigs.issuerUrl,
+      clientIdOidc: clientSsoConfigs.clientIdOidc,
+    })
     .from(clientSsoConfigs)
     .where(and(eq(clientSsoConfigs.clientId, clientId), eq(clientSsoConfigs.isEnabled, true)));
   if (!ssoConfig) return c.json({ error: 'SSO non configuré pour ce client' }, 404);

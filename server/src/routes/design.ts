@@ -7,12 +7,15 @@ import { authMiddleware } from '../middleware/auth.js';
 import { requireClientAccess } from '../middleware/client-access.js';
 import { requireAdminOrIntegrator } from '../middleware/persona.js';
 import { toSnakeCase } from '../lib/case-transform.js';
+import type { JwtPayload } from '../lib/jwt.js';
+
+type Env = { Variables: { user: JwtPayload } };
 
 // Mounted at /clients/:clientId/design
-const designRouter = new Hono();
+const router = new Hono<Env>();
 
-designRouter.use('*', authMiddleware);
-designRouter.use('*', requireClientAccess());
+router.use('*', authMiddleware);
+router.use('*', requireClientAccess());
 
 const DEFAULT_DESIGN = {
   primary_color: '#3B82F6',
@@ -25,7 +28,7 @@ const DEFAULT_DESIGN = {
 };
 
 // GET / — get design config (returns defaults if none exists)
-designRouter.get('/', async (c) => {
+router.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
 
   const [config] = await db
@@ -51,7 +54,7 @@ const upsertDesignSchema = z.object({
 });
 
 // PUT / — upsert design config (admin/integrator only)
-designRouter.put('/', requireAdminOrIntegrator(), async (c) => {
+router.put('/', requireAdminOrIntegrator(), async (c) => {
   const clientId = c.req.param('clientId') as string;
   const body = await c.req.json();
   const parsed = upsertDesignSchema.safeParse(body);
@@ -110,4 +113,4 @@ designRouter.put('/', requireAdminOrIntegrator(), async (c) => {
   return c.json(toSnakeCase(config));
 });
 
-export default designRouter;
+export default router;

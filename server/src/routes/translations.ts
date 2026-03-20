@@ -7,15 +7,18 @@ import { authMiddleware } from '../middleware/auth.js';
 import { requireClientAccess } from '../middleware/client-access.js';
 import { requireAdminOrIntegrator } from '../middleware/persona.js';
 import { toSnakeCase } from '../lib/case-transform.js';
+import type { JwtPayload } from '../lib/jwt.js';
+
+type Env = { Variables: { user: JwtPayload } };
 
 // Mounted at /clients/:clientId/translations
-const translationsRouter = new Hono();
+const router = new Hono<Env>();
 
-translationsRouter.use('*', authMiddleware);
-translationsRouter.use('*', requireClientAccess());
+router.use('*', authMiddleware);
+router.use('*', requireClientAccess());
 
 // GET / — get translations. Query params: scope, language
-translationsRouter.get('/', async (c) => {
+router.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const scope = c.req.query('scope');
   const language = c.req.query('language');
@@ -57,7 +60,7 @@ const batchUpsertSchema = z.object({
 
 // PUT / — batch upsert translations (admin/integrator only)
 // Deletes existing entries for scope+language, then inserts the new set.
-translationsRouter.put('/', requireAdminOrIntegrator(), async (c) => {
+router.put('/', requireAdminOrIntegrator(), async (c) => {
   const clientId = c.req.param('clientId') as string;
   const body = await c.req.json();
   const parsed = batchUpsertSchema.safeParse(body);
@@ -95,4 +98,4 @@ translationsRouter.put('/', requireAdminOrIntegrator(), async (c) => {
   return c.json(toSnakeCase(result));
 });
 
-export default translationsRouter;
+export default router;

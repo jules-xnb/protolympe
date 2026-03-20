@@ -18,6 +18,7 @@ import { toSnakeCase } from '../lib/case-transform.js';
 import { getEditableFieldSlugs } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';
 import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
+import { logAdminAction } from '../lib/audit.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
@@ -82,7 +83,7 @@ router.post('/invite', async (c) => {
 
   // Check if account already exists
   const [existing] = await db
-    .select()
+    .select({ id: accounts.id })
     .from(accounts)
     .where(eq(accounts.email, email));
 
@@ -106,7 +107,7 @@ router.post('/invite', async (c) => {
 
   // Check if membership already exists for this client
   const [existingMembership] = await db
-    .select()
+    .select({ id: userClientMemberships.id })
     .from(userClientMemberships)
     .where(
       and(
@@ -128,6 +129,8 @@ router.post('/invite', async (c) => {
       isActive: true,
     })
     .returning();
+
+  await logAdminAction(requestingUser.sub, 'user.invite', 'user_client_membership', membership.id, { client_id: clientId, email });
 
   return c.json(
     toSnakeCase({
@@ -313,7 +316,7 @@ router.post('/import', async (c) => {
 
       // Check if account already exists
       const [existing] = await db
-        .select()
+        .select({ id: accounts.id })
         .from(accounts)
         .where(eq(accounts.email, row.email));
 
@@ -337,7 +340,7 @@ router.post('/import', async (c) => {
 
       // Check if membership already exists
       const [existingMembership] = await db
-        .select()
+        .select({ id: userClientMemberships.id })
         .from(userClientMemberships)
         .where(
           and(
@@ -434,7 +437,7 @@ router.patch('/:id', async (c) => {
 
   // Verify membership exists for this client
   const [membership] = await db
-    .select()
+    .select({ id: userClientMemberships.id })
     .from(userClientMemberships)
     .where(
       and(eq(userClientMemberships.userId, id), eq(userClientMemberships.clientId, clientId))
@@ -454,6 +457,8 @@ router.patch('/:id', async (c) => {
     .where(eq(accounts.id, id))
     .returning();
 
+  await logAdminAction(requestingUser.sub, 'user.update', 'account', id, { client_id: clientId, ...parsed.data });
+
   return c.json(toSnakeCase(updated));
 });
 
@@ -461,6 +466,7 @@ router.patch('/:id', async (c) => {
 router.patch('/:id/deactivate', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+  const user = c.get('user');
 
   const [membership] = await db
     .update(userClientMemberships)
@@ -473,6 +479,8 @@ router.patch('/:id/deactivate', async (c) => {
   if (!membership) {
     return c.json({ error: 'Utilisateur introuvable' }, 404);
   }
+
+  await logAdminAction(user.sub, 'user.deactivate', 'user_client_membership', membership.id, { client_id: clientId, user_id: id });
 
   return c.json(toSnakeCase(membership));
 });
@@ -621,7 +629,7 @@ router.post('/:id/field-values', async (c) => {
 
   // Check if a value already exists for this user + field
   const [existing] = await db
-    .select()
+    .select({ id: userFieldValues.id })
     .from(userFieldValues)
     .where(
       and(

@@ -8,19 +8,22 @@ import { requireClientAccess } from '../middleware/client-access.js';
 import { requireAdminOrIntegrator } from '../middleware/persona.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
+import type { JwtPayload } from '../lib/jwt.js';
+
+type Env = { Variables: { user: JwtPayload } };
 
 // Mounted at /clients/:clientId/lists
-const listsRouter = new Hono();
+const router = new Hono<Env>();
 
-listsRouter.use('*', authMiddleware);
-listsRouter.use('*', requireClientAccess());
+router.use('*', authMiddleware);
+router.use('*', requireClientAccess());
 
 // =============================================
 // Lists
 // =============================================
 
 // GET / — list all non-archived lists for client
-listsRouter.get('/', async (c) => {
+router.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
   const where = and(eq(lists.clientId, clientId), eq(lists.isArchived, false));
@@ -37,7 +40,7 @@ listsRouter.get('/', async (c) => {
 });
 
 // GET /:id — detail with values
-listsRouter.get('/:id', async (c) => {
+router.get('/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -65,7 +68,7 @@ const createListSchema = z.object({
 });
 
 // POST / — create list (admin/integrator only)
-listsRouter.post('/', requireAdminOrIntegrator(), async (c) => {
+router.post('/', requireAdminOrIntegrator(), async (c) => {
   const clientId = c.req.param('clientId') as string;
   const body = await c.req.json();
   const parsed = createListSchema.safeParse(body);
@@ -93,7 +96,7 @@ const updateListSchema = z.object({
 });
 
 // PATCH /:id — update list (admin/integrator only)
-listsRouter.patch('/:id', requireAdminOrIntegrator(), async (c) => {
+router.patch('/:id', requireAdminOrIntegrator(), async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const body = await c.req.json();
@@ -122,7 +125,7 @@ listsRouter.patch('/:id', requireAdminOrIntegrator(), async (c) => {
 });
 
 // PATCH /:id/archive — archive list (admin/integrator only)
-listsRouter.patch('/:id/archive', requireAdminOrIntegrator(), async (c) => {
+router.patch('/:id/archive', requireAdminOrIntegrator(), async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -144,7 +147,7 @@ listsRouter.patch('/:id/archive', requireAdminOrIntegrator(), async (c) => {
 // =============================================
 
 // GET /:id/values — list values ordered by display_order
-listsRouter.get('/:id/values', async (c) => {
+router.get('/:id/values', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
@@ -179,7 +182,7 @@ const createValueSchema = z.object({
 });
 
 // POST /:id/values — add value (admin/integrator only)
-listsRouter.post('/:id/values', requireAdminOrIntegrator(), async (c) => {
+router.post('/:id/values', requireAdminOrIntegrator(), async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -223,7 +226,7 @@ const reorderValuesSchema = z.object({
 // PATCH /:id/values/reorder — reorder values (admin/integrator only)
 // Registered before /:id/values/:valueId to avoid the static segment being
 // captured as a dynamic :valueId param.
-listsRouter.patch('/:id/values/reorder', requireAdminOrIntegrator(), async (c) => {
+router.patch('/:id/values/reorder', requireAdminOrIntegrator(), async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -273,7 +276,7 @@ const updateValueSchema = z.object({
 });
 
 // PATCH /:id/values/:valueId — update value (admin/integrator only)
-listsRouter.patch('/:id/values/:valueId', requireAdminOrIntegrator(), async (c) => {
+router.patch('/:id/values/:valueId', requireAdminOrIntegrator(), async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const valueId = c.req.param('valueId');
@@ -318,7 +321,7 @@ listsRouter.patch('/:id/values/:valueId', requireAdminOrIntegrator(), async (c) 
 });
 
 // PATCH /:id/values/:valueId/deactivate — deactivate value (admin/integrator only)
-listsRouter.patch('/:id/values/:valueId/deactivate', requireAdminOrIntegrator(), async (c) => {
+router.patch('/:id/values/:valueId/deactivate', requireAdminOrIntegrator(), async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const valueId = c.req.param('valueId');
@@ -345,4 +348,4 @@ listsRouter.patch('/:id/values/:valueId/deactivate', requireAdminOrIntegrator(),
   return c.json(toSnakeCase(value));
 });
 
-export default listsRouter;
+export default router;

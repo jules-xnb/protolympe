@@ -20,16 +20,14 @@ import { getUserPermissions, hasClientAccess, hasModulePermission } from '../lib
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AppEnv = {
-  Variables: {
-    user: import('../lib/jwt.js').JwtPayload;
-  };
-};
+import type { JwtPayload } from '../lib/jwt.js';
 
-const app = new Hono<AppEnv>();
+type Env = { Variables: { user: JwtPayload } };
 
-app.use('*', authMiddleware);
-app.use('*', async (c, next) => {
+const router = new Hono<Env>();
+
+router.use('*', authMiddleware);
+router.use('*', async (c, next) => {
   const moduleId = c.req.param('moduleId') as string | undefined;
   if (moduleId) {
     const err = await verifyModuleClientAccess(c, moduleId);
@@ -43,7 +41,7 @@ app.use('*', async (c, next) => {
 // client_user: needs can_configure_survey_type permission on the module.
 
 async function canConfigure(
-  user: import('../lib/jwt.js').JwtPayload,
+  user: JwtPayload,
   moduleId: string
 ): Promise<boolean> {
   if (
@@ -74,7 +72,7 @@ async function getModule(moduleId: string) {
 // ─── Client access guard for module-scoped routes ─────────────────────────────
 
 async function verifyModuleClientAccess(
-  c: import('hono').Context<AppEnv>,
+  c: import('hono').Context<Env>,
   moduleId: string
 ): Promise<globalThis.Response | null> {
   const user = c.get('user');
@@ -280,7 +278,7 @@ function validationRuleToSnake(row: typeof moduleCvValidationRules.$inferSelect)
 // ─── Survey Types ──────────────────────────────────────────────────────────────
 
 // 1. GET /survey-types
-app.get('/survey-types', async (c) => {
+router.get('/survey-types', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
@@ -305,7 +303,7 @@ app.get('/survey-types', async (c) => {
 });
 
 // 2. GET /survey-types/:id
-app.get('/survey-types/:id', async (c) => {
+router.get('/survey-types/:id', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const { id } = c.req.param();
@@ -330,7 +328,7 @@ app.get('/survey-types/:id', async (c) => {
 });
 
 // 3. POST /survey-types
-app.post('/survey-types', async (c) => {
+router.post('/survey-types', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
 
@@ -361,7 +359,7 @@ app.post('/survey-types', async (c) => {
 });
 
 // 4. PATCH /survey-types/:id
-app.patch('/survey-types/:id', async (c) => {
+router.patch('/survey-types/:id', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const { id } = c.req.param();
@@ -402,7 +400,7 @@ app.patch('/survey-types/:id', async (c) => {
 });
 
 // 5. PATCH /survey-types/:id/deactivate
-app.patch('/survey-types/:id/deactivate', async (c) => {
+router.patch('/survey-types/:id/deactivate', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const { id } = c.req.param();
@@ -435,7 +433,7 @@ app.patch('/survey-types/:id/deactivate', async (c) => {
 // ─── Field Definitions ─────────────────────────────────────────────────────────
 
 // 6. GET /survey-types/:typeId/fields
-app.get('/survey-types/:typeId/fields', async (c) => {
+router.get('/survey-types/:typeId/fields', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const typeId = c.req.param('typeId') as string;
@@ -466,7 +464,7 @@ app.get('/survey-types/:typeId/fields', async (c) => {
 });
 
 // 7. POST /survey-types/:typeId/fields
-app.post(
+router.post(
   '/survey-types/:typeId/fields',
   async (c) => {
     const user = c.get('user');
@@ -513,7 +511,7 @@ app.post(
 );
 
 // 8. PATCH /survey-types/:typeId/fields/:id
-app.patch(
+router.patch(
   '/survey-types/:typeId/fields/:id',
   async (c) => {
     const user = c.get('user');
@@ -561,7 +559,7 @@ app.patch(
 );
 
 // 9. PATCH /survey-types/:typeId/fields/:id/deactivate
-app.patch('/survey-types/:typeId/fields/:id/deactivate', async (c) => {
+router.patch('/survey-types/:typeId/fields/:id/deactivate', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const typeId = c.req.param('typeId') as string;
@@ -595,7 +593,7 @@ app.patch('/survey-types/:typeId/fields/:id/deactivate', async (c) => {
 // ─── Statuses ──────────────────────────────────────────────────────────────────
 
 // 10. GET /survey-types/:typeId/statuses
-app.get('/survey-types/:typeId/statuses', async (c) => {
+router.get('/survey-types/:typeId/statuses', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const typeId = c.req.param('typeId') as string;
@@ -626,7 +624,7 @@ app.get('/survey-types/:typeId/statuses', async (c) => {
 });
 
 // 11. POST /survey-types/:typeId/statuses
-app.post(
+router.post(
   '/survey-types/:typeId/statuses',
   async (c) => {
     const user = c.get('user');
@@ -673,7 +671,7 @@ app.post(
 );
 
 // 12. PATCH /survey-types/:typeId/statuses/:id
-app.patch(
+router.patch(
   '/survey-types/:typeId/statuses/:id',
   async (c) => {
     const user = c.get('user');
@@ -721,7 +719,7 @@ app.patch(
 );
 
 // 13. PATCH /survey-types/:typeId/statuses/reorder
-app.patch(
+router.patch(
   '/survey-types/:typeId/statuses/reorder',
   async (c) => {
     const user = c.get('user');
@@ -779,7 +777,7 @@ app.patch(
 // ─── Transitions ───────────────────────────────────────────────────────────────
 
 // 14. GET /survey-types/:typeId/transitions
-app.get('/survey-types/:typeId/transitions', async (c) => {
+router.get('/survey-types/:typeId/transitions', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const typeId = c.req.param('typeId') as string;
@@ -842,7 +840,7 @@ app.get('/survey-types/:typeId/transitions', async (c) => {
 });
 
 // 15. POST /survey-types/:typeId/transitions
-app.post(
+router.post(
   '/survey-types/:typeId/transitions',
   async (c) => {
     const user = c.get('user');
@@ -887,7 +885,7 @@ app.post(
 );
 
 // 16. PATCH /survey-types/:typeId/transitions/:id
-app.patch(
+router.patch(
   '/survey-types/:typeId/transitions/:id',
   async (c) => {
     const user = c.get('user');
@@ -929,7 +927,7 @@ app.patch(
 );
 
 // 17. DELETE /survey-types/:typeId/transitions/:id
-app.delete('/survey-types/:typeId/transitions/:id', async (c) => {
+router.delete('/survey-types/:typeId/transitions/:id', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const typeId = c.req.param('typeId') as string;
@@ -959,7 +957,7 @@ app.delete('/survey-types/:typeId/transitions/:id', async (c) => {
 });
 
 // 18. GET /survey-types/:typeId/transitions/:id/roles
-app.get('/survey-types/:typeId/transitions/:id/roles', async (c) => {
+router.get('/survey-types/:typeId/transitions/:id/roles', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const typeId = c.req.param('typeId') as string;
@@ -1000,7 +998,7 @@ app.get('/survey-types/:typeId/transitions/:id/roles', async (c) => {
 });
 
 // 19. PUT /survey-types/:typeId/transitions/:id/roles
-app.put(
+router.put(
   '/survey-types/:typeId/transitions/:id/roles',
   async (c) => {
     const user = c.get('user');
@@ -1067,7 +1065,7 @@ app.put(
 // ─── Forms ─────────────────────────────────────────────────────────────────────
 
 // 20. GET /survey-types/:typeId/forms
-app.get('/survey-types/:typeId/forms', async (c) => {
+router.get('/survey-types/:typeId/forms', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const typeId = c.req.param('typeId') as string;
@@ -1098,7 +1096,7 @@ app.get('/survey-types/:typeId/forms', async (c) => {
 });
 
 // 21. POST /survey-types/:typeId/forms
-app.post(
+router.post(
   '/survey-types/:typeId/forms',
   async (c) => {
     const user = c.get('user');
@@ -1143,7 +1141,7 @@ app.post(
 );
 
 // 22. PATCH /survey-types/:typeId/forms/:id
-app.patch(
+router.patch(
   '/survey-types/:typeId/forms/:id',
   async (c) => {
     const user = c.get('user');
@@ -1191,7 +1189,7 @@ app.patch(
 // ─── Form Fields ───────────────────────────────────────────────────────────────
 
 // 23. GET /forms/:formId/fields
-app.get('/forms/:formId/fields', async (c) => {
+router.get('/forms/:formId/fields', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const formId = c.req.param('formId') as string;
@@ -1217,7 +1215,7 @@ app.get('/forms/:formId/fields', async (c) => {
 });
 
 // 24. POST /forms/:formId/fields
-app.post(
+router.post(
   '/forms/:formId/fields',
   async (c) => {
     const user = c.get('user');
@@ -1258,7 +1256,7 @@ app.post(
 );
 
 // 25. PATCH /forms/:formId/fields/:id
-app.patch(
+router.patch(
   '/forms/:formId/fields/:id',
   async (c) => {
     const user = c.get('user');
@@ -1304,7 +1302,7 @@ app.patch(
 );
 
 // 26. DELETE /forms/:formId/fields/:id
-app.delete('/forms/:formId/fields/:id', async (c) => {
+router.delete('/forms/:formId/fields/:id', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const formId = c.req.param('formId') as string;
@@ -1334,7 +1332,7 @@ app.delete('/forms/:formId/fields/:id', async (c) => {
 // ─── Validation Rules ──────────────────────────────────────────────────────────
 
 // 27. GET /survey-types/:typeId/validation-rules
-app.get('/survey-types/:typeId/validation-rules', async (c) => {
+router.get('/survey-types/:typeId/validation-rules', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const typeId = c.req.param('typeId') as string;
@@ -1365,7 +1363,7 @@ app.get('/survey-types/:typeId/validation-rules', async (c) => {
 });
 
 // 28. POST /survey-types/:typeId/validation-rules
-app.post(
+router.post(
   '/survey-types/:typeId/validation-rules',
   async (c) => {
     const user = c.get('user');
@@ -1410,7 +1408,7 @@ app.post(
 );
 
 // 29. PATCH /survey-types/:typeId/validation-rules/:id
-app.patch(
+router.patch(
   '/survey-types/:typeId/validation-rules/:id',
   async (c) => {
     const user = c.get('user');
@@ -1456,7 +1454,7 @@ app.patch(
 );
 
 // 30. DELETE /survey-types/:typeId/validation-rules/:id
-app.delete('/survey-types/:typeId/validation-rules/:id', async (c) => {
+router.delete('/survey-types/:typeId/validation-rules/:id', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
   const typeId = c.req.param('typeId') as string;
@@ -1485,4 +1483,4 @@ app.delete('/survey-types/:typeId/validation-rules/:id', async (c) => {
   return c.json({ success: true });
 });
 
-export default app;
+export default router;

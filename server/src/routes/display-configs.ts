@@ -19,8 +19,10 @@ import {
   moduleCvDisplayConfigRoles,
   moduleCvDisplayConfigFields,
   moduleCvForms,
+  clientModules,
 } from '../db/schema.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { getUserPermissions, hasClientAccess } from '../lib/cache.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 import type { JwtPayload } from '../lib/jwt.js';
 
@@ -29,6 +31,14 @@ type Env = { Variables: { user: JwtPayload } };
 const app = new Hono<Env>();
 
 app.use('*', authMiddleware);
+app.use('*', async (c, next) => {
+  const moduleId = c.req.param('moduleId') as string | undefined;
+  if (moduleId) {
+    const err = await verifyModuleClientAccess(c, moduleId);
+    if (err) return err;
+  }
+  await next();
+});
 
 // ─── Auth helper ─────────────────────────────────────────────────────────────
 
@@ -44,6 +54,26 @@ function isAdminIntegratorOrCvConfigurer(persona: string): boolean {
   // CV configs additionally allow users with can_configure_survey_type permission.
   // Permission check is done at route level; this helper covers persona-based bypass.
   return isAdminOrIntegrator(persona);
+}
+
+
+// ─── Client access guard for module-scoped routes ─────────────────────────────
+
+async function verifyModuleClientAccess(
+  c: import('hono').Context<Env>,
+  moduleId: string
+): Promise<globalThis.Response | null> {
+  const user = c.get('user');
+  if (user.persona === 'admin_delta') return null;
+
+  const [mod] = await db.select({ clientId: clientModules.clientId }).from(clientModules).where(eq(clientModules.id, moduleId)).limit(1);
+  if (!mod) return c.json({ error: 'Module introuvable' }, 404);
+
+  const permissions = await getUserPermissions(user.sub);
+  if (!hasClientAccess(permissions, mod.clientId, user.persona)) {
+    return c.json({ error: 'Accès refusé à ce module' }, 403);
+  }
+  return null;
 }
 
 // ─── Zod Schemas ─────────────────────────────────────────────────────────────

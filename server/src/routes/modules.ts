@@ -10,15 +10,18 @@ import {
 } from '../db/schema.js';
 import { eq, and, inArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireClientAccess } from '../middleware/client-access.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 import type { JwtPayload } from '../lib/jwt.js';
 import { logAdminAction } from '../lib/audit.js';
+import { getUserPermissions, hasClientAccess } from '../lib/cache.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
 const modulesRouter = new Hono<Env>();
 
 modulesRouter.use('*', authMiddleware);
+modulesRouter.use('/clients/:clientId/*', requireClientAccess());
 
 // =============================================
 // Module activation — /clients/:clientId/modules
@@ -192,7 +195,7 @@ modulesRouter.patch('/clients/:clientId/modules/:id', async (c) => {
 });
 
 const reorderModulesSchema = z.object({
-  module_ids: z.array(z.string().uuid()).min(1),
+  module_ids: z.array(z.string().uuid()).min(1).max(500),
 });
 
 // PATCH /clients/:clientId/modules/reorder — reorder modules
@@ -231,6 +234,28 @@ modulesRouter.patch('/clients/:clientId/modules/reorder', async (c) => {
 });
 
 // =============================================
+// Helper — verify that the caller has access to the client owning this module
+// =============================================
+
+async function verifyModuleClientAccess(moduleId: string, userId: string, persona: string): Promise<string | null> {
+  if (persona === 'admin_delta') return null;
+
+  const [mod] = await db
+    .select({ clientId: clientModules.clientId })
+    .from(clientModules)
+    .where(eq(clientModules.id, moduleId))
+    .limit(1);
+
+  if (!mod) return 'Module introuvable';
+
+  const permissions = await getUserPermissions(userId);
+  if (!hasClientAccess(permissions, mod.clientId, persona)) {
+    return 'Accès refusé à ce module';
+  }
+  return null;
+}
+
+// =============================================
 // Roles — /modules/:moduleId/roles
 // =============================================
 
@@ -248,6 +273,8 @@ modulesRouter.get('/modules/:moduleId/roles', async (c) => {
   }
 
   const { moduleId } = c.req.param();
+  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona);
+  if (accessError) return c.json({ error: accessError }, 403);
 
   const roles = await db
     .select()
@@ -278,6 +305,8 @@ modulesRouter.post('/modules/:moduleId/roles', async (c) => {
   }
 
   const { moduleId } = c.req.param();
+  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona);
+  if (accessError) return c.json({ error: accessError }, 403);
   const body = await c.req.json();
   const parsed = createRoleSchema.safeParse(body);
 
@@ -323,6 +352,8 @@ modulesRouter.patch('/modules/:moduleId/roles/:id', async (c) => {
   }
 
   const { moduleId, id } = c.req.param();
+  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona);
+  if (accessError) return c.json({ error: accessError }, 403);
   const body = await c.req.json();
   const parsed = updateRoleSchema.safeParse(body);
 
@@ -366,6 +397,8 @@ modulesRouter.patch('/modules/:moduleId/roles/:id/deactivate', async (c) => {
   }
 
   const { moduleId, id } = c.req.param();
+  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona);
+  if (accessError) return c.json({ error: accessError }, 403);
 
   const [role] = await db
     .update(moduleRoles)
@@ -398,6 +431,8 @@ modulesRouter.get('/modules/:moduleId/permissions', async (c) => {
   }
 
   const { moduleId } = c.req.param();
+  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona);
+  if (accessError) return c.json({ error: accessError }, 403);
 
   const permissions = await db
     .select({
@@ -428,7 +463,8 @@ const updatePermissionsSchema = z.object({
         is_granted: z.boolean(),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(500),
 });
 
 // PUT /modules/:moduleId/permissions — batch update permissions
@@ -445,6 +481,8 @@ modulesRouter.put('/modules/:moduleId/permissions', async (c) => {
   }
 
   const { moduleId } = c.req.param();
+  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona);
+  if (accessError) return c.json({ error: accessError }, 403);
   const body = await c.req.json();
   const parsed = updatePermissionsSchema.safeParse(body);
 

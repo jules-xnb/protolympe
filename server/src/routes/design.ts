@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { clientDesignConfigs } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireClientAccess } from '../middleware/client-access.js';
 import { requireAdminOrIntegrator } from '../middleware/persona.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 
@@ -11,6 +12,7 @@ import { toSnakeCase } from '../lib/case-transform.js';
 const designRouter = new Hono();
 
 designRouter.use('*', authMiddleware);
+designRouter.use('*', requireClientAccess());
 
 const DEFAULT_DESIGN = {
   primary_color: '#3B82F6',
@@ -44,7 +46,7 @@ const upsertDesignSchema = z.object({
   accent_color: z.string().nullable().optional(),
   border_radius: z.number().int().optional(),
   font_family: z.string().optional(),
-  logo_url: z.string().nullable().optional(),
+  logo_url: z.string().url().nullable().optional(),
   app_name: z.string().nullable().optional(),
 });
 

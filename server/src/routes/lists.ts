@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { lists, listValues } from '../db/schema.js';
 import { eq, and, asc, count } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireClientAccess } from '../middleware/client-access.js';
 import { requireAdminOrIntegrator } from '../middleware/persona.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
@@ -12,6 +13,7 @@ import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 const listsRouter = new Hono();
 
 listsRouter.use('*', authMiddleware);
+listsRouter.use('*', requireClientAccess());
 
 // =============================================
 // Lists
@@ -215,7 +217,7 @@ listsRouter.post('/:id/values', requireAdminOrIntegrator(), async (c) => {
 });
 
 const reorderValuesSchema = z.object({
-  value_ids: z.array(z.string().uuid()).min(1),
+  value_ids: z.array(z.string().uuid()).min(1).max(500),
 });
 
 // PATCH /:id/values/reorder — reorder values (admin/integrator only)

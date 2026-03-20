@@ -52,7 +52,14 @@ app.get('/', async (c) => {
 
   const [{ total }] = await db.select({ total: count() }).from(accounts).where(where);
   const rows = await db
-    .select()
+    .select({
+      id: accounts.id,
+      email: accounts.email,
+      firstName: accounts.firstName,
+      lastName: accounts.lastName,
+      persona: accounts.persona,
+      createdAt: accounts.createdAt,
+    })
     .from(accounts)
     .where(where)
     .orderBy(accounts.lastName, accounts.firstName)
@@ -302,7 +309,15 @@ app.delete('/:id/clients/:clientId', async (c) => {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function accountToSnake(account: typeof accounts.$inferSelect) {
+function accountToSnake(account: {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  persona: string;
+  createdAt: Date;
+  updatedAt?: Date | null;
+}) {
   return {
     id: account.id,
     email: account.email,
@@ -310,7 +325,7 @@ function accountToSnake(account: typeof accounts.$inferSelect) {
     last_name: account.lastName,
     persona: account.persona,
     created_at: account.createdAt,
-    updated_at: account.updatedAt,
+    updated_at: account.updatedAt ?? null,
   };
 }
 

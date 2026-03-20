@@ -16,7 +16,7 @@ import {
   moduleRoles,
 } from '../db/schema.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { getUserPermissions, hasModulePermission } from '../lib/cache.js';
+import { getUserPermissions, hasClientAccess, hasModulePermission } from '../lib/cache.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +29,14 @@ type AppEnv = {
 const app = new Hono<AppEnv>();
 
 app.use('*', authMiddleware);
+app.use('*', async (c, next) => {
+  const moduleId = c.req.param('moduleId') as string | undefined;
+  if (moduleId) {
+    const err = await verifyModuleClientAccess(c, moduleId);
+    if (err) return err;
+  }
+  await next();
+});
 
 // ─── Access helper ─────────────────────────────────────────────────────────────
 // Admin/integrators: always allowed.
@@ -60,6 +68,26 @@ async function getModule(moduleId: string) {
     .from(clientModules)
     .where(eq(clientModules.id, moduleId));
   return mod ?? null;
+}
+
+
+// ─── Client access guard for module-scoped routes ─────────────────────────────
+
+async function verifyModuleClientAccess(
+  c: import('hono').Context<AppEnv>,
+  moduleId: string
+): Promise<globalThis.Response | null> {
+  const user = c.get('user');
+  if (user.persona === 'admin_delta') return null;
+
+  const [mod] = await db.select({ clientId: clientModules.clientId }).from(clientModules).where(eq(clientModules.id, moduleId)).limit(1);
+  if (!mod) return c.json({ error: 'Module introuvable' }, 404);
+
+  const permissions = await getUserPermissions(user.sub);
+  if (!hasClientAccess(permissions, mod.clientId, user.persona)) {
+    return c.json({ error: 'Accès refusé à ce module' }, 403);
+  }
+  return null;
 }
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────

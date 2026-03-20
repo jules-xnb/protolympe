@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { translations } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireClientAccess } from '../middleware/client-access.js';
 import { requireAdminOrIntegrator } from '../middleware/persona.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 
@@ -11,6 +12,7 @@ import { toSnakeCase } from '../lib/case-transform.js';
 const translationsRouter = new Hono();
 
 translationsRouter.use('*', authMiddleware);
+translationsRouter.use('*', requireClientAccess());
 
 // GET / — get translations. Query params: scope, language
 translationsRouter.get('/', async (c) => {
@@ -49,7 +51,8 @@ const batchUpsertSchema = z.object({
         value: z.string(),
       })
     )
-    .min(1),
+    .min(1)
+    .max(500),
 });
 
 // PUT / — batch upsert translations (admin/integrator only)

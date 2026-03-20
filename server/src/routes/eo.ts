@@ -24,6 +24,7 @@ type Env = { Variables: { user: JwtPayload } };
 const eoRouter = new Hono<Env>();
 
 eoRouter.use('*', authMiddleware);
+eoRouter.use('*', requireClientAccess());
 
 // =============================================
 // Entities
@@ -397,6 +398,10 @@ eoRouter.post('/:id/values', async (c) => {
 
   const { field_definition_id, value } = parsed.data;
 
+  const [fieldDef] = await db.select({ id: eoFieldDefinitions.id }).from(eoFieldDefinitions)
+    .where(and(eq(eoFieldDefinitions.id, field_definition_id), eq(eoFieldDefinitions.clientId, clientId)));
+  if (!fieldDef) return c.json({ error: 'Définition de champ introuvable' }, 404);
+
   const [existing] = await db
     .select({ id: eoFieldValues.id })
     .from(eoFieldValues)
@@ -622,15 +627,16 @@ eoRouter.post('/groups/:id/members', async (c) => {
 
 // DELETE /groups/members/:memberId — Remove member from group
 eoRouter.delete('/groups/members/:memberId', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const memberId = c.req.param('memberId');
 
-  const [existing] = await db
-    .select({ id: eoGroupMembers.id })
+  // Verify the member belongs to a group in the current client (prevent cross-client deletion)
+  const [member] = await db.select({ id: eoGroupMembers.id, clientId: eoGroups.clientId })
     .from(eoGroupMembers)
-    .where(eq(eoGroupMembers.id, memberId))
-    .limit(1);
+    .innerJoin(eoGroups, eq(eoGroupMembers.groupId, eoGroups.id))
+    .where(and(eq(eoGroupMembers.id, memberId), eq(eoGroups.clientId, clientId)));
 
-  if (!existing) {
+  if (!member) {
     return c.json({ error: 'Membre introuvable' }, 404);
   }
 

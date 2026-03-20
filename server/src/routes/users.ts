@@ -23,6 +23,7 @@ type Env = { Variables: { user: JwtPayload } };
 const usersRouter = new Hono<Env>();
 
 usersRouter.use('*', authMiddleware);
+usersRouter.use('*', requireClientAccess());
 
 // ─── Users — list ─────────────────────────────────────────────────────────────
 
@@ -406,12 +407,20 @@ const assignProfileSchema = z.object({
 
 // POST /clients/:clientId/users/:id/profiles
 usersRouter.post('/:id/profiles', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const body = await c.req.json();
   const parsed = assignProfileSchema.safeParse(body);
   if (!parsed.success) {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
   }
+
+  const [profile] = await db
+    .select({ id: clientProfiles.id })
+    .from(clientProfiles)
+    .where(and(eq(clientProfiles.id, parsed.data.profile_id), eq(clientProfiles.clientId, clientId)))
+    .limit(1);
+  if (!profile) return c.json({ error: 'Profil introuvable pour ce client' }, 404);
 
   const [entry] = await db
     .insert(clientProfileUsers)
@@ -426,8 +435,16 @@ usersRouter.post('/:id/profiles', async (c) => {
 
 // DELETE /clients/:clientId/users/:id/profiles/:profileId
 usersRouter.delete('/:id/profiles/:profileId', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const profileId = c.req.param('profileId');
+
+  const [profile] = await db
+    .select({ id: clientProfiles.id })
+    .from(clientProfiles)
+    .where(and(eq(clientProfiles.id, profileId), eq(clientProfiles.clientId, clientId)))
+    .limit(1);
+  if (!profile) return c.json({ error: 'Profil introuvable pour ce client' }, 404);
 
   const [entry] = await db
     .delete(clientProfileUsers)

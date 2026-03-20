@@ -11,6 +11,7 @@ import {
   moduleCvFieldComments,
   moduleCvResponseDocuments,
   moduleCvResponseAuditLog,
+  clientModules,
   moduleCvStatuses,
   moduleCvStatusTransitions,
   moduleCvStatusTransitionRoles,
@@ -20,7 +21,7 @@ import {
   eoEntities,
 } from '../db/schema.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { getUserPermissions, hasModulePermission, getModuleRoleIds } from '../lib/cache.js';
+import { getUserPermissions, hasClientAccess, hasModulePermission, getModuleRoleIds } from '../lib/cache.js';
 import { getEditableCvFormFieldIds } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';
 
@@ -28,7 +29,35 @@ type Env = { Variables: { user: JwtPayload } };
 
 const app = new Hono<Env>();
 
+// ─── Client access guard for module-scoped routes ─────────────────────────────
+
+async function verifyModuleClientAccess(
+  c: import('hono').Context<Env>,
+  moduleId: string
+): Promise<globalThis.Response | null> {
+  const user = c.get('user');
+  if (user.persona === 'admin_delta') return null;
+
+  const [mod] = await db.select({ clientId: clientModules.clientId }).from(clientModules).where(eq(clientModules.id, moduleId)).limit(1);
+  if (!mod) return c.json({ error: 'Module introuvable' }, 404);
+
+  const permissions = await getUserPermissions(user.sub);
+  if (!hasClientAccess(permissions, mod.clientId, user.persona)) {
+    return c.json({ error: 'Accès refusé à ce module' }, 403);
+  }
+  return null;
+}
+
+
 app.use('*', authMiddleware);
+app.use('*', async (c, next) => {
+  const moduleId = c.req.param('moduleId') as string | undefined;
+  if (moduleId) {
+    const err = await verifyModuleClientAccess(c, moduleId);
+    if (err) return err;
+  }
+  await next();
+});
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 
@@ -50,7 +79,7 @@ const updateCampaignSchema = z.object({
 });
 
 const addTargetsSchema = z.object({
-  eo_ids: z.array(z.string().uuid()).min(1),
+  eo_ids: z.array(z.string().uuid()).min(1).max(100),
 });
 
 const saveValuesSchema = z.object({

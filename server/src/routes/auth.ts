@@ -254,6 +254,8 @@ router.patch('/password', authMiddleware, async (c) => {
     .set({ passwordHash: newHash, updatedAt: new Date() })
     .where(eq(accounts.id, user.sub));
 
+  await db.delete(refreshTokens).where(eq(refreshTokens.userId, user.sub));
+
   return c.json({ success: true });
 });
 
@@ -356,6 +358,8 @@ router.post('/reset-password', rateLimit(5, 60_000), async (c) => {
     .update(passwordResetTokens)
     .set({ usedAt: new Date() })
     .where(eq(passwordResetTokens.id, stored.id));
+
+  await db.delete(refreshTokens).where(eq(refreshTokens.userId, stored.userId));
 
   return c.json({ success: true });
 });

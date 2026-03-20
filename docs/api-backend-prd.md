@@ -105,12 +105,6 @@ Ce document définit toutes les APIs backend de Delta RM avec leurs règles de s
 | **Permissions** | | | |
 | `GET /modules/:moduleId/permissions` | Lister les permissions (avec état par rôle) | `admin_delta`, `integrator_*` assigné | |
 | `PUT /modules/:moduleId/permissions` | Mettre à jour les permissions (batch) | `admin_delta`, `integrator_*` assigné | |
-| **Workflows** | | | |
-| `GET /modules/:moduleId/workflows` | Lister les workflows | `admin_delta`, `integrator_*` assigné | |
-| `POST /modules/:moduleId/workflows` | Créer un workflow | `admin_delta`, `integrator_*` assigné | |
-| `PATCH /modules/:moduleId/workflows/:id` | Modifier | `admin_delta`, `integrator_*` assigné | |
-| `PATCH /modules/:moduleId/workflows/:id/deactivate` | Désactiver | `admin_delta`, `integrator_*` assigné | |
-
 ---
 
 ## 5. Entités organisationnelles

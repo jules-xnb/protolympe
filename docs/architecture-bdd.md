@@ -118,22 +118,6 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ---
 
-### module_workflows
-
-**Workflow rattaché à un module.**
-
-| Colonne | Description |
-|---|---|
-| id | Identifiant unique |
-| client_module_id | Le module |
-| name | Nom du workflow |
-| description | Description |
-| is_active | Si le workflow est actif |
-| created_at | Date de création |
-| updated_at | Date de dernière modification |
-
----
-
 ## 3. Entités organisationnelles
 
 ### eo_entities

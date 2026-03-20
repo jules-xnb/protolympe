@@ -89,13 +89,35 @@ router.post('/signin', rateLimit(5, 60_000), async (c) => {
     .where(eq(accounts.email, email))
     .limit(1);
 
+  const reqIp = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
+  const reqUserAgent = c.req.header('user-agent');
+
   if (!account) {
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: 'warn',
+      event: 'auth_login_failure',
+      email: parsed.data.email,
+      reason: 'account_not_found',
+      ip: reqIp,
+      user_agent: reqUserAgent,
+    }));
     return c.json({ error: 'Identifiants invalides' }, 401);
   }
 
   // Check account lockout
   if (account.lockedUntil && account.lockedUntil > new Date()) {
     const secondsRemaining = Math.ceil((account.lockedUntil.getTime() - Date.now()) / 1000);
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: 'warn',
+      event: 'auth_login_failure',
+      email: parsed.data.email,
+      user_id: account.id,
+      reason: 'account_locked',
+      ip: reqIp,
+      user_agent: reqUserAgent,
+    }));
     return c.json(
       { error: 'Compte temporairement verrouillé', retry_after: secondsRemaining },
       423
@@ -103,6 +125,16 @@ router.post('/signin', rateLimit(5, 60_000), async (c) => {
   }
 
   if (!account.passwordHash) {
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: 'warn',
+      event: 'auth_login_failure',
+      email: parsed.data.email,
+      user_id: account.id,
+      reason: 'no_password_sso_only',
+      ip: reqIp,
+      user_agent: reqUserAgent,
+    }));
     return c.json({ error: 'Connexion par mot de passe non disponible pour ce compte' }, 401);
   }
 
@@ -117,6 +149,16 @@ router.post('/signin', rateLimit(5, 60_000), async (c) => {
       .set({ failedLoginAttempts: newFailedAttempts, lockedUntil, updatedAt: new Date() })
       .where(eq(accounts.id, account.id));
 
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: 'warn',
+      event: 'auth_login_failure',
+      email: parsed.data.email,
+      user_id: account.id,
+      reason: 'invalid_credentials',
+      ip: reqIp,
+      user_agent: reqUserAgent,
+    }));
     return c.json({ error: 'Identifiants invalides' }, 401);
   }
 
@@ -141,6 +183,16 @@ router.post('/signin', rateLimit(5, 60_000), async (c) => {
     path: '/api/auth',
     maxAge: 7 * 24 * 60 * 60, // 7 days
   });
+
+  console.log(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level: 'info',
+    event: 'auth_login_success',
+    email: parsed.data.email,
+    user_id: account.id,
+    ip: reqIp,
+    user_agent: reqUserAgent,
+  }));
 
   return c.json({
     access_token: accessToken,
@@ -328,7 +380,7 @@ router.post('/forgot-password', rateLimit(3, 60_000), async (c) => {
   });
 
   // In production: send email with token
-  if (process.env.NODE_ENV !== 'production') console.log('DEV ONLY - Reset token:', token);
+  // NOTE: Token is NOT logged — even in dev mode — to prevent sensitive data leakage
   return c.json({ success: true });
 });
 
@@ -599,6 +651,17 @@ router.get('/sso/callback', async (c) => {
     maxAge: 7 * 24 * 60 * 60,
   });
   deleteCookie(c, 'sso_state', { path: '/api/auth' });
+
+  console.log(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level: 'info',
+    event: 'auth_sso_login_success',
+    email: account.email,
+    user_id: account.id,
+    client_id: clientId,
+    ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown',
+    user_agent: c.req.header('user-agent'),
+  }));
 
   // 10. Redirect to frontend with access token
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';

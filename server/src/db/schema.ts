@@ -7,6 +7,7 @@ import {
   jsonb,
   pgEnum,
   integer,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 // =============================================
@@ -124,7 +125,9 @@ export const modulePermissions = pgTable('module_permissions', {
   moduleRoleId: uuid('module_role_id').notNull().references(() => moduleRoles.id, { onDelete: 'cascade' }),
   isGranted: boolean('is_granted').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  uniqueIndex('module_permissions_unique').on(table.moduleRoleId, table.permissionSlug),
+]);
 
 // =============================================
 // Entités organisationnelles

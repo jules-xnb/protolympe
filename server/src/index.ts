@@ -2,7 +2,12 @@ import 'dotenv/config';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
+import { requestId } from 'hono/request-id';
+import { secureHeaders } from 'hono/secure-headers';
+import { compress } from 'hono/compress';
+import { bodyLimit } from 'hono/body-limit';
+import { HTTPException } from 'hono/http-exception';
+import { globalRateLimit } from './middleware/rate-limit.js';
 import authRouter from './routes/auth.js';
 import adminAuditRouter from './routes/admin-audit.js';
 import clientsRouter from './routes/clients.js';
@@ -20,7 +25,27 @@ import displayConfigsRouter from './routes/display-configs.js';
 
 const app = new Hono();
 
-app.use('*', logger());
+// --- Middleware chain (order matters) ---
+
+// 1. Request ID — generates a UUID per request
+app.use(requestId());
+
+// 2. Security headers
+app.use(
+  secureHeaders({
+    xFrameOptions: 'DENY',
+    xContentTypeOptions: 'nosniff',
+    strictTransportSecurity: 'max-age=63072000; includeSubDomains; preload',
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    permissionsPolicy: {
+      camera: [],
+      microphone: [],
+      geolocation: [],
+    },
+  })
+);
+
+// 3. CORS
 app.use(
   '*',
   cors({
@@ -30,6 +55,37 @@ app.use(
     credentials: true,
   })
 );
+
+// 4. Compression
+app.use(compress());
+
+// 5. Body size limit — 1 MB
+app.use(bodyLimit({ maxSize: 1024 * 1024 }));
+
+// 6. Global rate limit — 100 requests per minute per IP
+app.use(globalRateLimit(100, 60_000));
+
+// 7. Structured JSON logger (replaces hono/logger)
+app.use(async (c, next) => {
+  const start = Date.now();
+  await next();
+  const duration = Date.now() - start;
+  console.log(
+    JSON.stringify({
+      timestamp: new Date().toISOString(),
+      method: c.req.method,
+      path: c.req.path,
+      status: c.res.status,
+      duration_ms: duration,
+      user_id: (c.get as (key: string) => string | undefined)('userId') ?? 'anonymous',
+      ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown',
+      user_agent: c.req.header('user-agent'),
+      request_id: c.get('requestId'),
+    })
+  );
+});
+
+// --- Routes ---
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok' }));
@@ -61,6 +117,40 @@ app.route('/api/modules/:moduleId/cv', cvCampaignsRouter);
 
 // Display configs (all modules)
 app.route('/api/modules/:moduleId', displayConfigsRouter);
+
+// --- Global error handler ---
+app.onError((err, c) => {
+  const requestId = c.get('requestId');
+  console.error(
+    JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: 'error',
+      request_id: requestId,
+      error: err.message,
+      stack: err.stack,
+      path: c.req.path,
+      method: c.req.method,
+    })
+  );
+
+  if (err instanceof HTTPException) {
+    return c.json(
+      {
+        error: err.message,
+        request_id: requestId,
+      },
+      err.status
+    );
+  }
+
+  return c.json(
+    {
+      error: 'Internal Server Error',
+      request_id: requestId,
+    },
+    500
+  );
+});
 
 const port = Number(process.env.PORT) || 3001;
 

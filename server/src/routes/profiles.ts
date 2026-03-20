@@ -100,7 +100,8 @@ router.post('/import', async (c) => {
         .returning();
       imported.push(profile.id);
     } catch (err) {
-      errors.push({ row: i + 2, error: String(err) });
+      console.error('Profile import row failed:', err);
+      errors.push({ row: i + 2, error: 'Erreur lors de l\'import de cette ligne' });
     }
   }
 

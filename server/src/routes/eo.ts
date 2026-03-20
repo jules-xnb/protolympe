@@ -20,6 +20,7 @@ import { toSnakeCase } from '../lib/case-transform.js';
 import { getEditableFieldSlugs } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';
 import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
+import { logAdminAction } from '../lib/audit.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
@@ -110,7 +111,8 @@ router.post('/import', async (c) => {
       }).returning();
       imported.push(entity.id);
     } catch (err) {
-      errors.push({ row: i + 2, error: String(err) });
+      console.error('EO import row failed:', err);
+      errors.push({ row: i + 2, error: 'Erreur lors de l\'import de cette ligne' });
     }
   }
 
@@ -187,6 +189,8 @@ router.post('/', async (c) => {
     })
     .returning();
 
+  await logAdminAction(user.sub, 'eo.entity.create', 'eo_entity', entity.id, { client_id: clientId, name });
+
   return c.json(toSnakeCase(entity), 201);
 });
 
@@ -250,6 +254,8 @@ router.patch('/:id', async (c) => {
     .where(and(eq(eoEntities.id, id), eq(eoEntities.clientId, clientId)))
     .returning();
 
+  await logAdminAction(user.sub, 'eo.entity.update', 'eo_entity', id, { client_id: clientId, ...parsed.data });
+
   return c.json(toSnakeCase(entity));
 });
 
@@ -257,6 +263,7 @@ router.patch('/:id', async (c) => {
 router.patch('/:id/archive', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+  const user = c.get('user');
 
   const [existing] = await db
     .select({ id: eoEntities.id })
@@ -273,6 +280,8 @@ router.patch('/:id/archive', async (c) => {
     .set({ isArchived: true, updatedAt: new Date() })
     .where(and(eq(eoEntities.id, id), eq(eoEntities.clientId, clientId)))
     .returning();
+
+  await logAdminAction(user.sub, 'eo.entity.archive', 'eo_entity', id, { client_id: clientId });
 
   return c.json(toSnakeCase(entity));
 });
@@ -308,6 +317,7 @@ const createFieldSchema = z.object({
 // POST /fields — Create field definition
 router.post('/fields', async (c) => {
   const clientId = c.req.param('clientId') as string;
+  const user = c.get('user');
   const body = await c.req.json();
   const parsed = createFieldSchema.safeParse(body);
 
@@ -332,6 +342,8 @@ router.post('/fields', async (c) => {
     })
     .returning();
 
+  await logAdminAction(user.sub, 'eo.field.create', 'eo_field_definition', field.id, { client_id: clientId, name });
+
   return c.json(toSnakeCase(field), 201);
 });
 
@@ -350,6 +362,7 @@ const updateFieldSchema = z.object({
 router.patch('/fields/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+  const user = c.get('user');
   const body = await c.req.json();
   const parsed = updateFieldSchema.safeParse(body);
 
@@ -385,6 +398,8 @@ router.patch('/fields/:id', async (c) => {
     .where(and(eq(eoFieldDefinitions.id, id), eq(eoFieldDefinitions.clientId, clientId)))
     .returning();
 
+  await logAdminAction(user.sub, 'eo.field.update', 'eo_field_definition', id, { client_id: clientId, ...parsed.data });
+
   return c.json(toSnakeCase(field));
 });
 
@@ -392,6 +407,7 @@ router.patch('/fields/:id', async (c) => {
 router.patch('/fields/:id/deactivate', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+  const user = c.get('user');
 
   const [existing] = await db
     .select({ id: eoFieldDefinitions.id })
@@ -408,6 +424,8 @@ router.patch('/fields/:id/deactivate', async (c) => {
     .set({ isActive: false, updatedAt: new Date() })
     .where(and(eq(eoFieldDefinitions.id, id), eq(eoFieldDefinitions.clientId, clientId)))
     .returning();
+
+  await logAdminAction(user.sub, 'eo.field.deactivate', 'eo_field_definition', id, { client_id: clientId });
 
   return c.json(toSnakeCase(field));
 });
@@ -552,6 +570,8 @@ router.post('/groups', async (c) => {
     })
     .returning();
 
+  await logAdminAction(user.sub, 'eo.group.create', 'eo_group', group.id, { client_id: clientId, name });
+
   return c.json(toSnakeCase(group), 201);
 });
 
@@ -564,6 +584,7 @@ const updateGroupSchema = z.object({
 router.patch('/groups/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+  const user = c.get('user');
   const body = await c.req.json();
   const parsed = updateGroupSchema.safeParse(body);
 
@@ -593,6 +614,8 @@ router.patch('/groups/:id', async (c) => {
     .where(and(eq(eoGroups.id, id), eq(eoGroups.clientId, clientId)))
     .returning();
 
+  await logAdminAction(user.sub, 'eo.group.update', 'eo_group', id, { client_id: clientId, ...parsed.data });
+
   return c.json(toSnakeCase(group));
 });
 
@@ -600,6 +623,7 @@ router.patch('/groups/:id', async (c) => {
 router.patch('/groups/:id/deactivate', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+  const user = c.get('user');
 
   const [existing] = await db
     .select({ id: eoGroups.id })
@@ -616,6 +640,8 @@ router.patch('/groups/:id/deactivate', async (c) => {
     .set({ isActive: false, updatedAt: new Date() })
     .where(and(eq(eoGroups.id, id), eq(eoGroups.clientId, clientId)))
     .returning();
+
+  await logAdminAction(user.sub, 'eo.group.deactivate', 'eo_group', id, { client_id: clientId });
 
   return c.json(toSnakeCase(group));
 });

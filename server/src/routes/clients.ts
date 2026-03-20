@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, count } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import {
   clients,
@@ -11,6 +11,9 @@ import {
 } from '../db/schema.js';
 import { authMiddleware } from '../middleware/auth.js';
 import type { JwtPayload } from '../lib/jwt.js';
+import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
+import { encrypt } from '../lib/encryption.js';
+import { logAdminAction } from '../lib/audit.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
@@ -41,13 +44,26 @@ const ssoUpsertSchema = z.object({
 
 app.get('/', async (c) => {
   const user = c.get('user');
+  const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
   if (user.persona === 'admin_delta') {
-    const rows = await db.select().from(clients).orderBy(clients.name);
-    return c.json(rows.map(toSnake));
+    const [{ total }] = await db.select({ total: count() }).from(clients);
+    const rows = await db.select().from(clients).orderBy(clients.name)
+      .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
+    return c.json(paginatedResponse(rows.map(toSnake), total, pagination));
   }
 
   if (user.persona === 'integrator_delta' || user.persona === 'integrator_external') {
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(clients)
+      .innerJoin(
+        integratorClientAssignments,
+        and(
+          eq(integratorClientAssignments.clientId, clients.id),
+          eq(integratorClientAssignments.userId, user.sub)
+        )
+      );
     const rows = await db
       .select({ client: clients })
       .from(clients)
@@ -58,11 +74,23 @@ app.get('/', async (c) => {
           eq(integratorClientAssignments.userId, user.sub)
         )
       )
-      .orderBy(clients.name);
-    return c.json(rows.map((r) => toSnake(r.client)));
+      .orderBy(clients.name)
+      .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
+    return c.json(paginatedResponse(rows.map((r) => toSnake(r.client)), total, pagination));
   }
 
   if (user.persona === 'client_user') {
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(clients)
+      .innerJoin(
+        userClientMemberships,
+        and(
+          eq(userClientMemberships.clientId, clients.id),
+          eq(userClientMemberships.userId, user.sub),
+          eq(userClientMemberships.isActive, true)
+        )
+      );
     const rows = await db
       .select({ client: clients })
       .from(clients)
@@ -74,8 +102,9 @@ app.get('/', async (c) => {
           eq(userClientMemberships.isActive, true)
         )
       )
-      .orderBy(clients.name);
-    return c.json(rows.map((r) => toSnake(r.client)));
+      .orderBy(clients.name)
+      .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
+    return c.json(paginatedResponse(rows.map((r) => toSnake(r.client)), total, pagination));
   }
 
   return c.json({ error: 'Accès refusé' }, 403);
@@ -143,6 +172,8 @@ app.post('/', async (c) => {
     .values({ name: body.name })
     .returning();
 
+  await logAdminAction(user.sub, 'client.create', 'client', created.id, { name: created.name });
+
   return c.json(toSnake(created), 201);
 });
 
@@ -188,6 +219,8 @@ app.patch('/:id', async (c) => {
     .where(eq(clients.id, id))
     .returning();
 
+  await logAdminAction(user.sub, 'client.update', 'client', id, body as Record<string, unknown>);
+
   return c.json(toSnake(updated));
 });
 
@@ -207,6 +240,8 @@ app.patch('/:id/deactivate', async (c) => {
     .set({ isActive: false, updatedAt: new Date() })
     .where(eq(clients.id, id))
     .returning();
+
+  await logAdminAction(user.sub, 'client.deactivate', 'client', id);
 
   return c.json(toSnake(updated));
 });
@@ -299,6 +334,8 @@ app.put('/:id/sso', async (c) => {
     .from(clientSsoConfigs)
     .where(eq(clientSsoConfigs.clientId, id));
 
+  const encryptedSecret = encrypt(body.client_secret);
+
   if (existingConfig) {
     const [updated] = await db
       .update(clientSsoConfigs)
@@ -306,12 +343,13 @@ app.put('/:id/sso', async (c) => {
         provider: body.provider,
         issuerUrl: body.issuer_url,
         clientIdOidc: body.client_id_oidc,
-        clientSecret: body.client_secret,
+        clientSecret: encryptedSecret,
         isEnabled: body.is_enabled ?? existingConfig.isEnabled,
         updatedAt: new Date(),
       })
       .where(eq(clientSsoConfigs.clientId, id))
       .returning();
+    await logAdminAction(user.sub, 'client.sso.update', 'client', id, { provider: body.provider, client_id_oidc: body.client_id_oidc });
     return c.json(ssoToSnake(updated));
   }
 
@@ -322,10 +360,12 @@ app.put('/:id/sso', async (c) => {
       provider: body.provider,
       issuerUrl: body.issuer_url,
       clientIdOidc: body.client_id_oidc,
-      clientSecret: body.client_secret,
+      clientSecret: encryptedSecret,
       isEnabled: body.is_enabled ?? true,
     })
     .returning();
+
+  await logAdminAction(user.sub, 'client.sso.create', 'client', id, { provider: body.provider, client_id_oidc: body.client_id_oidc });
 
   return c.json(ssoToSnake(created), 201);
 });
@@ -370,7 +410,7 @@ function ssoToSnake(config: typeof clientSsoConfigs.$inferSelect) {
     provider: config.provider,
     issuer_url: config.issuerUrl,
     client_id_oidc: config.clientIdOidc,
-    client_secret: config.clientSecret,
+    client_secret: '***',
     is_enabled: config.isEnabled,
     created_at: config.createdAt,
     updated_at: config.updatedAt,

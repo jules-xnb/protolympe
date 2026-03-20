@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import { db } from '../db/index.js';
 import {
   accounts,
@@ -10,7 +11,9 @@ import {
 } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rate-limit.js';
 import { signAccessToken } from '../lib/jwt.js';
+import { validatePassword } from '../lib/password-policy.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -48,7 +51,7 @@ const signinSchema = z.object({
   password: z.string().min(1),
 });
 
-router.post('/signin', async (c) => {
+router.post('/signin', rateLimit(5, 60_000), async (c) => {
   const body = await c.req.json().catch(() => null);
   const parsed = signinSchema.safeParse(body);
   if (!parsed.success) {
@@ -67,14 +70,38 @@ router.post('/signin', async (c) => {
     return c.json({ error: 'Identifiants invalides' }, 401);
   }
 
+  // Check account lockout
+  if (account.lockedUntil && account.lockedUntil > new Date()) {
+    const secondsRemaining = Math.ceil((account.lockedUntil.getTime() - Date.now()) / 1000);
+    return c.json(
+      { error: 'Compte temporairement verrouillé', retry_after: secondsRemaining },
+      423
+    );
+  }
+
   if (!account.passwordHash) {
     return c.json({ error: 'Connexion par mot de passe non disponible pour ce compte' }, 401);
   }
 
   const passwordValid = await bcrypt.compare(password, account.passwordHash);
   if (!passwordValid) {
+    const newFailedAttempts = account.failedLoginAttempts + 1;
+    const lockedUntil =
+      newFailedAttempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null;
+
+    await db
+      .update(accounts)
+      .set({ failedLoginAttempts: newFailedAttempts, lockedUntil, updatedAt: new Date() })
+      .where(eq(accounts.id, account.id));
+
     return c.json({ error: 'Identifiants invalides' }, 401);
   }
+
+  // Successful login: reset lockout counters
+  await db
+    .update(accounts)
+    .set({ failedLoginAttempts: 0, lockedUntil: null, updatedAt: new Date() })
+    .where(eq(accounts.id, account.id));
 
   const accessToken = await signAccessToken({
     sub: account.id,
@@ -84,9 +111,16 @@ router.post('/signin', async (c) => {
 
   const refreshToken = await createRefreshToken(account.id);
 
+  setCookie(c, 'refresh_token', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Strict',
+    path: '/api/auth',
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+  });
+
   return c.json({
     access_token: accessToken,
-    refresh_token: refreshToken,
     token_type: 'Bearer',
   });
 });
@@ -95,19 +129,11 @@ router.post('/signin', async (c) => {
 // POST /refresh
 // ---------------------------------------------------------------------------
 
-const refreshSchema = z.object({
-  refresh_token: z.string().min(1),
-});
-
 router.post('/refresh', async (c) => {
-  const body = await c.req.json().catch(() => null);
-  const parsed = refreshSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ error: 'refresh_token requis' }, 400);
-  }
+  const refreshToken = getCookie(c, 'refresh_token');
+  if (!refreshToken) return c.json({ error: 'Refresh token manquant' }, 401);
 
-  const { refresh_token } = parsed.data;
-  const tokenHash = hashToken(refresh_token);
+  const tokenHash = hashToken(refreshToken);
   const now = new Date();
 
   const [stored] = await db
@@ -147,9 +173,16 @@ router.post('/refresh', async (c) => {
 
   const newRefreshToken = await createRefreshToken(account.id);
 
+  setCookie(c, 'refresh_token', newRefreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Strict',
+    path: '/api/auth',
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+  });
+
   return c.json({
     access_token: accessToken,
-    refresh_token: newRefreshToken,
     token_type: 'Bearer',
   });
 });
@@ -159,16 +192,14 @@ router.post('/refresh', async (c) => {
 // ---------------------------------------------------------------------------
 
 router.post('/signout', authMiddleware, async (c) => {
-  const body = await c.req.json().catch(() => null);
-  const parsed = refreshSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ error: 'refresh_token requis' }, 400);
+  const refreshToken = getCookie(c, 'refresh_token');
+
+  if (refreshToken) {
+    const tokenHash = hashToken(refreshToken);
+    await db.delete(refreshTokens).where(eq(refreshTokens.tokenHash, tokenHash));
   }
 
-  const { refresh_token } = parsed.data;
-  const tokenHash = hashToken(refresh_token);
-
-  await db.delete(refreshTokens).where(eq(refreshTokens.tokenHash, tokenHash));
+  deleteCookie(c, 'refresh_token', { path: '/api/auth' });
 
   return c.json({ success: true });
 });
@@ -179,7 +210,7 @@ router.post('/signout', authMiddleware, async (c) => {
 
 const changePasswordSchema = z.object({
   old_password: z.string().min(1),
-  new_password: z.string().min(8),
+  new_password: z.string().min(1),
 });
 
 router.patch('/password', authMiddleware, async (c) => {
@@ -187,10 +218,16 @@ router.patch('/password', authMiddleware, async (c) => {
   const body = await c.req.json().catch(() => null);
   const parsed = changePasswordSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: 'old_password et new_password (min 8 caractères) requis' }, 400);
+    return c.json({ error: 'old_password et new_password requis' }, 400);
   }
 
   const { old_password, new_password } = parsed.data;
+
+  // Validate password policy
+  const policy = validatePassword(new_password);
+  if (!policy.valid) {
+    return c.json({ error: 'Mot de passe invalide', details: policy.errors }, 400);
+  }
 
   const [account] = await db
     .select()
@@ -225,7 +262,7 @@ const forgotPasswordSchema = z.object({
   email: z.string().email(),
 });
 
-router.post('/forgot-password', async (c) => {
+router.post('/forgot-password', rateLimit(3, 60_000), async (c) => {
   const body = await c.req.json().catch(() => null);
   const parsed = forgotPasswordSchema.safeParse(body);
   if (!parsed.success) {
@@ -265,17 +302,24 @@ router.post('/forgot-password', async (c) => {
 
 const resetPasswordSchema = z.object({
   token: z.string().min(1),
-  new_password: z.string().min(8),
+  new_password: z.string().min(1),
 });
 
-router.post('/reset-password', async (c) => {
+router.post('/reset-password', rateLimit(5, 60_000), async (c) => {
   const body = await c.req.json().catch(() => null);
   const parsed = resetPasswordSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: 'token et new_password (min 8 caractères) requis' }, 400);
+    return c.json({ error: 'token et new_password requis' }, 400);
   }
 
   const { token, new_password } = parsed.data;
+
+  // Validate password policy
+  const policy = validatePassword(new_password);
+  if (!policy.valid) {
+    return c.json({ error: 'Mot de passe invalide', details: policy.errors }, 400);
+  }
+
   const tokenHash = hashToken(token);
   const now = new Date();
 

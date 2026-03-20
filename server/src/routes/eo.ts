@@ -9,11 +9,14 @@ import {
   eoGroupMembers,
   eoAuditLog,
   eoFieldChangeComments,
+  clientModules,
 } from '../db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, count } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { toSnakeCase } from '../lib/case-transform.js';
+import { getEditableFieldSlugs } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';
+import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
@@ -28,14 +31,17 @@ eoRouter.use('*', authMiddleware);
 // GET / — List entities for a client
 eoRouter.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
+  const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
+  const [{ total }] = await db.select({ total: count() }).from(eoEntities).where(eq(eoEntities.clientId, clientId));
   const result = await db
     .select()
     .from(eoEntities)
     .where(eq(eoEntities.clientId, clientId))
-    .orderBy(eoEntities.path, eoEntities.name);
+    .orderBy(eoEntities.path, eoEntities.name)
+    .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
-  return c.json(toSnakeCase(result));
+  return c.json(paginatedResponse(toSnakeCase(result) as any[], total, pagination));
 });
 
 // GET /:id — Entity detail
@@ -121,11 +127,31 @@ const updateEntitySchema = z.object({
 eoRouter.patch('/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+  const user = c.get('user');
   const body = await c.req.json();
   const parsed = updateEntitySchema.safeParse(body);
 
   if (!parsed.success) {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+  }
+
+  // Field access check for client_user persona
+  if (user.persona === 'client_user') {
+    const [orgModule] = await db
+      .select({ id: clientModules.id })
+      .from(clientModules)
+      .where(and(eq(clientModules.clientId, clientId), eq(clientModules.moduleSlug, 'organisation')))
+      .limit(1);
+
+    if (orgModule) {
+      const editableFields = await getEditableFieldSlugs(user.sub, orgModule.id, 'organisation');
+      const requestedFields = Object.keys(body) as string[];
+      for (const field of requestedFields) {
+        if (!editableFields.has(field)) {
+          return c.json({ error: `Champ non autorisé : ${field}` }, 403);
+        }
+      }
+    }
   }
 
   const { name, description, is_active } = parsed.data;
@@ -631,13 +657,16 @@ eoRouter.get('/:id/audit', async (c) => {
     return c.json({ error: 'Entité introuvable' }, 404);
   }
 
+  const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
+  const [{ total }] = await db.select({ total: count() }).from(eoAuditLog).where(eq(eoAuditLog.entityId, id));
   const result = await db
     .select()
     .from(eoAuditLog)
     .where(eq(eoAuditLog.entityId, id))
-    .orderBy(eoAuditLog.createdAt);
+    .orderBy(eoAuditLog.createdAt)
+    .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
-  return c.json(toSnakeCase(result));
+  return c.json(paginatedResponse(toSnakeCase(result) as any[], total, pagination));
 });
 
 // =============================================
@@ -659,13 +688,16 @@ eoRouter.get('/:id/comments', async (c) => {
     return c.json({ error: 'Entité introuvable' }, 404);
   }
 
+  const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
+  const [{ total }] = await db.select({ total: count() }).from(eoFieldChangeComments).where(eq(eoFieldChangeComments.eoId, id));
   const result = await db
     .select()
     .from(eoFieldChangeComments)
     .where(eq(eoFieldChangeComments.eoId, id))
-    .orderBy(eoFieldChangeComments.createdAt);
+    .orderBy(eoFieldChangeComments.createdAt)
+    .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
-  return c.json(toSnakeCase(result));
+  return c.json(paginatedResponse(toSnakeCase(result) as any[], total, pagination));
 });
 
 const createCommentSchema = z.object({

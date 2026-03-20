@@ -11,11 +11,14 @@ import {
   eoEntities,
   eoGroups,
   moduleRoles,
+  clientModules,
 } from '../db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, count } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { toSnakeCase } from '../lib/case-transform.js';
+import { getEditableFieldSlugs } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';
+import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
@@ -28,14 +31,17 @@ profilesRouter.use('*', authMiddleware);
 // GET /clients/:clientId/profiles
 profilesRouter.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
+  const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
+  const [{ total }] = await db.select({ total: count() }).from(clientProfiles).where(eq(clientProfiles.clientId, clientId));
   const result = await db
     .select()
     .from(clientProfiles)
     .where(eq(clientProfiles.clientId, clientId))
-    .orderBy(clientProfiles.name);
+    .orderBy(clientProfiles.name)
+    .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
-  return c.json(toSnakeCase(result));
+  return c.json(paginatedResponse(toSnakeCase(result) as any[], total, pagination));
 });
 
 // GET /clients/:clientId/profiles/:id
@@ -140,10 +146,30 @@ const updateProfileSchema = z.object({
 profilesRouter.patch('/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+  const requestingUser = c.get('user');
   const body = await c.req.json();
   const parsed = updateProfileSchema.safeParse(body);
   if (!parsed.success) {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+  }
+
+  // Field access check for client_user persona
+  if (requestingUser.persona === 'client_user') {
+    const [profilsModule] = await db
+      .select({ id: clientModules.id })
+      .from(clientModules)
+      .where(and(eq(clientModules.clientId, clientId), eq(clientModules.moduleSlug, 'profils')))
+      .limit(1);
+
+    if (profilsModule) {
+      const editableFields = await getEditableFieldSlugs(requestingUser.sub, profilsModule.id, 'profils');
+      const requestedFields = Object.keys(body) as string[];
+      for (const field of requestedFields) {
+        if (!editableFields.has(field)) {
+          return c.json({ error: `Champ non autorisé : ${field}` }, 403);
+        }
+      }
+    }
   }
 
   const { name, description } = parsed.data;

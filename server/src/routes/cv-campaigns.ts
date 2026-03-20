@@ -15,10 +15,12 @@ import {
   moduleCvStatusTransitionRoles,
   moduleCvSurveyTypes,
   moduleCvFieldDefinitions,
+  moduleCvForms,
   eoEntities,
 } from '../db/schema.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getUserPermissions, hasModulePermission, getModuleRoleIds } from '../lib/cache.js';
+import { getEditableCvFormFieldIds } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';
 
 type Env = { Variables: { user: JwtPayload } };
@@ -724,6 +726,28 @@ app.patch('/responses/:id', async (c) => {
     return c.json({ error: 'Données invalides', details: parsedBody.error.flatten() }, 400);
   }
   const body = parsedBody.data;
+
+  // Field access check for client_user persona
+  // Find the form associated with the response's current status
+  const [currentForm] = await db
+    .select({ id: moduleCvForms.id })
+    .from(moduleCvForms)
+    .where(
+      and(
+        eq(moduleCvForms.surveyTypeId, surveyType.id),
+        eq(moduleCvForms.statusId, response.statusId)
+      )
+    )
+    .limit(1);
+
+  if (currentForm) {
+    const editableFieldIds = await getEditableCvFormFieldIds(user.sub, moduleId, currentForm.id);
+    for (const entry of body.values) {
+      if (!editableFieldIds.has(entry.field_definition_id)) {
+        return c.json({ error: `Champ non autorisé : ${entry.field_definition_id}` }, 403);
+      }
+    }
+  }
 
   // Fetch existing values for audit
   const existingValues = await db

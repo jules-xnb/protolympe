@@ -8,11 +8,14 @@ import {
   clientProfileUsers,
   userFieldDefinitions,
   userFieldValues,
+  clientModules,
 } from '../db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, count } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { toSnakeCase } from '../lib/case-transform.js';
+import { getEditableFieldSlugs } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';
+import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
@@ -291,10 +294,30 @@ const updateUserSchema = z.object({
 usersRouter.patch('/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+  const requestingUser = c.get('user');
   const body = await c.req.json();
   const parsed = updateUserSchema.safeParse(body);
   if (!parsed.success) {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+  }
+
+  // Field access check for client_user persona
+  if (requestingUser.persona === 'client_user') {
+    const [usersModule] = await db
+      .select({ id: clientModules.id })
+      .from(clientModules)
+      .where(and(eq(clientModules.clientId, clientId), eq(clientModules.moduleSlug, 'users')))
+      .limit(1);
+
+    if (usersModule) {
+      const editableFields = await getEditableFieldSlugs(requestingUser.sub, usersModule.id, 'users');
+      const requestedFields = Object.keys(body) as string[];
+      for (const field of requestedFields) {
+        if (!editableFields.has(field)) {
+          return c.json({ error: `Champ non autorisé : ${field}` }, 403);
+        }
+      }
+    }
   }
 
   const { first_name, last_name } = parsed.data;

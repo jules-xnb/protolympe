@@ -13,7 +13,7 @@ import {
   modulePermissions,
   moduleRoles,
 } from '../db/schema.js';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, like } from 'drizzle-orm';
 
 const CACHE_TTL_MS = 60_000; // 1 minute
 
@@ -213,21 +213,19 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
           .limit(1);
 
         if (entity) {
-          const descendantPath = entity.path ? `${entity.path}/${entity.id}` : entity.id;
+          const prefix = entity.path ? `${entity.path}/${entity.id}` : entity.id;
           const descendants = await db
             .select({ id: eoEntities.id })
             .from(eoEntities)
             .where(
               and(
                 eq(eoEntities.clientId, entry.clientId),
-                // path starts with the parent path
+                like(eoEntities.path, `${prefix}%`)
               )
             );
 
-          // Filter descendants by path prefix in JS since Drizzle doesn't have LIKE easily
           for (const d of descendants) {
-            // We'd need the path column to check. For now, add all and filter later.
-            // TODO: optimize with SQL LIKE query
+            eoIdsByClient[entry.clientId].add(d.id);
           }
         }
       }

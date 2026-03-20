@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq, and, or } from 'drizzle-orm';
-import bcrypt from 'bcryptjs';
+import { eq, and, or, count } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import {
   accounts,
@@ -9,7 +8,10 @@ import {
   integratorClientAssignments,
 } from '../db/schema.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
+import { rateLimit } from '../middleware/rate-limit.js';
 import type { JwtPayload } from '../lib/jwt.js';
+import { logAdminAction } from '../lib/audit.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
@@ -42,23 +44,26 @@ app.get('/', async (c) => {
   const user = c.get('user');
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
+  const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
+  const where = or(
+    eq(accounts.persona, 'integrator_delta'),
+    eq(accounts.persona, 'integrator_external')
+  );
+
+  const [{ total }] = await db.select({ total: count() }).from(accounts).where(where);
   const rows = await db
     .select()
     .from(accounts)
-    .where(
-      or(
-        eq(accounts.persona, 'integrator_delta'),
-        eq(accounts.persona, 'integrator_external')
-      )
-    )
-    .orderBy(accounts.lastName, accounts.firstName);
+    .where(where)
+    .orderBy(accounts.lastName, accounts.firstName)
+    .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
-  return c.json(rows.map(accountToSnake));
+  return c.json(paginatedResponse(rows.map(accountToSnake), total, pagination));
 });
 
 // ─── POST /invite ─────────────────────────────────────────────────────────────
 
-app.post('/invite', async (c) => {
+app.post('/invite', rateLimit(5, 60_000), async (c) => {
   const user = c.get('user');
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
@@ -78,9 +83,8 @@ app.post('/invite', async (c) => {
     return c.json({ error: 'Un compte avec cet email existe déjà' }, 409);
   }
 
-  const DEFAULT_PASSWORD = 'ChangeMe123!';
-  const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
-
+  // No default password: account is created with passwordHash = null.
+  // The integrator must set their password via the reset-password flow on first login.
   const [created] = await db
     .insert(accounts)
     .values({
@@ -88,9 +92,11 @@ app.post('/invite', async (c) => {
       firstName: body.first_name,
       lastName: body.last_name,
       persona: body.persona,
-      passwordHash,
+      passwordHash: null,
     })
     .returning();
+
+  await logAdminAction(user.sub, 'integrator.invite', 'account', created.id, { email: created.email, persona: created.persona });
 
   return c.json(accountToSnake(created), 201);
 });
@@ -134,6 +140,8 @@ app.patch('/:id', async (c) => {
     .set(updateData)
     .where(eq(accounts.id, id))
     .returning();
+
+  await logAdminAction(user.sub, 'integrator.update', 'account', id, body as Record<string, unknown>);
 
   return c.json(accountToSnake(updated));
 });
@@ -237,6 +245,8 @@ app.post('/:id/clients', async (c) => {
       assignedBy: user.sub,
     })
     .returning();
+
+  await logAdminAction(user.sub, 'integrator.client.assign', 'account', id, { client_id: body.client_id });
 
   return c.json(
     {

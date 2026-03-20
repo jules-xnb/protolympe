@@ -77,7 +77,7 @@ app.use(async (c, next) => {
       path: c.req.path,
       status: c.res.status,
       duration_ms: duration,
-      user_id: (c.get as (key: string) => string | undefined)('userId') ?? 'anonymous',
+      user_id: (() => { try { return ((c.get as (key: string) => unknown)('user') as { sub?: string })?.sub ?? 'anonymous'; } catch { return 'anonymous'; } })(),
       ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown',
       user_agent: c.req.header('user-agent'),
       request_id: c.get('requestId'),

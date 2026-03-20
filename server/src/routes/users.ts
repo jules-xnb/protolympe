@@ -360,7 +360,7 @@ router.post('/import', async (c) => {
 
       imported.push(userId);
     } catch (err) {
-      console.error('User import row failed:', err);
+      console.error(JSON.stringify({ timestamp: new Date().toISOString(), level: 'error', event: 'user.import.row_failure', row: i + 2, error: err instanceof Error ? err.message : 'Unknown error' }));
       errors.push({ row: i + 2, error: 'Erreur lors de l\'import de cette ligne' });
     }
   }

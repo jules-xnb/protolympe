@@ -38,11 +38,12 @@ router.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
-  const [{ total }] = await db.select({ total: count() }).from(eoEntities).where(eq(eoEntities.clientId, clientId));
+  const baseWhere = and(eq(eoEntities.clientId, clientId), eq(eoEntities.isArchived, false));
+  const [{ total }] = await db.select({ total: count() }).from(eoEntities).where(baseWhere);
   const result = await db
     .select()
     .from(eoEntities)
-    .where(eq(eoEntities.clientId, clientId))
+    .where(baseWhere)
     .orderBy(eoEntities.path, eoEntities.name)
     .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
@@ -111,7 +112,7 @@ router.post('/import', async (c) => {
       }).returning();
       imported.push(entity.id);
     } catch (err) {
-      console.error('EO import row failed:', err);
+      console.error(JSON.stringify({ timestamp: new Date().toISOString(), level: 'error', event: 'eo.import.row_failure', row: i + 2, error: err instanceof Error ? err.message : 'Unknown error' }));
       errors.push({ row: i + 2, error: 'Erreur lors de l\'import de cette ligne' });
     }
   }

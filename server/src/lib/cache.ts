@@ -71,13 +71,18 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
     clientIds = memberships.map((m) => m.clientId);
   }
 
-  // Load module roles via profiles
+  // Load module roles via profiles (exclude archived profiles)
   const profileAssignments = await db
     .select({
       profileId: clientProfileUsers.profileId,
     })
     .from(clientProfileUsers)
-    .where(and(eq(clientProfileUsers.userId, userId), isNull(clientProfileUsers.deletedAt)));
+    .innerJoin(clientProfiles, eq(clientProfileUsers.profileId, clientProfiles.id))
+    .where(and(
+      eq(clientProfileUsers.userId, userId),
+      isNull(clientProfileUsers.deletedAt),
+      eq(clientProfiles.isArchived, false)
+    ));
 
   const profileIds = profileAssignments.map((p) => p.profileId);
 
@@ -94,13 +99,17 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
       })
       .from(clientProfileModuleRoles)
       .innerJoin(moduleRoles, eq(clientProfileModuleRoles.moduleRoleId, moduleRoles.id))
-      .where(and(inArray(clientProfileModuleRoles.profileId, profileIds), isNull(clientProfileModuleRoles.deletedAt)));
+      .where(and(
+        inArray(clientProfileModuleRoles.profileId, profileIds),
+        isNull(clientProfileModuleRoles.deletedAt),
+        eq(moduleRoles.isActive, true)
+      ));
 
-    // Get client_id for each profile to group by client
+    // Get client_id for each profile to group by client (already filtered by isArchived in profileAssignments join)
     const profileDetails = await db
       .select({ id: clientProfiles.id, clientId: clientProfiles.clientId })
       .from(clientProfiles)
-      .where(inArray(clientProfiles.id, profileIds));
+      .where(and(inArray(clientProfiles.id, profileIds), eq(clientProfiles.isArchived, false)));
 
     const profileClientMap = new Map(profileDetails.map((p) => [p.id, p.clientId]));
 
@@ -176,11 +185,11 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
     // Collect all EO IDs with their include_descendants flag
     const eoWithDescendants: { eoId: string; includeDescendants: boolean; clientId: string }[] = [];
 
-    // Get profile → client mapping
+    // Get profile → client mapping (non-archived profiles only)
     const profileDetails2 = await db
       .select({ id: clientProfiles.id, clientId: clientProfiles.clientId })
       .from(clientProfiles)
-      .where(inArray(clientProfiles.id, profileIds));
+      .where(and(inArray(clientProfiles.id, profileIds), eq(clientProfiles.isArchived, false)));
     const profileClientMap2 = new Map(profileDetails2.map((p) => [p.id, p.clientId]));
 
     for (const de of directEos) {
@@ -199,34 +208,37 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
       }
     }
 
-    // Resolve descendants
+    // Resolve descendants (exclude archived and inactive EOs)
     for (const entry of eoWithDescendants) {
       if (!eoIdsByClient[entry.clientId]) eoIdsByClient[entry.clientId] = new Set();
+
+      // Check if the EO itself is active and not archived
+      const [eo] = await db
+        .select({ id: eoEntities.id, path: eoEntities.path, isActive: eoEntities.isActive, isArchived: eoEntities.isArchived })
+        .from(eoEntities)
+        .where(eq(eoEntities.id, entry.eoId))
+        .limit(1);
+
+      if (!eo || eo.isArchived || !eo.isActive) continue;
+
       eoIdsByClient[entry.clientId].add(entry.eoId);
 
       if (entry.includeDescendants) {
-        // Get the path of this entity to find descendants
-        const [entity] = await db
-          .select({ path: eoEntities.path, id: eoEntities.id })
+        const prefix = eo.path ? `${eo.path}/${eo.id}` : eo.id;
+        const descendants = await db
+          .select({ id: eoEntities.id })
           .from(eoEntities)
-          .where(eq(eoEntities.id, entry.eoId))
-          .limit(1);
+          .where(
+            and(
+              eq(eoEntities.clientId, entry.clientId),
+              like(eoEntities.path, `${prefix}%`),
+              eq(eoEntities.isActive, true),
+              eq(eoEntities.isArchived, false)
+            )
+          );
 
-        if (entity) {
-          const prefix = entity.path ? `${entity.path}/${entity.id}` : entity.id;
-          const descendants = await db
-            .select({ id: eoEntities.id })
-            .from(eoEntities)
-            .where(
-              and(
-                eq(eoEntities.clientId, entry.clientId),
-                like(eoEntities.path, `${prefix}%`)
-              )
-            );
-
-          for (const d of descendants) {
-            eoIdsByClient[entry.clientId].add(d.id);
-          }
+        for (const d of descendants) {
+          eoIdsByClient[entry.clientId].add(d.id);
         }
       }
     }

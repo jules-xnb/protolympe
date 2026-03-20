@@ -37,11 +37,12 @@ router.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
-  const [{ total }] = await db.select({ total: count() }).from(clientProfiles).where(eq(clientProfiles.clientId, clientId));
+  const baseWhere = and(eq(clientProfiles.clientId, clientId), eq(clientProfiles.isArchived, false));
+  const [{ total }] = await db.select({ total: count() }).from(clientProfiles).where(baseWhere);
   const result = await db
     .select()
     .from(clientProfiles)
-    .where(eq(clientProfiles.clientId, clientId))
+    .where(baseWhere)
     .orderBy(clientProfiles.name)
     .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
@@ -100,7 +101,7 @@ router.post('/import', async (c) => {
         .returning();
       imported.push(profile.id);
     } catch (err) {
-      console.error('Profile import row failed:', err);
+      console.error(JSON.stringify({ timestamp: new Date().toISOString(), level: 'error', event: 'profile.import.row_failure', row: i + 2, error: err instanceof Error ? err.message : 'Unknown error' }));
       errors.push({ row: i + 2, error: 'Erreur lors de l\'import de cette ligne' });
     }
   }

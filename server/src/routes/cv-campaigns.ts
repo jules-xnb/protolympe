@@ -1441,7 +1441,7 @@ router.post('/campaigns/:id/import', async (c) => {
       }
       imported.push(valuesImported);
     } catch (err) {
-      console.error('CV campaign import row failed:', err);
+      console.error(JSON.stringify({ timestamp: new Date().toISOString(), level: 'error', event: 'cv_campaign.import.row_failure', row: i + 2, error: err instanceof Error ? err.message : 'Unknown error' }));
       errors.push({ row: i + 2, error: 'Erreur lors de l\'import de cette ligne' });
     }
   }

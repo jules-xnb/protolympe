@@ -14,9 +14,20 @@ import { authMiddleware } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { signAccessToken } from '../lib/jwt.js';
 import { validatePassword } from '../lib/password-policy.js';
+import { decrypt } from '../lib/encryption.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { z } from 'zod';
+import {
+  discovery,
+  randomState,
+  randomNonce,
+  buildAuthorizationUrl,
+  authorizationCodeGrant,
+  fetchUserInfo,
+  skipSubjectCheck,
+  ClientSecretPost,
+} from 'openid-client';
 
 const router = new Hono();
 
@@ -421,6 +432,163 @@ router.get('/me', authMiddleware, async (c) => {
     created_at: account.createdAt,
     client_ids: clientIds,
   });
+});
+
+// ---------------------------------------------------------------------------
+// GET /sso/callback  — registered BEFORE /sso/:clientId to avoid param capture
+// ---------------------------------------------------------------------------
+
+router.get('/sso/callback', async (c) => {
+  // 1. Get state from cookie
+  const ssoStateCookie = getCookie(c, 'sso_state');
+  if (!ssoStateCookie) return c.json({ error: 'Session SSO expirée' }, 400);
+  const { state: savedState, nonce: savedNonce, clientId } = JSON.parse(ssoStateCookie);
+
+  // 2. Fetch SSO config
+  const [ssoConfig] = await db
+    .select()
+    .from(clientSsoConfigs)
+    .where(and(eq(clientSsoConfigs.clientId, clientId), eq(clientSsoConfigs.isEnabled, true)));
+  if (!ssoConfig) return c.json({ error: 'SSO non configuré' }, 400);
+
+  // 3. Create OIDC configuration
+  const clientSecret = decrypt(ssoConfig.clientSecret);
+  const redirectUri = `${process.env.API_URL || 'http://localhost:3001'}/api/auth/sso/callback`;
+  const config = await discovery(
+    new URL(ssoConfig.issuerUrl),
+    ssoConfig.clientIdOidc,
+    { redirect_uris: [redirectUri] },
+    ClientSecretPost(clientSecret),
+  );
+
+  // 4. Exchange code for tokens
+  const currentUrl = new URL(c.req.url);
+  const tokenSet = await authorizationCodeGrant(config, currentUrl, {
+    pkceCodeVerifier: undefined,
+    expectedState: savedState,
+    expectedNonce: savedNonce,
+  });
+
+  // 5. Get user info
+  const sub = tokenSet.claims()?.sub;
+  if (!sub) return c.json({ error: 'Subject manquant dans le token' }, 400);
+  const userinfo = await fetchUserInfo(config, tokenSet.access_token!, skipSubjectCheck);
+  const email = userinfo.email;
+  if (!email) return c.json({ error: 'Email non fourni par le provider SSO' }, 400);
+
+  // 6. Find or create account
+  let [account] = await db
+    .select({ id: accounts.id, email: accounts.email, persona: accounts.persona })
+    .from(accounts)
+    .where(eq(accounts.email, email.toLowerCase()));
+
+  if (!account) {
+    [account] = await db
+      .insert(accounts)
+      .values({
+        email: email.toLowerCase(),
+        firstName: (userinfo.given_name as string | undefined) ?? null,
+        lastName: (userinfo.family_name as string | undefined) ?? null,
+        persona: 'client_user',
+      })
+      .returning({ id: accounts.id, email: accounts.email, persona: accounts.persona });
+  }
+
+  // 7. Ensure membership
+  const [membership] = await db
+    .select({ id: userClientMemberships.id })
+    .from(userClientMemberships)
+    .where(
+      and(
+        eq(userClientMemberships.userId, account.id),
+        eq(userClientMemberships.clientId, clientId),
+      ),
+    );
+
+  if (!membership) {
+    await db.insert(userClientMemberships).values({
+      userId: account.id,
+      clientId,
+      isActive: true,
+      activatedAt: new Date(),
+    });
+  }
+
+  // 8. Generate tokens
+  const accessToken = await signAccessToken({
+    sub: account.id,
+    email: account.email,
+    persona: account.persona,
+  });
+  const refreshTokenValue = crypto.randomBytes(64).toString('hex');
+  const refreshTokenHash = crypto.createHash('sha256').update(refreshTokenValue).digest('hex');
+  await db.insert(refreshTokens).values({
+    userId: account.id,
+    tokenHash: refreshTokenHash,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  });
+
+  // 9. Set refresh token cookie and clear SSO state cookie
+  setCookie(c, 'refresh_token', refreshTokenValue, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Strict',
+    path: '/api/auth',
+    maxAge: 7 * 24 * 60 * 60,
+  });
+  deleteCookie(c, 'sso_state', { path: '/api/auth' });
+
+  // 10. Redirect to frontend with access token
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  return c.redirect(`${frontendUrl}/auth/sso/callback?access_token=${accessToken}`);
+});
+
+// ---------------------------------------------------------------------------
+// GET /sso/:clientId  (redirect to OIDC provider)
+// ---------------------------------------------------------------------------
+
+router.get('/sso/:clientId', async (c) => {
+  const clientId = c.req.param('clientId');
+
+  // 1. Fetch client SSO config
+  const [ssoConfig] = await db
+    .select()
+    .from(clientSsoConfigs)
+    .where(and(eq(clientSsoConfigs.clientId, clientId), eq(clientSsoConfigs.isEnabled, true)));
+  if (!ssoConfig) return c.json({ error: 'SSO non configuré pour ce client' }, 404);
+
+  // 2. Discover the OIDC provider and create configuration
+  const clientSecret = decrypt(ssoConfig.clientSecret);
+  const redirectUri = `${process.env.API_URL || 'http://localhost:3001'}/api/auth/sso/callback`;
+  const configWithSecret = await discovery(
+    new URL(ssoConfig.issuerUrl),
+    ssoConfig.clientIdOidc,
+    { redirect_uris: [redirectUri] },
+    ClientSecretPost(clientSecret),
+  );
+
+  // 3. Generate state and nonce
+  const state = randomState();
+  const nonce = randomNonce();
+
+  // 4. Store state + nonce + clientId in a cookie
+  setCookie(c, 'sso_state', JSON.stringify({ state, nonce, clientId }), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Lax',
+    path: '/api/auth',
+    maxAge: 600, // 10 minutes
+  });
+
+  // 5. Redirect to authorization URL
+  const authUrl = buildAuthorizationUrl(configWithSecret, {
+    redirect_uri: redirectUri,
+    scope: 'openid email profile',
+    state,
+    nonce,
+  });
+
+  return c.redirect(authUrl.toString());
 });
 
 // ---------------------------------------------------------------------------

@@ -10,7 +10,8 @@ import {
   userFieldValues,
   clientModules,
 } from '../db/schema.js';
-import { eq, and, count } from 'drizzle-orm';
+import { eq, and, count, isNull } from 'drizzle-orm';
+import { generateCsv, parseCsv } from '../lib/csv.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireClientAccess } from '../middleware/client-access.js';
 import { toSnakeCase } from '../lib/case-transform.js';
@@ -20,15 +21,15 @@ import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
-const usersRouter = new Hono<Env>();
+const router = new Hono<Env>();
 
-usersRouter.use('*', authMiddleware);
-usersRouter.use('*', requireClientAccess());
+router.use('*', authMiddleware);
+router.use('*', requireClientAccess());
 
 // ─── Users — list ─────────────────────────────────────────────────────────────
 
 // GET /clients/:clientId/users
-usersRouter.get('/', async (c) => {
+router.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
@@ -68,7 +69,7 @@ const inviteSchema = z.object({
 });
 
 // POST /clients/:clientId/users/invite
-usersRouter.post('/invite', async (c) => {
+router.post('/invite', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const requestingUser = c.get('user');
   const body = await c.req.json();
@@ -143,7 +144,7 @@ usersRouter.post('/invite', async (c) => {
 // ─── Field Definitions — static routes before /:id ───────────────────────────
 
 // GET /clients/:clientId/users/field-definitions
-usersRouter.get('/field-definitions', async (c) => {
+router.get('/field-definitions', async (c) => {
   const clientId = c.req.param('clientId') as string;
 
   const result = await db
@@ -167,7 +168,7 @@ const createFieldDefinitionSchema = z.object({
 });
 
 // POST /clients/:clientId/users/field-definitions
-usersRouter.post('/field-definitions', async (c) => {
+router.post('/field-definitions', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const requestingUser = c.get('user');
   const body = await c.req.json();
@@ -210,7 +211,7 @@ const updateFieldDefinitionSchema = z.object({
 });
 
 // PATCH /clients/:clientId/users/field-definitions/:id
-usersRouter.patch('/field-definitions/:id', async (c) => {
+router.patch('/field-definitions/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const body = await c.req.json();
@@ -246,7 +247,7 @@ usersRouter.patch('/field-definitions/:id', async (c) => {
 });
 
 // PATCH /clients/:clientId/users/field-definitions/:id/deactivate
-usersRouter.patch('/field-definitions/:id/deactivate', async (c) => {
+router.patch('/field-definitions/:id/deactivate', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -263,10 +264,110 @@ usersRouter.patch('/field-definitions/:id/deactivate', async (c) => {
   return c.json(toSnakeCase(def));
 });
 
+// ─── Export / Import ──────────────────────────────────────────────────────────
+
+// GET /clients/:clientId/users/export
+router.get('/export', async (c) => {
+  const clientId = c.req.param('clientId') as string;
+
+  const result = await db
+    .select({
+      id: accounts.id,
+      email: accounts.email,
+      first_name: accounts.firstName,
+      last_name: accounts.lastName,
+      created_at: accounts.createdAt,
+    })
+    .from(userClientMemberships)
+    .innerJoin(accounts, eq(userClientMemberships.userId, accounts.id))
+    .where(eq(userClientMemberships.clientId, clientId))
+    .orderBy(accounts.lastName, accounts.firstName);
+
+  const csv = generateCsv(
+    ['id', 'email', 'first_name', 'last_name', 'created_at'],
+    result
+  );
+
+  c.header('Content-Type', 'text/csv');
+  c.header('Content-Disposition', `attachment; filename="users_export.csv"`);
+  return c.body(csv);
+});
+
+// POST /clients/:clientId/users/import
+router.post('/import', async (c) => {
+  const clientId = c.req.param('clientId') as string;
+  const requestingUser = c.get('user');
+  const body = await c.req.text();
+  const { rows } = parseCsv(body);
+
+  const imported: string[] = [];
+  const errors: { row: number; error: string }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    try {
+      const row = rows[i];
+      if (!row.email) {
+        errors.push({ row: i + 2, error: 'Email requis' });
+        continue;
+      }
+
+      // Check if account already exists
+      const [existing] = await db
+        .select()
+        .from(accounts)
+        .where(eq(accounts.email, row.email));
+
+      let userId: string;
+
+      if (existing) {
+        userId = existing.id;
+      } else {
+        const [newAccount] = await db
+          .insert(accounts)
+          .values({
+            email: row.email,
+            firstName: row.first_name || null,
+            lastName: row.last_name || null,
+            persona: 'client_user',
+            passwordHash: null,
+          })
+          .returning();
+        userId = newAccount.id;
+      }
+
+      // Check if membership already exists
+      const [existingMembership] = await db
+        .select()
+        .from(userClientMemberships)
+        .where(
+          and(
+            eq(userClientMemberships.userId, userId),
+            eq(userClientMemberships.clientId, clientId)
+          )
+        );
+
+      if (!existingMembership) {
+        await db.insert(userClientMemberships).values({
+          userId,
+          clientId,
+          invitedBy: requestingUser.sub,
+          isActive: true,
+        });
+      }
+
+      imported.push(userId);
+    } catch (err) {
+      errors.push({ row: i + 2, error: String(err) });
+    }
+  }
+
+  return c.json({ imported: imported.length, errors });
+});
+
 // ─── Users — by id (dynamic, always after static routes) ─────────────────────
 
 // GET /clients/:clientId/users/:id
-usersRouter.get('/:id', async (c) => {
+router.get('/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -300,7 +401,7 @@ const updateUserSchema = z.object({
 });
 
 // PATCH /clients/:clientId/users/:id
-usersRouter.patch('/:id', async (c) => {
+router.patch('/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const requestingUser = c.get('user');
@@ -357,7 +458,7 @@ usersRouter.patch('/:id', async (c) => {
 });
 
 // PATCH /clients/:clientId/users/:id/deactivate
-usersRouter.patch('/:id/deactivate', async (c) => {
+router.patch('/:id/deactivate', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -379,7 +480,7 @@ usersRouter.patch('/:id/deactivate', async (c) => {
 // ─── User Profiles ────────────────────────────────────────────────────────────
 
 // GET /clients/:clientId/users/:id/profiles
-usersRouter.get('/:id/profiles', async (c) => {
+router.get('/:id/profiles', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -395,7 +496,7 @@ usersRouter.get('/:id/profiles', async (c) => {
     })
     .from(clientProfileUsers)
     .innerJoin(clientProfiles, eq(clientProfileUsers.profileId, clientProfiles.id))
-    .where(and(eq(clientProfileUsers.userId, id), eq(clientProfiles.clientId, clientId)))
+    .where(and(eq(clientProfileUsers.userId, id), eq(clientProfiles.clientId, clientId), isNull(clientProfileUsers.deletedAt)))
     .orderBy(clientProfiles.name);
 
   return c.json(toSnakeCase(result));
@@ -406,7 +507,7 @@ const assignProfileSchema = z.object({
 });
 
 // POST /clients/:clientId/users/:id/profiles
-usersRouter.post('/:id/profiles', async (c) => {
+router.post('/:id/profiles', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const body = await c.req.json();
@@ -434,7 +535,7 @@ usersRouter.post('/:id/profiles', async (c) => {
 });
 
 // DELETE /clients/:clientId/users/:id/profiles/:profileId
-usersRouter.delete('/:id/profiles/:profileId', async (c) => {
+router.delete('/:id/profiles/:profileId', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const profileId = c.req.param('profileId');
@@ -447,9 +548,10 @@ usersRouter.delete('/:id/profiles/:profileId', async (c) => {
   if (!profile) return c.json({ error: 'Profil introuvable pour ce client' }, 404);
 
   const [entry] = await db
-    .delete(clientProfileUsers)
+    .update(clientProfileUsers)
+    .set({ deletedAt: new Date() })
     .where(
-      and(eq(clientProfileUsers.userId, id), eq(clientProfileUsers.profileId, profileId))
+      and(eq(clientProfileUsers.userId, id), eq(clientProfileUsers.profileId, profileId), isNull(clientProfileUsers.deletedAt))
     )
     .returning();
 
@@ -463,7 +565,7 @@ usersRouter.delete('/:id/profiles/:profileId', async (c) => {
 // ─── Field Values ─────────────────────────────────────────────────────────────
 
 // GET /clients/:clientId/users/:id/field-values
-usersRouter.get('/:id/field-values', async (c) => {
+router.get('/:id/field-values', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const userId = id;
@@ -499,7 +601,7 @@ const upsertFieldValueSchema = z.object({
 });
 
 // POST /clients/:clientId/users/:id/field-values
-usersRouter.post('/:id/field-values', async (c) => {
+router.post('/:id/field-values', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const userId = id;
@@ -555,4 +657,4 @@ usersRouter.post('/:id/field-values', async (c) => {
   return c.json(toSnakeCase(created), 201);
 });
 
-export default usersRouter;
+export default router;

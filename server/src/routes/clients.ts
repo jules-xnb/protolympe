@@ -17,9 +17,9 @@ import { logAdminAction } from '../lib/audit.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
-const app = new Hono<Env>();
+const router = new Hono<Env>();
 
-app.use('*', authMiddleware);
+router.use('*', authMiddleware);
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
@@ -42,7 +42,7 @@ const ssoUpsertSchema = z.object({
 
 // ─── GET / ──────────────────────────────────────────────────────────────────
 
-app.get('/', async (c) => {
+router.get('/', async (c) => {
   const user = c.get('user');
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
@@ -112,7 +112,7 @@ app.get('/', async (c) => {
 
 // ─── GET /:id ────────────────────────────────────────────────────────────────
 
-app.get('/:id', async (c) => {
+router.get('/:id', async (c) => {
   const user = c.get('user');
   const { id } = c.req.param();
 
@@ -157,7 +157,7 @@ app.get('/:id', async (c) => {
 
 // ─── POST / ──────────────────────────────────────────────────────────────────
 
-app.post('/', async (c) => {
+router.post('/', async (c) => {
   const user = c.get('user');
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
@@ -179,7 +179,7 @@ app.post('/', async (c) => {
 
 // ─── PATCH /:id ──────────────────────────────────────────────────────────────
 
-app.patch('/:id', async (c) => {
+router.patch('/:id', async (c) => {
   const user = c.get('user');
   const { id } = c.req.param();
 
@@ -226,7 +226,7 @@ app.patch('/:id', async (c) => {
 
 // ─── PATCH /:id/deactivate ───────────────────────────────────────────────────
 
-app.patch('/:id/deactivate', async (c) => {
+router.patch('/:id/deactivate', async (c) => {
   const user = c.get('user');
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
@@ -248,7 +248,7 @@ app.patch('/:id/deactivate', async (c) => {
 
 // ─── GET /:id/integrators ────────────────────────────────────────────────────
 
-app.get('/:id/integrators', async (c) => {
+router.get('/:id/integrators', async (c) => {
   const user = c.get('user');
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
@@ -277,7 +277,7 @@ app.get('/:id/integrators', async (c) => {
 
 // ─── GET /:id/sso ────────────────────────────────────────────────────────────
 
-app.get('/:id/sso', async (c) => {
+router.get('/:id/sso', async (c) => {
   const user = c.get('user');
   const { id } = c.req.param();
 
@@ -313,7 +313,7 @@ app.get('/:id/sso', async (c) => {
 
 // ─── PUT /:id/sso ─────────────────────────────────────────────────────────────
 
-app.put('/:id/sso', async (c) => {
+router.put('/:id/sso', async (c) => {
   const user = c.get('user');
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
@@ -372,7 +372,7 @@ app.put('/:id/sso', async (c) => {
 
 // ─── DELETE /:id/sso ─────────────────────────────────────────────────────────
 
-app.delete('/:id/sso', async (c) => {
+router.delete('/:id/sso', async (c) => {
   const user = c.get('user');
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
@@ -417,4 +417,4 @@ function ssoToSnake(config: typeof clientSsoConfigs.$inferSelect) {
   };
 }
 
-export default app;
+export default router;

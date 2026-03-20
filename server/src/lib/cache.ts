@@ -13,7 +13,7 @@ import {
   modulePermissions,
   moduleRoles,
 } from '../db/schema.js';
-import { eq, and, inArray, like } from 'drizzle-orm';
+import { eq, and, inArray, like, isNull } from 'drizzle-orm';
 
 const CACHE_TTL_MS = 60_000; // 1 minute
 
@@ -77,7 +77,7 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
       profileId: clientProfileUsers.profileId,
     })
     .from(clientProfileUsers)
-    .where(eq(clientProfileUsers.userId, userId));
+    .where(and(eq(clientProfileUsers.userId, userId), isNull(clientProfileUsers.deletedAt)));
 
   const profileIds = profileAssignments.map((p) => p.profileId);
 
@@ -94,7 +94,7 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
       })
       .from(clientProfileModuleRoles)
       .innerJoin(moduleRoles, eq(clientProfileModuleRoles.moduleRoleId, moduleRoles.id))
-      .where(inArray(clientProfileModuleRoles.profileId, profileIds));
+      .where(and(inArray(clientProfileModuleRoles.profileId, profileIds), isNull(clientProfileModuleRoles.deletedAt)));
 
     // Get client_id for each profile to group by client
     const profileDetails = await db
@@ -149,7 +149,7 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
         includeDescendants: clientProfileEos.includeDescendants,
       })
       .from(clientProfileEos)
-      .where(inArray(clientProfileEos.profileId, profileIds));
+      .where(and(inArray(clientProfileEos.profileId, profileIds), isNull(clientProfileEos.deletedAt)));
 
     // Group EO assignments
     const groupAssignments = await db
@@ -158,7 +158,7 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
         groupId: clientProfileEoGroups.groupId,
       })
       .from(clientProfileEoGroups)
-      .where(inArray(clientProfileEoGroups.profileId, profileIds));
+      .where(and(inArray(clientProfileEoGroups.profileId, profileIds), isNull(clientProfileEoGroups.deletedAt)));
 
     const groupIds = groupAssignments.map((g) => g.groupId);
     let groupMembers: { groupId: string; eoId: string; includeDescendants: boolean }[] = [];
@@ -170,7 +170,7 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
           includeDescendants: eoGroupMembers.includeDescendants,
         })
         .from(eoGroupMembers)
-        .where(inArray(eoGroupMembers.groupId, groupIds));
+        .where(and(inArray(eoGroupMembers.groupId, groupIds), isNull(eoGroupMembers.deletedAt)));
     }
 
     // Collect all EO IDs with their include_descendants flag

@@ -9,9 +9,11 @@ import {
   eoGroupMembers,
   eoAuditLog,
   eoFieldChangeComments,
+  eoExportHistory,
   clientModules,
 } from '../db/schema.js';
-import { eq, and, count } from 'drizzle-orm';
+import { generateCsv, parseCsv } from '../lib/csv.js';
+import { eq, and, count, isNull } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireClientAccess } from '../middleware/client-access.js';
 import { toSnakeCase } from '../lib/case-transform.js';
@@ -21,17 +23,17 @@ import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
-const eoRouter = new Hono<Env>();
+const router = new Hono<Env>();
 
-eoRouter.use('*', authMiddleware);
-eoRouter.use('*', requireClientAccess());
+router.use('*', authMiddleware);
+router.use('*', requireClientAccess());
 
 // =============================================
 // Entities
 // =============================================
 
 // GET / — List entities for a client
-eoRouter.get('/', async (c) => {
+router.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
@@ -46,8 +48,77 @@ eoRouter.get('/', async (c) => {
   return c.json(paginatedResponse(toSnakeCase(result) as any[], total, pagination));
 });
 
+// GET /export — Export entities as CSV
+router.get('/export', async (c) => {
+  const clientId = c.req.param('clientId') as string;
+
+  const entities = await db.select({
+    id: eoEntities.id,
+    name: eoEntities.name,
+    description: eoEntities.description,
+    parent_id: eoEntities.parentId,
+    is_active: eoEntities.isActive,
+    is_archived: eoEntities.isArchived,
+    created_at: eoEntities.createdAt,
+  }).from(eoEntities)
+    .where(eq(eoEntities.clientId, clientId))
+    .orderBy(eoEntities.name);
+
+  // Log export
+  const user = c.get('user');
+  await db.insert(eoExportHistory).values({
+    clientId,
+    exportedBy: user.sub,
+    rowCount: entities.length,
+    fileName: `eo_export_${new Date().toISOString().split('T')[0]}.csv`,
+  });
+
+  const csv = generateCsv(
+    ['id', 'name', 'description', 'parent_id', 'is_active', 'is_archived', 'created_at'],
+    entities
+  );
+
+  c.header('Content-Type', 'text/csv');
+  c.header('Content-Disposition', `attachment; filename="eo_export.csv"`);
+  return c.body(csv);
+});
+
+// POST /import — Import entities from CSV
+router.post('/import', async (c) => {
+  const clientId = c.req.param('clientId') as string;
+  const body = await c.req.text();
+  const { rows } = parseCsv(body);
+
+  const imported: string[] = [];
+  const errors: { row: number; error: string }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    try {
+      const row = rows[i];
+      if (!row.name) {
+        errors.push({ row: i + 2, error: 'Nom requis' });
+        continue;
+      }
+      const [entity] = await db.insert(eoEntities).values({
+        clientId,
+        name: row.name,
+        description: row.description || null,
+        parentId: row.parent_id || null,
+        path: '',
+        level: 0,
+        createdBy: c.get('user').sub,
+      }).returning();
+      imported.push(entity.id);
+    } catch (err) {
+      errors.push({ row: i + 2, error: String(err) });
+    }
+  }
+
+  return c.json({ imported: imported.length, errors });
+});
+
 // GET /:id — Entity detail
-eoRouter.get('/:id', async (c) => {
+router.get('/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -72,7 +143,7 @@ const createEntitySchema = z.object({
 });
 
 // POST / — Create entity
-eoRouter.post('/', async (c) => {
+router.post('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const user = c.get('user');
   const body = await c.req.json();
@@ -126,7 +197,7 @@ const updateEntitySchema = z.object({
 });
 
 // PATCH /:id — Update entity
-eoRouter.patch('/:id', async (c) => {
+router.patch('/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const user = c.get('user');
@@ -183,7 +254,7 @@ eoRouter.patch('/:id', async (c) => {
 });
 
 // PATCH /:id/archive — Archive entity
-eoRouter.patch('/:id/archive', async (c) => {
+router.patch('/:id/archive', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -211,7 +282,7 @@ eoRouter.patch('/:id/archive', async (c) => {
 // =============================================
 
 // GET /fields — List field definitions for client
-eoRouter.get('/fields', async (c) => {
+router.get('/fields', async (c) => {
   const clientId = c.req.param('clientId') as string;
 
   const result = await db
@@ -235,7 +306,7 @@ const createFieldSchema = z.object({
 });
 
 // POST /fields — Create field definition
-eoRouter.post('/fields', async (c) => {
+router.post('/fields', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const body = await c.req.json();
   const parsed = createFieldSchema.safeParse(body);
@@ -276,7 +347,7 @@ const updateFieldSchema = z.object({
 });
 
 // PATCH /fields/:id — Update field definition
-eoRouter.patch('/fields/:id', async (c) => {
+router.patch('/fields/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const body = await c.req.json();
@@ -318,7 +389,7 @@ eoRouter.patch('/fields/:id', async (c) => {
 });
 
 // PATCH /fields/:id/deactivate — Deactivate field definition
-eoRouter.patch('/fields/:id/deactivate', async (c) => {
+router.patch('/fields/:id/deactivate', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -346,7 +417,7 @@ eoRouter.patch('/fields/:id/deactivate', async (c) => {
 // =============================================
 
 // GET /:id/values — List field values for an entity
-eoRouter.get('/:id/values', async (c) => {
+router.get('/:id/values', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -375,7 +446,7 @@ const upsertFieldValueSchema = z.object({
 });
 
 // POST /:id/values — Upsert field value for an entity
-eoRouter.post('/:id/values', async (c) => {
+router.post('/:id/values', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const user = c.get('user');
@@ -441,7 +512,7 @@ eoRouter.post('/:id/values', async (c) => {
 // =============================================
 
 // GET /groups — List groups for client
-eoRouter.get('/groups', async (c) => {
+router.get('/groups', async (c) => {
   const clientId = c.req.param('clientId') as string;
 
   const result = await db
@@ -459,7 +530,7 @@ const createGroupSchema = z.object({
 });
 
 // POST /groups — Create group
-eoRouter.post('/groups', async (c) => {
+router.post('/groups', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const user = c.get('user');
   const body = await c.req.json();
@@ -490,7 +561,7 @@ const updateGroupSchema = z.object({
 });
 
 // PATCH /groups/:id — Update group
-eoRouter.patch('/groups/:id', async (c) => {
+router.patch('/groups/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const body = await c.req.json();
@@ -526,7 +597,7 @@ eoRouter.patch('/groups/:id', async (c) => {
 });
 
 // PATCH /groups/:id/deactivate — Deactivate group
-eoRouter.patch('/groups/:id/deactivate', async (c) => {
+router.patch('/groups/:id/deactivate', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -550,7 +621,7 @@ eoRouter.patch('/groups/:id/deactivate', async (c) => {
 });
 
 // GET /groups/:id/members — List group members
-eoRouter.get('/groups/:id/members', async (c) => {
+router.get('/groups/:id/members', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -567,7 +638,7 @@ eoRouter.get('/groups/:id/members', async (c) => {
   const result = await db
     .select()
     .from(eoGroupMembers)
-    .where(eq(eoGroupMembers.groupId, id))
+    .where(and(eq(eoGroupMembers.groupId, id), isNull(eoGroupMembers.deletedAt)))
     .orderBy(eoGroupMembers.createdAt);
 
   return c.json(toSnakeCase(result));
@@ -579,7 +650,7 @@ const addMemberSchema = z.object({
 });
 
 // POST /groups/:id/members — Add member to group
-eoRouter.post('/groups/:id/members', async (c) => {
+router.post('/groups/:id/members', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const user = c.get('user');
@@ -626,7 +697,7 @@ eoRouter.post('/groups/:id/members', async (c) => {
 });
 
 // DELETE /groups/members/:memberId — Remove member from group
-eoRouter.delete('/groups/members/:memberId', async (c) => {
+router.delete('/groups/members/:memberId', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const memberId = c.req.param('memberId');
 
@@ -634,13 +705,13 @@ eoRouter.delete('/groups/members/:memberId', async (c) => {
   const [member] = await db.select({ id: eoGroupMembers.id, clientId: eoGroups.clientId })
     .from(eoGroupMembers)
     .innerJoin(eoGroups, eq(eoGroupMembers.groupId, eoGroups.id))
-    .where(and(eq(eoGroupMembers.id, memberId), eq(eoGroups.clientId, clientId)));
+    .where(and(eq(eoGroupMembers.id, memberId), eq(eoGroups.clientId, clientId), isNull(eoGroupMembers.deletedAt)));
 
   if (!member) {
     return c.json({ error: 'Membre introuvable' }, 404);
   }
 
-  await db.delete(eoGroupMembers).where(eq(eoGroupMembers.id, memberId));
+  await db.update(eoGroupMembers).set({ deletedAt: new Date() }).where(eq(eoGroupMembers.id, memberId));
 
   return c.json({ success: true });
 });
@@ -650,7 +721,7 @@ eoRouter.delete('/groups/members/:memberId', async (c) => {
 // =============================================
 
 // GET /:id/audit — List audit log for entity
-eoRouter.get('/:id/audit', async (c) => {
+router.get('/:id/audit', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -681,7 +752,7 @@ eoRouter.get('/:id/audit', async (c) => {
 // =============================================
 
 // GET /:id/comments — List field change comments for entity
-eoRouter.get('/:id/comments', async (c) => {
+router.get('/:id/comments', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -715,7 +786,7 @@ const createCommentSchema = z.object({
 });
 
 // POST /:id/comments — Add field change comment for entity
-eoRouter.post('/:id/comments', async (c) => {
+router.post('/:id/comments', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const user = c.get('user');
@@ -753,4 +824,4 @@ eoRouter.post('/:id/comments', async (c) => {
   return c.json(toSnakeCase(entry), 201);
 });
 
-export default eoRouter;
+export default router;

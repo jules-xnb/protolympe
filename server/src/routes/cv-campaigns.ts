@@ -21,6 +21,7 @@ import {
   eoEntities,
 } from '../db/schema.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { generateCsv, parseCsv } from '../lib/csv.js';
 import { getUserPermissions, hasClientAccess, hasModulePermission, getModuleRoleIds } from '../lib/cache.js';
 import { getEditableCvFormFieldIds } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';
@@ -1240,6 +1241,211 @@ app.delete('/responses/:id/documents/:docId', async (c) => {
   if (!deleted) return c.json({ error: 'Document introuvable' }, 404);
 
   return c.json({ success: true });
+});
+
+// ─── Campaign Export / Import ─────────────────────────────────────────────────
+
+// GET /campaigns/:id/export — Export responses with field values as CSV
+app.get('/campaigns/:id/export', async (c) => {
+  const { id } = c.req.param();
+  const moduleId = c.req.param('moduleId') as string;
+
+  const [campaign] = await db
+    .select()
+    .from(moduleCvCampaigns)
+    .where(eq(moduleCvCampaigns.id, id));
+  if (!campaign) return c.json({ error: 'Campagne introuvable' }, 404);
+
+  const [surveyType] = await db
+    .select()
+    .from(moduleCvSurveyTypes)
+    .where(
+      and(
+        eq(moduleCvSurveyTypes.id, campaign.surveyTypeId),
+        eq(moduleCvSurveyTypes.clientModuleId, moduleId)
+      )
+    );
+  if (!surveyType) return c.json({ error: 'Campagne introuvable' }, 404);
+
+  // Fetch all field definitions for this survey type
+  const fieldDefs = await db
+    .select()
+    .from(moduleCvFieldDefinitions)
+    .where(eq(moduleCvFieldDefinitions.surveyTypeId, campaign.surveyTypeId));
+
+  // Fetch all responses with EO names and status names
+  const responses = await db
+    .select({
+      response: moduleCvResponses,
+      eo_name: eoEntities.name,
+      status_name: moduleCvStatuses.name,
+    })
+    .from(moduleCvResponses)
+    .innerJoin(eoEntities, eq(eoEntities.id, moduleCvResponses.eoId))
+    .innerJoin(moduleCvStatuses, eq(moduleCvStatuses.id, moduleCvResponses.statusId))
+    .where(eq(moduleCvResponses.campaignId, id));
+
+  if (responses.length === 0) {
+    const csv = generateCsv(['response_id', 'eo_name', 'status'], []);
+    c.header('Content-Type', 'text/csv');
+    c.header('Content-Disposition', `attachment; filename="campaign_${id}_export.csv"`);
+    return c.body(csv);
+  }
+
+  const responseIds = responses.map((r) => r.response.id);
+  const allValues = await db
+    .select()
+    .from(moduleCvResponseValues)
+    .where(inArray(moduleCvResponseValues.responseId, responseIds));
+
+  // Build a lookup: responseId -> fieldDefinitionId -> value
+  const valuesByResponse = new Map<string, Map<string, unknown>>();
+  for (const v of allValues) {
+    if (!valuesByResponse.has(v.responseId)) {
+      valuesByResponse.set(v.responseId, new Map());
+    }
+    valuesByResponse.get(v.responseId)!.set(v.fieldDefinitionId, v.value);
+  }
+
+  // Build headers: fixed columns + one per field definition
+  const fixedHeaders = ['response_id', 'eo_name', 'status'];
+  const fieldHeaders = fieldDefs.map((f) => f.name);
+  const headers = [...fixedHeaders, ...fieldHeaders];
+
+  // Build rows
+  const rows = responses.map((r) => {
+    const row: Record<string, unknown> = {
+      response_id: r.response.id,
+      eo_name: r.eo_name,
+      status: r.status_name,
+    };
+    const valMap = valuesByResponse.get(r.response.id) ?? new Map();
+    for (const f of fieldDefs) {
+      const val = valMap.get(f.id);
+      row[f.name] = val !== undefined && val !== null
+        ? (typeof val === 'object' ? JSON.stringify(val) : val)
+        : '';
+    }
+    return row;
+  });
+
+  const csv = generateCsv(headers, rows);
+  c.header('Content-Type', 'text/csv');
+  c.header('Content-Disposition', `attachment; filename="campaign_${id}_export.csv"`);
+  return c.body(csv);
+});
+
+// POST /campaigns/:id/import — Import response values from CSV
+app.post('/campaigns/:id/import', async (c) => {
+  const { id } = c.req.param();
+  const moduleId = c.req.param('moduleId') as string;
+  const user = c.get('user');
+
+  const [campaign] = await db
+    .select()
+    .from(moduleCvCampaigns)
+    .where(eq(moduleCvCampaigns.id, id));
+  if (!campaign) return c.json({ error: 'Campagne introuvable' }, 404);
+
+  const [surveyType] = await db
+    .select()
+    .from(moduleCvSurveyTypes)
+    .where(
+      and(
+        eq(moduleCvSurveyTypes.id, campaign.surveyTypeId),
+        eq(moduleCvSurveyTypes.clientModuleId, moduleId)
+      )
+    );
+  if (!surveyType) return c.json({ error: 'Campagne introuvable' }, 404);
+
+  // Fetch field definitions indexed by name
+  const fieldDefs = await db
+    .select()
+    .from(moduleCvFieldDefinitions)
+    .where(eq(moduleCvFieldDefinitions.surveyTypeId, campaign.surveyTypeId));
+  const fieldByName = new Map(fieldDefs.map((f) => [f.name, f]));
+
+  const body = await c.req.text();
+  const { headers, rows } = parseCsv(body);
+
+  const imported: number[] = [];
+  const errors: { row: number; error: string }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    try {
+      const row = rows[i];
+      const responseId = row['response_id'];
+      if (!responseId) {
+        errors.push({ row: i + 2, error: 'response_id requis' });
+        continue;
+      }
+
+      // Verify response belongs to this campaign
+      const [response] = await db
+        .select()
+        .from(moduleCvResponses)
+        .where(
+          and(
+            eq(moduleCvResponses.id, responseId),
+            eq(moduleCvResponses.campaignId, id)
+          )
+        );
+      if (!response) {
+        errors.push({ row: i + 2, error: `Réponse introuvable : ${responseId}` });
+        continue;
+      }
+
+      // Import values for each field column (skip fixed columns)
+      const fixedCols = new Set(['response_id', 'eo_name', 'status']);
+      let valuesImported = 0;
+      for (const header of headers) {
+        if (fixedCols.has(header)) continue;
+        const fieldDef = fieldByName.get(header);
+        if (!fieldDef) continue;
+        const rawValue = row[header];
+
+        // Try parsing JSON values, fall back to string
+        let parsedValue: unknown = rawValue;
+        try {
+          if (rawValue && (rawValue.startsWith('{') || rawValue.startsWith('['))) {
+            parsedValue = JSON.parse(rawValue);
+          }
+        } catch {
+          // keep as string
+        }
+
+        const [existing] = await db
+          .select()
+          .from(moduleCvResponseValues)
+          .where(
+            and(
+              eq(moduleCvResponseValues.responseId, responseId),
+              eq(moduleCvResponseValues.fieldDefinitionId, fieldDef.id)
+            )
+          );
+
+        if (existing) {
+          await db
+            .update(moduleCvResponseValues)
+            .set({ value: parsedValue, updatedAt: new Date(), lastModifiedBy: user.sub })
+            .where(eq(moduleCvResponseValues.id, existing.id));
+        } else {
+          await db.insert(moduleCvResponseValues).values({
+            responseId,
+            fieldDefinitionId: fieldDef.id,
+            value: parsedValue,
+            lastModifiedBy: user.sub,
+          });
+        }
+        valuesImported++;
+      }
+      imported.push(valuesImported);
+    } catch (err) {
+      errors.push({ row: i + 2, error: String(err) });
+    }
+  }
+
+  return c.json({ imported: imported.length, total_values_imported: imported.reduce((a, b) => a + b, 0), errors });
 });
 
 // ─── Audit ────────────────────────────────────────────────────────────────────

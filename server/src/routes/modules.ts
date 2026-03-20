@@ -18,10 +18,10 @@ import { getUserPermissions, hasClientAccess } from '../lib/cache.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
-const modulesRouter = new Hono<Env>();
+const router = new Hono<Env>();
 
-modulesRouter.use('*', authMiddleware);
-modulesRouter.use('/clients/:clientId/*', requireClientAccess());
+router.use('*', authMiddleware);
+router.use('/clients/:clientId/*', requireClientAccess());
 
 // =============================================
 // Module activation — /clients/:clientId/modules
@@ -30,7 +30,7 @@ modulesRouter.use('/clients/:clientId/*', requireClientAccess());
 // GET /clients/:clientId/modules
 // Admin/integrator: all modules for the client.
 // client_user: only modules where they have a role via profiles.
-modulesRouter.get('/clients/:clientId/modules', async (c) => {
+router.get('/clients/:clientId/modules', async (c) => {
   const { clientId } = c.req.param();
   const user = c.get('user');
   const persona = user.persona;
@@ -112,7 +112,7 @@ const activateModuleSchema = z.object({
 });
 
 // POST /clients/:clientId/modules — activate a module for a client
-modulesRouter.post('/clients/:clientId/modules', async (c) => {
+router.post('/clients/:clientId/modules', async (c) => {
   const user = c.get('user');
   const persona = user.persona;
 
@@ -153,7 +153,7 @@ const updateModuleSchema = z.object({
 });
 
 // PATCH /clients/:clientId/modules/:id — update a module (is_active, display_order)
-modulesRouter.patch('/clients/:clientId/modules/:id', async (c) => {
+router.patch('/clients/:clientId/modules/:id', async (c) => {
   const user = c.get('user');
   const persona = user.persona;
 
@@ -199,7 +199,7 @@ const reorderModulesSchema = z.object({
 });
 
 // PATCH /clients/:clientId/modules/reorder — reorder modules
-modulesRouter.patch('/clients/:clientId/modules/reorder', async (c) => {
+router.patch('/clients/:clientId/modules/reorder', async (c) => {
   const user = c.get('user');
   const persona = user.persona;
 
@@ -260,7 +260,7 @@ async function verifyModuleClientAccess(moduleId: string, userId: string, person
 // =============================================
 
 // GET /modules/:moduleId/roles — list roles for a module
-modulesRouter.get('/modules/:moduleId/roles', async (c) => {
+router.get('/modules/:moduleId/roles', async (c) => {
   const user = c.get('user');
   const persona = user.persona;
 
@@ -292,7 +292,7 @@ const createRoleSchema = z.object({
 });
 
 // POST /modules/:moduleId/roles — create a role for a module
-modulesRouter.post('/modules/:moduleId/roles', async (c) => {
+router.post('/modules/:moduleId/roles', async (c) => {
   const user = c.get('user');
   const persona = user.persona;
 
@@ -339,7 +339,7 @@ const updateRoleSchema = z.object({
 });
 
 // PATCH /modules/:moduleId/roles/:id — update a role
-modulesRouter.patch('/modules/:moduleId/roles/:id', async (c) => {
+router.patch('/modules/:moduleId/roles/:id', async (c) => {
   const user = c.get('user');
   const persona = user.persona;
 
@@ -384,7 +384,7 @@ modulesRouter.patch('/modules/:moduleId/roles/:id', async (c) => {
 });
 
 // PATCH /modules/:moduleId/roles/:id/deactivate — deactivate a role
-modulesRouter.patch('/modules/:moduleId/roles/:id/deactivate', async (c) => {
+router.patch('/modules/:moduleId/roles/:id/deactivate', async (c) => {
   const user = c.get('user');
   const persona = user.persona;
 
@@ -418,7 +418,7 @@ modulesRouter.patch('/modules/:moduleId/roles/:id/deactivate', async (c) => {
 // =============================================
 
 // GET /modules/:moduleId/permissions — list all permissions with grant status per role
-modulesRouter.get('/modules/:moduleId/permissions', async (c) => {
+router.get('/modules/:moduleId/permissions', async (c) => {
   const user = c.get('user');
   const persona = user.persona;
 
@@ -468,7 +468,7 @@ const updatePermissionsSchema = z.object({
 });
 
 // PUT /modules/:moduleId/permissions — batch update permissions
-modulesRouter.put('/modules/:moduleId/permissions', async (c) => {
+router.put('/modules/:moduleId/permissions', async (c) => {
   const user = c.get('user');
   const persona = user.persona;
 
@@ -520,4 +520,4 @@ modulesRouter.put('/modules/:moduleId/permissions', async (c) => {
   return c.json(toSnakeCase(updated));
 });
 
-export default modulesRouter;
+export default router;

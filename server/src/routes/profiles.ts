@@ -13,25 +13,27 @@ import {
   moduleRoles,
   clientModules,
 } from '../db/schema.js';
-import { eq, and, count } from 'drizzle-orm';
+import { eq, and, count, isNull } from 'drizzle-orm';
+import { generateCsv, parseCsv } from '../lib/csv.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireClientAccess } from '../middleware/client-access.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 import { getEditableFieldSlugs } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';
 import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
+import { logAdminAction } from '../lib/audit.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
-const profilesRouter = new Hono<Env>();
+const router = new Hono<Env>();
 
-profilesRouter.use('*', authMiddleware);
-profilesRouter.use('*', requireClientAccess());
+router.use('*', authMiddleware);
+router.use('*', requireClientAccess());
 
 // ─── Profiles ───────────────────────────────────────────────────────────────
 
 // GET /clients/:clientId/profiles
-profilesRouter.get('/', async (c) => {
+router.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
@@ -46,8 +48,67 @@ profilesRouter.get('/', async (c) => {
   return c.json(paginatedResponse(toSnakeCase(result) as any[], total, pagination));
 });
 
+// GET /clients/:clientId/profiles/export
+router.get('/export', async (c) => {
+  const clientId = c.req.param('clientId') as string;
+
+  const result = await db
+    .select({
+      id: clientProfiles.id,
+      name: clientProfiles.name,
+      description: clientProfiles.description,
+      is_archived: clientProfiles.isArchived,
+      created_at: clientProfiles.createdAt,
+    })
+    .from(clientProfiles)
+    .where(eq(clientProfiles.clientId, clientId))
+    .orderBy(clientProfiles.name);
+
+  const csv = generateCsv(
+    ['id', 'name', 'description', 'is_archived', 'created_at'],
+    result
+  );
+
+  c.header('Content-Type', 'text/csv');
+  c.header('Content-Disposition', `attachment; filename="profiles_export.csv"`);
+  return c.body(csv);
+});
+
+// POST /clients/:clientId/profiles/import
+router.post('/import', async (c) => {
+  const clientId = c.req.param('clientId') as string;
+  const body = await c.req.text();
+  const { rows } = parseCsv(body);
+
+  const imported: string[] = [];
+  const errors: { row: number; error: string }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    try {
+      const row = rows[i];
+      if (!row.name) {
+        errors.push({ row: i + 2, error: 'Nom requis' });
+        continue;
+      }
+      const [profile] = await db
+        .insert(clientProfiles)
+        .values({
+          clientId,
+          name: row.name,
+          description: row.description || null,
+        })
+        .returning();
+      imported.push(profile.id);
+    } catch (err) {
+      errors.push({ row: i + 2, error: String(err) });
+    }
+  }
+
+  return c.json({ imported: imported.length, errors });
+});
+
 // GET /clients/:clientId/profiles/:id
-profilesRouter.get('/:id', async (c) => {
+router.get('/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -72,7 +133,7 @@ profilesRouter.get('/:id', async (c) => {
       })
       .from(clientProfileEos)
       .leftJoin(eoEntities, eq(clientProfileEos.eoId, eoEntities.id))
-      .where(eq(clientProfileEos.profileId, id)),
+      .where(and(eq(clientProfileEos.profileId, id), isNull(clientProfileEos.deletedAt))),
 
     db
       .select({
@@ -84,7 +145,7 @@ profilesRouter.get('/:id', async (c) => {
       })
       .from(clientProfileEoGroups)
       .leftJoin(eoGroups, eq(clientProfileEoGroups.groupId, eoGroups.id))
-      .where(eq(clientProfileEoGroups.profileId, id)),
+      .where(and(eq(clientProfileEoGroups.profileId, id), isNull(clientProfileEoGroups.deletedAt))),
 
     db
       .select({
@@ -98,7 +159,7 @@ profilesRouter.get('/:id', async (c) => {
       })
       .from(clientProfileModuleRoles)
       .leftJoin(moduleRoles, eq(clientProfileModuleRoles.moduleRoleId, moduleRoles.id))
-      .where(eq(clientProfileModuleRoles.profileId, id)),
+      .where(and(eq(clientProfileModuleRoles.profileId, id), isNull(clientProfileModuleRoles.deletedAt))),
   ]);
 
   return c.json(
@@ -117,8 +178,9 @@ const createProfileSchema = z.object({
 });
 
 // POST /clients/:clientId/profiles
-profilesRouter.post('/', async (c) => {
+router.post('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
+  const user = c.get('user');
   const body = await c.req.json();
   const parsed = createProfileSchema.safeParse(body);
   if (!parsed.success) {
@@ -136,6 +198,8 @@ profilesRouter.post('/', async (c) => {
     })
     .returning();
 
+  await logAdminAction(user.sub, 'profile.create', 'client_profile', profile.id, { client_id: clientId, name });
+
   return c.json(toSnakeCase(profile), 201);
 });
 
@@ -145,7 +209,7 @@ const updateProfileSchema = z.object({
 });
 
 // PATCH /clients/:clientId/profiles/:id
-profilesRouter.patch('/:id', async (c) => {
+router.patch('/:id', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const requestingUser = c.get('user');
@@ -190,13 +254,16 @@ profilesRouter.patch('/:id', async (c) => {
     return c.json({ error: 'Profil introuvable' }, 404);
   }
 
+  await logAdminAction(requestingUser.sub, 'profile.update', 'client_profile', id, { client_id: clientId, ...parsed.data });
+
   return c.json(toSnakeCase(profile));
 });
 
 // PATCH /clients/:clientId/profiles/:id/archive
-profilesRouter.patch('/:id/archive', async (c) => {
+router.patch('/:id/archive', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+  const user = c.get('user');
 
   const [profile] = await db
     .update(clientProfiles)
@@ -208,13 +275,15 @@ profilesRouter.patch('/:id/archive', async (c) => {
     return c.json({ error: 'Profil introuvable' }, 404);
   }
 
+  await logAdminAction(user.sub, 'profile.archive', 'client_profile', id, { client_id: clientId });
+
   return c.json(toSnakeCase(profile));
 });
 
 // ─── EOs ─────────────────────────────────────────────────────────────────────
 
 // GET /clients/:clientId/profiles/:id/eos
-profilesRouter.get('/:id/eos', async (c) => {
+router.get('/:id/eos', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -235,7 +304,7 @@ profilesRouter.get('/:id/eos', async (c) => {
     })
     .from(clientProfileEos)
     .leftJoin(eoEntities, eq(clientProfileEos.eoId, eoEntities.id))
-    .where(eq(clientProfileEos.profileId, id));
+    .where(and(eq(clientProfileEos.profileId, id), isNull(clientProfileEos.deletedAt)));
 
   return c.json(toSnakeCase(result));
 });
@@ -246,7 +315,7 @@ const addEoSchema = z.object({
 });
 
 // POST /clients/:clientId/profiles/:id/eos
-profilesRouter.post('/:id/eos', async (c) => {
+router.post('/:id/eos', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -275,7 +344,7 @@ profilesRouter.post('/:id/eos', async (c) => {
 });
 
 // DELETE /clients/:clientId/profiles/:id/eos/:eoId
-profilesRouter.delete('/:id/eos/:eoId', async (c) => {
+router.delete('/:id/eos/:eoId', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const eoId = c.req.param('eoId');
@@ -285,8 +354,9 @@ profilesRouter.delete('/:id/eos/:eoId', async (c) => {
   if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
 
   const [entry] = await db
-    .delete(clientProfileEos)
-    .where(and(eq(clientProfileEos.profileId, id), eq(clientProfileEos.eoId, eoId)))
+    .update(clientProfileEos)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(clientProfileEos.profileId, id), eq(clientProfileEos.eoId, eoId), isNull(clientProfileEos.deletedAt)))
     .returning();
 
   if (!entry) {
@@ -299,7 +369,7 @@ profilesRouter.delete('/:id/eos/:eoId', async (c) => {
 // ─── EO Groups ───────────────────────────────────────────────────────────────
 
 // GET /clients/:clientId/profiles/:id/eo-groups
-profilesRouter.get('/:id/eo-groups', async (c) => {
+router.get('/:id/eo-groups', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -318,7 +388,7 @@ profilesRouter.get('/:id/eo-groups', async (c) => {
     })
     .from(clientProfileEoGroups)
     .leftJoin(eoGroups, eq(clientProfileEoGroups.groupId, eoGroups.id))
-    .where(eq(clientProfileEoGroups.profileId, id));
+    .where(and(eq(clientProfileEoGroups.profileId, id), isNull(clientProfileEoGroups.deletedAt)));
 
   return c.json(toSnakeCase(result));
 });
@@ -328,7 +398,7 @@ const addEoGroupSchema = z.object({
 });
 
 // POST /clients/:clientId/profiles/:id/eo-groups
-profilesRouter.post('/:id/eo-groups', async (c) => {
+router.post('/:id/eo-groups', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -354,7 +424,7 @@ profilesRouter.post('/:id/eo-groups', async (c) => {
 });
 
 // DELETE /clients/:clientId/profiles/:id/eo-groups/:groupId
-profilesRouter.delete('/:id/eo-groups/:groupId', async (c) => {
+router.delete('/:id/eo-groups/:groupId', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const groupId = c.req.param('groupId');
@@ -364,8 +434,9 @@ profilesRouter.delete('/:id/eo-groups/:groupId', async (c) => {
   if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
 
   const [entry] = await db
-    .delete(clientProfileEoGroups)
-    .where(and(eq(clientProfileEoGroups.profileId, id), eq(clientProfileEoGroups.groupId, groupId)))
+    .update(clientProfileEoGroups)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(clientProfileEoGroups.profileId, id), eq(clientProfileEoGroups.groupId, groupId), isNull(clientProfileEoGroups.deletedAt)))
     .returning();
 
   if (!entry) {
@@ -378,7 +449,7 @@ profilesRouter.delete('/:id/eo-groups/:groupId', async (c) => {
 // ─── Module Roles ─────────────────────────────────────────────────────────────
 
 // GET /clients/:clientId/profiles/:id/module-roles
-profilesRouter.get('/:id/module-roles', async (c) => {
+router.get('/:id/module-roles', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -398,7 +469,7 @@ profilesRouter.get('/:id/module-roles', async (c) => {
     })
     .from(clientProfileModuleRoles)
     .leftJoin(moduleRoles, eq(clientProfileModuleRoles.moduleRoleId, moduleRoles.id))
-    .where(eq(clientProfileModuleRoles.profileId, id));
+    .where(and(eq(clientProfileModuleRoles.profileId, id), isNull(clientProfileModuleRoles.deletedAt)));
 
   return c.json(toSnakeCase(result));
 });
@@ -408,7 +479,7 @@ const addModuleRoleSchema = z.object({
 });
 
 // POST /clients/:clientId/profiles/:id/module-roles
-profilesRouter.post('/:id/module-roles', async (c) => {
+router.post('/:id/module-roles', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -434,7 +505,7 @@ profilesRouter.post('/:id/module-roles', async (c) => {
 });
 
 // DELETE /clients/:clientId/profiles/:id/module-roles/:roleId
-profilesRouter.delete('/:id/module-roles/:roleId', async (c) => {
+router.delete('/:id/module-roles/:roleId', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const roleId = c.req.param('roleId');
@@ -444,11 +515,13 @@ profilesRouter.delete('/:id/module-roles/:roleId', async (c) => {
   if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
 
   const [entry] = await db
-    .delete(clientProfileModuleRoles)
+    .update(clientProfileModuleRoles)
+    .set({ deletedAt: new Date() })
     .where(
       and(
         eq(clientProfileModuleRoles.profileId, id),
-        eq(clientProfileModuleRoles.moduleRoleId, roleId)
+        eq(clientProfileModuleRoles.moduleRoleId, roleId),
+        isNull(clientProfileModuleRoles.deletedAt)
       )
     )
     .returning();
@@ -463,7 +536,7 @@ profilesRouter.delete('/:id/module-roles/:roleId', async (c) => {
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 // GET /clients/:clientId/profiles/:id/users
-profilesRouter.get('/:id/users', async (c) => {
+router.get('/:id/users', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
 
@@ -490,4 +563,4 @@ profilesRouter.get('/:id/users', async (c) => {
   return c.json(toSnakeCase(result));
 });
 
-export default profilesRouter;
+export default router;

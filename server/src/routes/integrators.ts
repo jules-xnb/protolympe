@@ -15,9 +15,9 @@ import { logAdminAction } from '../lib/audit.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
-const app = new Hono<Env>();
+const router = new Hono<Env>();
 
-app.use('*', authMiddleware);
+router.use('*', authMiddleware);
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ const assignClientSchema = z.object({
 
 // ─── GET / ───────────────────────────────────────────────────────────────────
 
-app.get('/', async (c) => {
+router.get('/', async (c) => {
   const user = c.get('user');
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
@@ -70,7 +70,7 @@ app.get('/', async (c) => {
 
 // ─── POST /invite ─────────────────────────────────────────────────────────────
 
-app.post('/invite', rateLimit(5, 60_000), async (c) => {
+router.post('/invite', rateLimit(5, 60_000), async (c) => {
   const user = c.get('user');
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
@@ -82,7 +82,7 @@ app.post('/invite', rateLimit(5, 60_000), async (c) => {
   const body = parsed.data;
 
   const [existing] = await db
-    .select()
+    .select({ id: accounts.id })
     .from(accounts)
     .where(eq(accounts.email, body.email));
 
@@ -110,14 +110,14 @@ app.post('/invite', rateLimit(5, 60_000), async (c) => {
 
 // ─── PATCH /:id ───────────────────────────────────────────────────────────────
 
-app.patch('/:id', async (c) => {
+router.patch('/:id', async (c) => {
   const user = c.get('user');
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
   const { id } = c.req.param();
 
   const [existing] = await db
-    .select()
+    .select({ id: accounts.id })
     .from(accounts)
     .where(
       and(
@@ -155,14 +155,14 @@ app.patch('/:id', async (c) => {
 
 // ─── GET /:id/clients ─────────────────────────────────────────────────────────
 
-app.get('/:id/clients', async (c) => {
+router.get('/:id/clients', async (c) => {
   const user = c.get('user');
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
   const { id } = c.req.param();
 
   const [existing] = await db
-    .select()
+    .select({ id: accounts.id })
     .from(accounts)
     .where(
       and(
@@ -195,14 +195,14 @@ app.get('/:id/clients', async (c) => {
 
 // ─── POST /:id/clients ────────────────────────────────────────────────────────
 
-app.post('/:id/clients', async (c) => {
+router.post('/:id/clients', async (c) => {
   const user = c.get('user');
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
   const { id } = c.req.param();
 
   const [integrator] = await db
-    .select()
+    .select({ id: accounts.id })
     .from(accounts)
     .where(
       and(
@@ -269,14 +269,14 @@ app.post('/:id/clients', async (c) => {
 
 // ─── DELETE /:id/clients/:clientId ────────────────────────────────────────────
 
-app.delete('/:id/clients/:clientId', async (c) => {
+router.delete('/:id/clients/:clientId', async (c) => {
   const user = c.get('user');
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
   const { id, clientId } = c.req.param();
 
   const [existing] = await db
-    .select()
+    .select({ id: accounts.id })
     .from(accounts)
     .where(
       and(
@@ -329,4 +329,4 @@ function accountToSnake(account: {
   };
 }
 
-export default app;
+export default router;

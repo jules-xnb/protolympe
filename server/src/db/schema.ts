@@ -189,6 +189,7 @@ export const eoGroupMembers = pgTable('eo_group_members', {
   includeDescendants: boolean('include_descendants').default(false).notNull(),
   createdBy: uuid('created_by').references(() => accounts.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });
 
 export const eoFieldChangeComments = pgTable('eo_field_change_comments', {
@@ -251,6 +252,7 @@ export const clientProfileUsers = pgTable('client_profile_users', {
   userId: uuid('user_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   profileId: uuid('profile_id').notNull().references(() => clientProfiles.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });
 
 export const clientProfileEos = pgTable('client_profile_eos', {
@@ -259,6 +261,7 @@ export const clientProfileEos = pgTable('client_profile_eos', {
   eoId: uuid('eo_id').notNull().references(() => eoEntities.id, { onDelete: 'cascade' }),
   includeDescendants: boolean('include_descendants').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });
 
 export const clientProfileEoGroups = pgTable('client_profile_eo_groups', {
@@ -266,6 +269,7 @@ export const clientProfileEoGroups = pgTable('client_profile_eo_groups', {
   profileId: uuid('profile_id').notNull().references(() => clientProfiles.id, { onDelete: 'cascade' }),
   groupId: uuid('group_id').notNull().references(() => eoGroups.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });
 
 export const clientProfileModuleRoles = pgTable('client_profile_module_roles', {
@@ -273,6 +277,7 @@ export const clientProfileModuleRoles = pgTable('client_profile_module_roles', {
   profileId: uuid('profile_id').notNull().references(() => clientProfiles.id, { onDelete: 'cascade' }),
   moduleRoleId: uuid('module_role_id').notNull().references(() => moduleRoles.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });
 
 // =============================================

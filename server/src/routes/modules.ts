@@ -8,7 +8,7 @@ import {
   clientProfileUsers,
   clientProfileModuleRoles,
 } from '../db/schema.js';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireClientAccess } from '../middleware/client-access.js';
 import { toSnakeCase } from '../lib/case-transform.js';
@@ -42,7 +42,7 @@ router.get('/clients/:clientId/modules', async (c) => {
     const profileRows = await db
       .select({ profileId: clientProfileUsers.profileId })
       .from(clientProfileUsers)
-      .where(eq(clientProfileUsers.userId, userId));
+      .where(and(eq(clientProfileUsers.userId, userId), isNull(clientProfileUsers.deletedAt)));
 
     const profileIds = profileRows.map((r) => r.profileId);
 
@@ -54,7 +54,7 @@ router.get('/clients/:clientId/modules', async (c) => {
     const moduleRoleRows = await db
       .select({ moduleRoleId: clientProfileModuleRoles.moduleRoleId })
       .from(clientProfileModuleRoles)
-      .where(inArray(clientProfileModuleRoles.profileId, profileIds));
+      .where(and(inArray(clientProfileModuleRoles.profileId, profileIds), isNull(clientProfileModuleRoles.deletedAt)));
 
     const moduleRoleIds = moduleRoleRows.map((r) => r.moduleRoleId);
 

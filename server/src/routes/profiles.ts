@@ -557,7 +557,7 @@ router.get('/:id/users', async (c) => {
     })
     .from(clientProfileUsers)
     .innerJoin(accounts, eq(clientProfileUsers.userId, accounts.id))
-    .where(eq(clientProfileUsers.profileId, id))
+    .where(and(eq(clientProfileUsers.profileId, id), isNull(clientProfileUsers.deletedAt)))
     .orderBy(accounts.lastName, accounts.firstName);
 
   return c.json(toSnakeCase(result));

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { db } from '../db/index.js';
 import {
-  profiles,
+  accounts,
   integratorClientAssignments,
   clients,
 } from '../db/schema.js';
@@ -21,10 +21,10 @@ type Env = {
 
 function profileSelect() {
   return {
-    id: profiles.id,
-    first_name: profiles.firstName,
-    last_name: profiles.lastName,
-    email: profiles.email,
+    id: accounts.id,
+    first_name: accounts.firstName,
+    last_name: accounts.lastName,
+    email: accounts.email,
   };
 }
 
@@ -37,19 +37,19 @@ integratorsRouter.use('*', adminMiddleware);
 integratorsRouter.get('/', async (c) => {
   const rows = await db
     .select({
-      id: profiles.id,
-      userId: profiles.id,
-      persona: profiles.persona,
-      createdAt: profiles.createdAt,
-      first_name: profiles.firstName,
-      last_name: profiles.lastName,
-      email: profiles.email,
+      id: accounts.id,
+      userId: accounts.id,
+      persona: accounts.persona,
+      createdAt: accounts.createdAt,
+      first_name: accounts.firstName,
+      last_name: accounts.lastName,
+      email: accounts.email,
     })
-    .from(profiles)
+    .from(accounts)
     .where(
-      inArray(profiles.persona, ['admin_delta', 'integrator_delta'])
+      inArray(accounts.persona, ['admin_delta', 'integrator_delta'])
     )
-    .orderBy(profiles.createdAt);
+    .orderBy(accounts.createdAt);
 
   const result = rows.map((row) => ({
     id: row.id,
@@ -82,8 +82,8 @@ integratorsRouter.get('/assignments', async (c) => {
   const [userProfiles, clientList] = await Promise.all([
     db
       .select(profileSelect())
-      .from(profiles)
-      .where(inArray(profiles.id, userIds)),
+      .from(accounts)
+      .where(inArray(accounts.id, userIds)),
     db
       .select()
       .from(clients)
@@ -104,11 +104,11 @@ integratorsRouter.get('/users-without-role', async (c) => {
   const allProfiles = await db
     .select({
       ...profileSelect(),
-      created_at: profiles.createdAt,
-      persona: profiles.persona,
+      created_at: accounts.createdAt,
+      persona: accounts.persona,
     })
-    .from(profiles)
-    .orderBy(profiles.createdAt);
+    .from(accounts)
+    .orderBy(accounts.createdAt);
 
   const result = allProfiles.filter(
     (p) => p.persona !== 'admin_delta' && p.persona !== 'integrator_delta'
@@ -141,22 +141,22 @@ integratorsRouter.post('/invite', async (c) => {
   const defaultPassword = process.env.DEFAULT_PASSWORD || 'Delta75002-@';
 
   const [existing] = await db
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(eq(profiles.email, email.toLowerCase()));
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.email, email.toLowerCase()));
 
   let userId: string;
 
   if (existing) {
     userId = existing.id;
     await db
-      .update(profiles)
+      .update(accounts)
       .set({ persona })
-      .where(eq(profiles.id, userId));
+      .where(eq(accounts.id, userId));
   } else {
     const passwordHash = await bcrypt.hash(defaultPassword, 12);
     const [newUser] = await db
-      .insert(profiles)
+      .insert(accounts)
       .values({
         email: email.toLowerCase(),
         passwordHash,
@@ -226,8 +226,8 @@ integratorsRouter.delete('/role/:userId', async (c) => {
 
   const [profile] = await db
     .select()
-    .from(profiles)
-    .where(eq(profiles.id, userId));
+    .from(accounts)
+    .where(eq(accounts.id, userId));
 
   if (!profile) {
     return c.json({ error: 'Utilisateur introuvable' }, 404);
@@ -238,9 +238,9 @@ integratorsRouter.delete('/role/:userId', async (c) => {
     .where(eq(integratorClientAssignments.userId, userId));
 
   await db
-    .update(profiles)
+    .update(accounts)
     .set({ persona: 'integrator_external' })
-    .where(eq(profiles.id, userId));
+    .where(eq(accounts.id, userId));
 
   return c.json({ success: true });
 });
@@ -259,9 +259,9 @@ integratorsRouter.patch('/role/:userId', async (c) => {
   }
 
   const [updated] = await db
-    .update(profiles)
+    .update(accounts)
     .set({ persona: parsed.data.persona })
-    .where(eq(profiles.id, userId))
+    .where(eq(accounts.id, userId))
     .returning();
 
   if (!updated) {

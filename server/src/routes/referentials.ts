@@ -1,14 +1,14 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { referentials, referentialValues } from '../db/schema.js';
+import { lists, listValues } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 
-const referentialsRouter = new Hono();
+const listsRouter = new Hono();
 
-referentialsRouter.use('*', authMiddleware);
+listsRouter.use('*', authMiddleware);
 
 // =============================================
 // Referential Values (static paths — must be before /:id)
@@ -28,7 +28,7 @@ const createValueSchema = z.object({
 });
 
 // POST /values — create value
-referentialsRouter.post('/values', async (c) => {
+listsRouter.post('/values', async (c) => {
   const body = await c.req.json();
   const parsed = createValueSchema.safeParse(body);
   if (!parsed.success) {
@@ -37,9 +37,9 @@ referentialsRouter.post('/values', async (c) => {
 
   const { referential_id, display_order, is_active, parent_value_id, ...rest } = parsed.data;
   const [value] = await db
-    .insert(referentialValues)
+    .insert(listValues)
     .values({
-      referentialId: referential_id,
+      listId: referential_id,
       displayOrder: display_order,
       isActive: is_active,
       parentId: parent_value_id,
@@ -63,7 +63,7 @@ const updateValueSchema = z.object({
 });
 
 // PATCH /values/:id — update value
-referentialsRouter.patch('/values/:id', async (c) => {
+listsRouter.patch('/values/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
   const parsed = updateValueSchema.safeParse(body);
@@ -73,7 +73,7 @@ referentialsRouter.patch('/values/:id', async (c) => {
 
   const { display_order, is_active, parent_value_id, ...rest } = parsed.data;
   const [value] = await db
-    .update(referentialValues)
+    .update(listValues)
     .set({
       ...rest,
       ...(display_order !== undefined && { displayOrder: display_order }),
@@ -81,7 +81,7 @@ referentialsRouter.patch('/values/:id', async (c) => {
       ...(parent_value_id !== undefined && { parentId: parent_value_id }),
       updatedAt: new Date(),
     })
-    .where(eq(referentialValues.id, id))
+    .where(eq(listValues.id, id))
     .returning();
 
   if (!value) {
@@ -92,13 +92,13 @@ referentialsRouter.patch('/values/:id', async (c) => {
 });
 
 // DELETE /values/:id — soft delete value (is_active=false)
-referentialsRouter.delete('/values/:id', async (c) => {
+listsRouter.delete('/values/:id', async (c) => {
   const id = c.req.param('id');
 
   const [value] = await db
-    .update(referentialValues)
+    .update(listValues)
     .set({ isActive: false, updatedAt: new Date() })
-    .where(eq(referentialValues.id, id))
+    .where(eq(listValues.id, id))
     .returning();
 
   if (!value) {
@@ -112,8 +112,8 @@ referentialsRouter.delete('/values/:id', async (c) => {
 // Referentials (CRUD — parameterized routes after static ones)
 // =============================================
 
-// GET /?client_id=X — list referentials for a client
-referentialsRouter.get('/', async (c) => {
+// GET /?client_id=X — list lists for a client
+listsRouter.get('/', async (c) => {
   const clientId = c.req.query('client_id');
 
   if (!clientId) {
@@ -122,21 +122,21 @@ referentialsRouter.get('/', async (c) => {
 
   const result = await db
     .select()
-    .from(referentials)
-    .where(eq(referentials.clientId, clientId))
-    .orderBy(referentials.name);
+    .from(lists)
+    .where(eq(lists.clientId, clientId))
+    .orderBy(lists.name);
 
   return c.json(toSnakeCase(result));
 });
 
 // GET /:id — single referential with values
-referentialsRouter.get('/:id', async (c) => {
+listsRouter.get('/:id', async (c) => {
   const id = c.req.param('id');
 
   const [referential] = await db
     .select()
-    .from(referentials)
-    .where(eq(referentials.id, id));
+    .from(lists)
+    .where(eq(lists.id, id));
 
   if (!referential) {
     return c.json({ error: 'Référentiel introuvable' }, 404);
@@ -144,9 +144,9 @@ referentialsRouter.get('/:id', async (c) => {
 
   const values = await db
     .select()
-    .from(referentialValues)
-    .where(eq(referentialValues.referentialId, id))
-    .orderBy(referentialValues.displayOrder);
+    .from(listValues)
+    .where(eq(listValues.listId, id))
+    .orderBy(listValues.displayOrder);
 
   return c.json({
     ...toSnakeCase(referential),
@@ -164,7 +164,7 @@ const createReferentialSchema = z.object({
 });
 
 // POST / — create referential
-referentialsRouter.post('/', async (c) => {
+listsRouter.post('/', async (c) => {
   const body = await c.req.json();
   const parsed = createReferentialSchema.safeParse(body);
   if (!parsed.success) {
@@ -172,7 +172,7 @@ referentialsRouter.post('/', async (c) => {
   }
 
   const [referential] = await db
-    .insert(referentials)
+    .insert(lists)
     .values(parsed.data)
     .returning();
 
@@ -188,7 +188,7 @@ const updateReferentialSchema = z.object({
 });
 
 // PATCH /:id — update referential
-referentialsRouter.patch('/:id', async (c) => {
+listsRouter.patch('/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
   const parsed = updateReferentialSchema.safeParse(body);
@@ -197,12 +197,12 @@ referentialsRouter.patch('/:id', async (c) => {
   }
 
   const [referential] = await db
-    .update(referentials)
+    .update(lists)
     .set({
       ...parsed.data,
       updatedAt: new Date(),
     })
-    .where(eq(referentials.id, id))
+    .where(eq(lists.id, id))
     .returning();
 
   if (!referential) {
@@ -213,13 +213,13 @@ referentialsRouter.patch('/:id', async (c) => {
 });
 
 // DELETE /:id — soft delete (is_archived=true)
-referentialsRouter.delete('/:id', async (c) => {
+listsRouter.delete('/:id', async (c) => {
   const id = c.req.param('id');
 
   const [referential] = await db
-    .update(referentials)
+    .update(lists)
     .set({ isArchived: true, updatedAt: new Date() })
-    .where(eq(referentials.id, id))
+    .where(eq(lists.id, id))
     .returning();
 
   if (!referential) {
@@ -230,16 +230,16 @@ referentialsRouter.delete('/:id', async (c) => {
 });
 
 // GET /:id/values — list referential values
-referentialsRouter.get('/:id/values', async (c) => {
-  const referentialId = c.req.param('id');
+listsRouter.get('/:id/values', async (c) => {
+  const listId = c.req.param('id');
 
   const result = await db
     .select()
-    .from(referentialValues)
-    .where(eq(referentialValues.referentialId, referentialId))
-    .orderBy(referentialValues.displayOrder);
+    .from(listValues)
+    .where(eq(listValues.listId, listId))
+    .orderBy(listValues.displayOrder);
 
   return c.json(toSnakeCase(result));
 });
 
-export default referentialsRouter;
+export default listsRouter;

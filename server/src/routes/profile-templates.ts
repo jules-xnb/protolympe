@@ -2,14 +2,14 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import {
-  profileTemplates,
-  profileTemplateEos,
-  profileTemplateModuleRoles,
-  profileTemplateEoGroups,
-  userProfileTemplates,
+  clientProfiles,
+  clientProfileEos,
+  clientProfileModuleRoles,
+  clientProfileEoGroups,
+  clientProfileUsers,
   moduleRoles,
   clientModules,
-  organizationalEntities,
+  eoEntities,
   eoGroups,
 } from '../db/schema.js';
 import { eq, and, inArray } from 'drizzle-orm';
@@ -34,9 +34,9 @@ profileTemplatesRouter.get('/', async (c) => {
 
   const result = await db
     .select()
-    .from(profileTemplates)
-    .where(and(eq(profileTemplates.clientId, clientId), eq(profileTemplates.isArchived, false)))
-    .orderBy(profileTemplates.name);
+    .from(clientProfiles)
+    .where(and(eq(clientProfiles.clientId, clientId), eq(clientProfiles.isArchived, false)))
+    .orderBy(clientProfiles.name);
 
   return c.json(toSnakeCase(result));
 });
@@ -51,9 +51,9 @@ profileTemplatesRouter.get('/archived', async (c) => {
 
   const result = await db
     .select()
-    .from(profileTemplates)
-    .where(and(eq(profileTemplates.clientId, clientId), eq(profileTemplates.isArchived, true)))
-    .orderBy(profileTemplates.name);
+    .from(clientProfiles)
+    .where(and(eq(clientProfiles.clientId, clientId), eq(clientProfiles.isArchived, true)))
+    .orderBy(clientProfiles.name);
 
   return c.json(toSnakeCase(result));
 });
@@ -69,14 +69,14 @@ profileTemplatesRouter.get('/user-templates', async (c) => {
 
   const result = await db
     .select()
-    .from(userProfileTemplates)
+    .from(clientProfileUsers)
     .where(
       and(
-        eq(userProfileTemplates.userId, userId),
-        eq(userProfileTemplates.clientId, clientId),
+        eq(clientProfileUsers.userId, userId),
+        eq(clientProfileUsers.clientId, clientId),
       )
     )
-    .orderBy(userProfileTemplates.createdAt);
+    .orderBy(clientProfileUsers.createdAt);
 
   return c.json(toSnakeCase(result));
 });
@@ -87,8 +87,8 @@ profileTemplatesRouter.get('/:id', async (c) => {
 
   const [template] = await db
     .select()
-    .from(profileTemplates)
-    .where(eq(profileTemplates.id, id));
+    .from(clientProfiles)
+    .where(eq(clientProfiles.id, id));
 
   if (!template) {
     return c.json({ error: 'Template introuvable' }, 404);
@@ -97,41 +97,41 @@ profileTemplatesRouter.get('/:id', async (c) => {
   const [eos, templateRoles, groups] = await Promise.all([
     db
       .select({
-        id: profileTemplateEos.id,
-        templateId: profileTemplateEos.templateId,
-        eoId: profileTemplateEos.eoId,
-        includeDescendants: profileTemplateEos.includeDescendants,
-        createdAt: profileTemplateEos.createdAt,
-        eoName: organizationalEntities.name,
+        id: clientProfileEos.id,
+        profileId: clientProfileEos.profileId,
+        eoId: clientProfileEos.eoId,
+        includeDescendants: clientProfileEos.includeDescendants,
+        createdAt: clientProfileEos.createdAt,
+        eoName: eoEntities.name,
       })
-      .from(profileTemplateEos)
-      .leftJoin(organizationalEntities, eq(profileTemplateEos.eoId, organizationalEntities.id))
-      .where(eq(profileTemplateEos.templateId, id)),
+      .from(clientProfileEos)
+      .leftJoin(eoEntities, eq(clientProfileEos.eoId, eoEntities.id))
+      .where(eq(clientProfileEos.profileId, id)),
     db
       .select({
-        id: profileTemplateModuleRoles.id,
-        templateId: profileTemplateModuleRoles.templateId,
-        moduleRoleId: profileTemplateModuleRoles.moduleRoleId,
-        createdAt: profileTemplateModuleRoles.createdAt,
+        id: clientProfileModuleRoles.id,
+        profileId: clientProfileModuleRoles.profileId,
+        moduleRoleId: clientProfileModuleRoles.moduleRoleId,
+        createdAt: clientProfileModuleRoles.createdAt,
         roleName: moduleRoles.name,
         roleColor: moduleRoles.color,
         moduleSlug: clientModules.moduleSlug,
       })
-      .from(profileTemplateModuleRoles)
-      .leftJoin(moduleRoles, eq(profileTemplateModuleRoles.moduleRoleId, moduleRoles.id))
+      .from(clientProfileModuleRoles)
+      .leftJoin(moduleRoles, eq(clientProfileModuleRoles.moduleRoleId, moduleRoles.id))
       .leftJoin(clientModules, eq(moduleRoles.clientModuleId, clientModules.id))
-      .where(eq(profileTemplateModuleRoles.templateId, id)),
+      .where(eq(clientProfileModuleRoles.profileId, id)),
     db
       .select({
-        id: profileTemplateEoGroups.id,
-        templateId: profileTemplateEoGroups.templateId,
-        groupId: profileTemplateEoGroups.groupId,
-        createdAt: profileTemplateEoGroups.createdAt,
+        id: clientProfileEoGroups.id,
+        profileId: clientProfileEoGroups.profileId,
+        groupId: clientProfileEoGroups.groupId,
+        createdAt: clientProfileEoGroups.createdAt,
         groupName: eoGroups.name,
       })
-      .from(profileTemplateEoGroups)
-      .leftJoin(eoGroups, eq(profileTemplateEoGroups.groupId, eoGroups.id))
-      .where(eq(profileTemplateEoGroups.templateId, id)),
+      .from(clientProfileEoGroups)
+      .leftJoin(eoGroups, eq(clientProfileEoGroups.groupId, eoGroups.id))
+      .where(eq(clientProfileEoGroups.profileId, id)),
   ]);
 
   return c.json({
@@ -157,7 +157,7 @@ profileTemplatesRouter.post('/', async (c) => {
   }
 
   const [template] = await db
-    .insert(profileTemplates)
+    .insert(clientProfiles)
     .values({
       clientId: parsed.data.clientId,
       name: parsed.data.name,
@@ -186,14 +186,14 @@ profileTemplatesRouter.patch('/:id', async (c) => {
   const { name, description, isActive } = parsed.data;
 
   const [template] = await db
-    .update(profileTemplates)
+    .update(clientProfiles)
     .set({
       ...(name !== undefined && { name }),
       ...(description !== undefined && { description }),
       ...(isActive !== undefined && { isActive }),
       updatedAt: new Date(),
     })
-    .where(eq(profileTemplates.id, id))
+    .where(eq(clientProfiles.id, id))
     .returning();
 
   if (!template) {
@@ -208,9 +208,9 @@ profileTemplatesRouter.delete('/:id', async (c) => {
   const id = c.req.param('id');
 
   const [template] = await db
-    .update(profileTemplates)
+    .update(clientProfiles)
     .set({ isArchived: true, updatedAt: new Date() })
-    .where(eq(profileTemplates.id, id))
+    .where(eq(clientProfiles.id, id))
     .returning();
 
   if (!template) {
@@ -225,9 +225,9 @@ profileTemplatesRouter.patch('/:id/restore', async (c) => {
   const id = c.req.param('id');
 
   const [template] = await db
-    .update(profileTemplates)
+    .update(clientProfiles)
     .set({ isArchived: false, updatedAt: new Date() })
-    .where(eq(profileTemplates.id, id))
+    .where(eq(clientProfiles.id, id))
     .returning();
 
   if (!template) {
@@ -247,16 +247,16 @@ profileTemplatesRouter.get('/:id/eos', async (c) => {
 
   const result = await db
     .select({
-      id: profileTemplateEos.id,
-      templateId: profileTemplateEos.templateId,
-      eoId: profileTemplateEos.eoId,
-      includeDescendants: profileTemplateEos.includeDescendants,
-      createdAt: profileTemplateEos.createdAt,
-      eoName: organizationalEntities.name,
+      id: clientProfileEos.id,
+      profileId: clientProfileEos.profileId,
+      eoId: clientProfileEos.eoId,
+      includeDescendants: clientProfileEos.includeDescendants,
+      createdAt: clientProfileEos.createdAt,
+      eoName: eoEntities.name,
     })
-    .from(profileTemplateEos)
-    .leftJoin(organizationalEntities, eq(profileTemplateEos.eoId, organizationalEntities.id))
-    .where(eq(profileTemplateEos.templateId, id));
+    .from(clientProfileEos)
+    .leftJoin(eoEntities, eq(clientProfileEos.eoId, eoEntities.id))
+    .where(eq(clientProfileEos.profileId, id));
 
   return c.json(toSnakeCase(result));
 });
@@ -268,7 +268,7 @@ const addEoSchema = z.object({
 
 // POST /profile-templates/:id/eos — add EO to template
 profileTemplatesRouter.post('/:id/eos', async (c) => {
-  const templateId = c.req.param('id');
+  const profileId = c.req.param('id');
   const body = await c.req.json();
   const parsed = addEoSchema.safeParse(body);
   if (!parsed.success) {
@@ -276,9 +276,9 @@ profileTemplatesRouter.post('/:id/eos', async (c) => {
   }
 
   const [link] = await db
-    .insert(profileTemplateEos)
+    .insert(clientProfileEos)
     .values({
-      templateId,
+      profileId,
       eoId: parsed.data.eoId,
       includeDescendants: parsed.data.includeDescendants,
     })
@@ -292,8 +292,8 @@ profileTemplatesRouter.delete('/eos/:id', async (c) => {
   const id = c.req.param('id');
 
   const [deleted] = await db
-    .delete(profileTemplateEos)
-    .where(eq(profileTemplateEos.id, id))
+    .delete(clientProfileEos)
+    .where(eq(clientProfileEos.id, id))
     .returning();
 
   if (!deleted) {
@@ -313,18 +313,18 @@ profileTemplatesRouter.get('/:id/roles', async (c) => {
 
   const result = await db
     .select({
-      id: profileTemplateModuleRoles.id,
-      templateId: profileTemplateModuleRoles.templateId,
-      moduleRoleId: profileTemplateModuleRoles.moduleRoleId,
-      createdAt: profileTemplateModuleRoles.createdAt,
+      id: clientProfileModuleRoles.id,
+      profileId: clientProfileModuleRoles.profileId,
+      moduleRoleId: clientProfileModuleRoles.moduleRoleId,
+      createdAt: clientProfileModuleRoles.createdAt,
       roleName: moduleRoles.name,
       roleColor: moduleRoles.color,
       moduleSlug: clientModules.moduleSlug,
     })
-    .from(profileTemplateModuleRoles)
-    .leftJoin(moduleRoles, eq(profileTemplateModuleRoles.moduleRoleId, moduleRoles.id))
+    .from(clientProfileModuleRoles)
+    .leftJoin(moduleRoles, eq(clientProfileModuleRoles.moduleRoleId, moduleRoles.id))
     .leftJoin(clientModules, eq(moduleRoles.clientModuleId, clientModules.id))
-    .where(eq(profileTemplateModuleRoles.templateId, id));
+    .where(eq(clientProfileModuleRoles.profileId, id));
 
   return c.json(toSnakeCase(result));
 });
@@ -335,7 +335,7 @@ const addRoleSchema = z.object({
 
 // POST /profile-templates/:id/roles — add role to template
 profileTemplatesRouter.post('/:id/roles', async (c) => {
-  const templateId = c.req.param('id');
+  const profileId = c.req.param('id');
   const body = await c.req.json();
   const parsed = addRoleSchema.safeParse(body);
   if (!parsed.success) {
@@ -343,9 +343,9 @@ profileTemplatesRouter.post('/:id/roles', async (c) => {
   }
 
   const [link] = await db
-    .insert(profileTemplateModuleRoles)
+    .insert(clientProfileModuleRoles)
     .values({
-      templateId,
+      profileId,
       moduleRoleId: parsed.data.moduleRoleId,
     })
     .returning();
@@ -358,8 +358,8 @@ profileTemplatesRouter.delete('/roles/:id', async (c) => {
   const id = c.req.param('id');
 
   const [deleted] = await db
-    .delete(profileTemplateModuleRoles)
-    .where(eq(profileTemplateModuleRoles.id, id))
+    .delete(clientProfileModuleRoles)
+    .where(eq(clientProfileModuleRoles.id, id))
     .returning();
 
   if (!deleted) {
@@ -379,15 +379,15 @@ profileTemplatesRouter.get('/:id/groups', async (c) => {
 
   const result = await db
     .select({
-      id: profileTemplateEoGroups.id,
-      templateId: profileTemplateEoGroups.templateId,
-      groupId: profileTemplateEoGroups.groupId,
-      createdAt: profileTemplateEoGroups.createdAt,
+      id: clientProfileEoGroups.id,
+      profileId: clientProfileEoGroups.profileId,
+      groupId: clientProfileEoGroups.groupId,
+      createdAt: clientProfileEoGroups.createdAt,
       groupName: eoGroups.name,
     })
-    .from(profileTemplateEoGroups)
-    .leftJoin(eoGroups, eq(profileTemplateEoGroups.groupId, eoGroups.id))
-    .where(eq(profileTemplateEoGroups.templateId, id));
+    .from(clientProfileEoGroups)
+    .leftJoin(eoGroups, eq(clientProfileEoGroups.groupId, eoGroups.id))
+    .where(eq(clientProfileEoGroups.profileId, id));
 
   return c.json(toSnakeCase(result));
 });
@@ -398,7 +398,7 @@ const addGroupSchema = z.object({
 
 // POST /profile-templates/:id/groups — add group to template
 profileTemplatesRouter.post('/:id/groups', async (c) => {
-  const templateId = c.req.param('id');
+  const profileId = c.req.param('id');
   const body = await c.req.json();
   const parsed = addGroupSchema.safeParse(body);
   if (!parsed.success) {
@@ -406,9 +406,9 @@ profileTemplatesRouter.post('/:id/groups', async (c) => {
   }
 
   const [link] = await db
-    .insert(profileTemplateEoGroups)
+    .insert(clientProfileEoGroups)
     .values({
-      templateId,
+      profileId,
       groupId: parsed.data.groupId,
     })
     .returning();
@@ -421,8 +421,8 @@ profileTemplatesRouter.delete('/groups/:id', async (c) => {
   const id = c.req.param('id');
 
   const [deleted] = await db
-    .delete(profileTemplateEoGroups)
-    .where(eq(profileTemplateEoGroups.id, id))
+    .delete(clientProfileEoGroups)
+    .where(eq(clientProfileEoGroups.id, id))
     .returning();
 
   if (!deleted) {
@@ -438,7 +438,7 @@ profileTemplatesRouter.delete('/groups/:id', async (c) => {
 
 const assignTemplateSchema = z.object({
   userId: z.string().uuid(),
-  templateId: z.string().uuid(),
+  profileId: z.string().uuid(),
   clientId: z.string().uuid(),
 });
 
@@ -451,10 +451,10 @@ profileTemplatesRouter.post('/user-templates', async (c) => {
   }
 
   const [assignment] = await db
-    .insert(userProfileTemplates)
+    .insert(clientProfileUsers)
     .values({
       userId: parsed.data.userId,
-      templateId: parsed.data.templateId,
+      profileId: parsed.data.profileId,
       clientId: parsed.data.clientId,
     })
     .returning();
@@ -467,8 +467,8 @@ profileTemplatesRouter.delete('/user-templates/:id', async (c) => {
   const id = c.req.param('id');
 
   const [deleted] = await db
-    .delete(userProfileTemplates)
-    .where(eq(userProfileTemplates.id, id))
+    .delete(clientProfileUsers)
+    .where(eq(clientProfileUsers.id, id))
     .returning();
 
   if (!deleted) {

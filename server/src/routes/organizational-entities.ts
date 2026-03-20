@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import {
-  organizationalEntities,
+  eoEntities,
   eoFieldDefinitions,
   eoFieldValues,
   eoGroups,
@@ -14,16 +14,16 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { toSnakeCase, toCamelCase } from '../lib/case-transform.js';
 
-const organizationalEntitiesRouter = new Hono();
+const eoEntitiesRouter = new Hono();
 
-organizationalEntitiesRouter.use('*', authMiddleware);
+eoEntitiesRouter.use('*', authMiddleware);
 
 // =============================================
 // Field Definitions (static paths — must be before /:id)
 // =============================================
 
 // GET /fields?client_id=X — list eo_field_definitions for a client
-organizationalEntitiesRouter.get('/fields', async (c) => {
+eoEntitiesRouter.get('/fields', async (c) => {
   const clientId = c.req.query('client_id');
 
   if (!clientId) {
@@ -34,7 +34,7 @@ organizationalEntitiesRouter.get('/fields', async (c) => {
     .select()
     .from(eoFieldDefinitions)
     .where(eq(eoFieldDefinitions.clientId, clientId))
-    .orderBy(eoFieldDefinitions.displayOrder);
+    .orderBy(eoFieldDefinitions.name);
 
   return c.json(toSnakeCase(result));
 });
@@ -42,20 +42,17 @@ organizationalEntitiesRouter.get('/fields', async (c) => {
 const createFieldDefSchema = z.object({
   clientId: z.string().uuid(),
   name: z.string().min(1),
-  slug: z.string().min(1),
   description: z.string().optional(),
   fieldType: z.string().min(1),
   isRequired: z.boolean().optional(),
   isUnique: z.boolean().optional(),
-  isSystem: z.boolean().optional(),
-  isHidden: z.boolean().optional(),
   isActive: z.boolean().optional(),
-  displayOrder: z.number().int().optional(),
+  commentOnChange: z.enum(['none', 'optional', 'required']).optional(),
   settings: z.any().optional(),
 });
 
 // POST /fields — create field definition
-organizationalEntitiesRouter.post('/fields', async (c) => {
+eoEntitiesRouter.post('/fields', async (c) => {
   const body = toCamelCase(await c.req.json());
   const parsed = createFieldDefSchema.safeParse(body);
   if (!parsed.success) {
@@ -72,20 +69,17 @@ organizationalEntitiesRouter.post('/fields', async (c) => {
 
 const updateFieldDefSchema = z.object({
   name: z.string().min(1).optional(),
-  slug: z.string().min(1).optional(),
   description: z.string().optional(),
   fieldType: z.string().min(1).optional(),
   isRequired: z.boolean().optional(),
   isUnique: z.boolean().optional(),
-  isSystem: z.boolean().optional(),
-  isHidden: z.boolean().optional(),
   isActive: z.boolean().optional(),
-  displayOrder: z.number().int().optional(),
+  commentOnChange: z.enum(['none', 'optional', 'required']).optional(),
   settings: z.any().optional(),
 });
 
 // PATCH /fields/:id — update field definition
-organizationalEntitiesRouter.patch('/fields/:id', async (c) => {
+eoEntitiesRouter.patch('/fields/:id', async (c) => {
   const id = c.req.param('id');
   const body = toCamelCase(await c.req.json());
   const parsed = updateFieldDefSchema.safeParse(body);
@@ -110,7 +104,7 @@ organizationalEntitiesRouter.patch('/fields/:id', async (c) => {
 });
 
 // DELETE /fields/:id — soft delete field (is_active=false)
-organizationalEntitiesRouter.delete('/fields/:id', async (c) => {
+eoEntitiesRouter.delete('/fields/:id', async (c) => {
   const id = c.req.param('id');
 
   const [field] = await db
@@ -138,7 +132,7 @@ const upsertFieldValueSchema = z.object({
 });
 
 // POST /values — upsert field value (eo_id + field_definition_id + value)
-organizationalEntitiesRouter.post('/values', async (c) => {
+eoEntitiesRouter.post('/values', async (c) => {
   const body = toCamelCase(await c.req.json());
   const parsed = upsertFieldValueSchema.safeParse(body);
   if (!parsed.success) {
@@ -185,7 +179,7 @@ organizationalEntitiesRouter.post('/values', async (c) => {
 // =============================================
 
 // GET /groups?client_id=X — list eo_groups
-organizationalEntitiesRouter.get('/groups', async (c) => {
+eoEntitiesRouter.get('/groups', async (c) => {
   const clientId = c.req.query('client_id');
 
   if (!clientId) {
@@ -209,7 +203,7 @@ const createGroupSchema = z.object({
 });
 
 // POST /groups — create group
-organizationalEntitiesRouter.post('/groups', async (c) => {
+eoEntitiesRouter.post('/groups', async (c) => {
   const body = toCamelCase(await c.req.json());
   const parsed = createGroupSchema.safeParse(body);
   if (!parsed.success) {
@@ -225,7 +219,7 @@ organizationalEntitiesRouter.post('/groups', async (c) => {
 });
 
 // DELETE /groups/members/:id — remove member (must be before /groups/:id)
-organizationalEntitiesRouter.delete('/groups/members/:id', async (c) => {
+eoEntitiesRouter.delete('/groups/members/:id', async (c) => {
   const id = c.req.param('id');
 
   const [member] = await db
@@ -241,7 +235,7 @@ organizationalEntitiesRouter.delete('/groups/members/:id', async (c) => {
 });
 
 // DELETE /groups/:id — delete group
-organizationalEntitiesRouter.delete('/groups/:id', async (c) => {
+eoEntitiesRouter.delete('/groups/:id', async (c) => {
   const id = c.req.param('id');
 
   const [group] = await db
@@ -257,7 +251,7 @@ organizationalEntitiesRouter.delete('/groups/:id', async (c) => {
 });
 
 // GET /groups/:id/members — list group members
-organizationalEntitiesRouter.get('/groups/:id/members', async (c) => {
+eoEntitiesRouter.get('/groups/:id/members', async (c) => {
   const groupId = c.req.param('id');
 
   const result = await db
@@ -274,7 +268,7 @@ const addMemberSchema = z.object({
 });
 
 // POST /groups/:id/members — add member
-organizationalEntitiesRouter.post('/groups/:id/members', async (c) => {
+eoEntitiesRouter.post('/groups/:id/members', async (c) => {
   const groupId = c.req.param('id');
   const body = toCamelCase(await c.req.json());
   const parsed = addMemberSchema.safeParse(body);
@@ -299,7 +293,7 @@ organizationalEntitiesRouter.post('/groups/:id/members', async (c) => {
 // =============================================
 
 // GET /audit?client_id=X — list all audit entries for a client
-organizationalEntitiesRouter.get('/audit', async (c) => {
+eoEntitiesRouter.get('/audit', async (c) => {
   const clientId = c.req.query('client_id');
 
   if (!clientId) {
@@ -318,8 +312,8 @@ organizationalEntitiesRouter.get('/audit', async (c) => {
       createdAt: eoAuditLog.createdAt,
     })
     .from(eoAuditLog)
-    .innerJoin(organizationalEntities, eq(eoAuditLog.entityId, organizationalEntities.id))
-    .where(eq(organizationalEntities.clientId, clientId))
+    .innerJoin(eoEntities, eq(eoAuditLog.entityId, eoEntities.id))
+    .where(eq(eoEntities.clientId, clientId))
     .orderBy(eoAuditLog.createdAt);
 
   return c.json(toSnakeCase(result));
@@ -335,7 +329,7 @@ const createAuditSchema = z.object({
 });
 
 // POST /audit — create audit entry
-organizationalEntitiesRouter.post('/audit', async (c) => {
+eoEntitiesRouter.post('/audit', async (c) => {
   const body = toCamelCase(await c.req.json());
   const parsed = createAuditSchema.safeParse(body);
   if (!parsed.success) {
@@ -364,7 +358,7 @@ const createCommentSchema = z.object({
 });
 
 // POST /comments — create comment
-organizationalEntitiesRouter.post('/comments', async (c) => {
+eoEntitiesRouter.post('/comments', async (c) => {
   const body = toCamelCase(await c.req.json());
   const parsed = createCommentSchema.safeParse(body);
   if (!parsed.success) {
@@ -384,7 +378,7 @@ organizationalEntitiesRouter.post('/comments', async (c) => {
 // =============================================
 
 // GET / ?client_id=X — list all entities for a client, ordered by name
-organizationalEntitiesRouter.get('/', async (c) => {
+eoEntitiesRouter.get('/', async (c) => {
   const clientId = c.req.query('client_id');
 
   if (!clientId) {
@@ -393,21 +387,21 @@ organizationalEntitiesRouter.get('/', async (c) => {
 
   const result = await db
     .select()
-    .from(organizationalEntities)
-    .where(eq(organizationalEntities.clientId, clientId))
-    .orderBy(organizationalEntities.name);
+    .from(eoEntities)
+    .where(eq(eoEntities.clientId, clientId))
+    .orderBy(eoEntities.name);
 
   return c.json(toSnakeCase(result));
 });
 
 // GET /:id — single entity
-organizationalEntitiesRouter.get('/:id', async (c) => {
+eoEntitiesRouter.get('/:id', async (c) => {
   const id = c.req.param('id');
 
   const [entity] = await db
     .select()
-    .from(organizationalEntities)
-    .where(eq(organizationalEntities.id, id));
+    .from(eoEntities)
+    .where(eq(eoEntities.id, id));
 
   if (!entity) {
     return c.json({ error: 'Entité organisationnelle introuvable' }, 404);
@@ -419,17 +413,15 @@ organizationalEntitiesRouter.get('/:id', async (c) => {
 const createEntitySchema = z.object({
   clientId: z.string().uuid(),
   name: z.string().min(1),
-  code: z.string().optional(),
   description: z.string().optional(),
   parentId: z.string().uuid().nullable().optional(),
   path: z.string().optional(),
   level: z.number().int().optional(),
-  slug: z.string().min(1),
   isActive: z.boolean().optional(),
 });
 
 // POST / — create entity
-organizationalEntitiesRouter.post('/', async (c) => {
+eoEntitiesRouter.post('/', async (c) => {
   const body = toCamelCase(await c.req.json());
   const parsed = createEntitySchema.safeParse(body);
   if (!parsed.success) {
@@ -437,7 +429,7 @@ organizationalEntitiesRouter.post('/', async (c) => {
   }
 
   const [entity] = await db
-    .insert(organizationalEntities)
+    .insert(eoEntities)
     .values(parsed.data)
     .returning();
 
@@ -446,17 +438,15 @@ organizationalEntitiesRouter.post('/', async (c) => {
 
 const updateEntitySchema = z.object({
   name: z.string().min(1).optional(),
-  code: z.string().optional(),
   description: z.string().optional(),
   parentId: z.string().uuid().nullable().optional(),
   path: z.string().optional(),
   level: z.number().int().optional(),
-  slug: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
 });
 
 // PATCH /:id — update entity
-organizationalEntitiesRouter.patch('/:id', async (c) => {
+eoEntitiesRouter.patch('/:id', async (c) => {
   const id = c.req.param('id');
   const body = toCamelCase(await c.req.json());
   const parsed = updateEntitySchema.safeParse(body);
@@ -465,12 +455,12 @@ organizationalEntitiesRouter.patch('/:id', async (c) => {
   }
 
   const [entity] = await db
-    .update(organizationalEntities)
+    .update(eoEntities)
     .set({
       ...parsed.data,
       updatedAt: new Date(),
     })
-    .where(eq(organizationalEntities.id, id))
+    .where(eq(eoEntities.id, id))
     .returning();
 
   if (!entity) {
@@ -481,13 +471,13 @@ organizationalEntitiesRouter.patch('/:id', async (c) => {
 });
 
 // DELETE /:id — soft delete (set is_archived=true)
-organizationalEntitiesRouter.delete('/:id', async (c) => {
+eoEntitiesRouter.delete('/:id', async (c) => {
   const id = c.req.param('id');
 
   const [entity] = await db
-    .update(organizationalEntities)
+    .update(eoEntities)
     .set({ isArchived: true, updatedAt: new Date() })
-    .where(eq(organizationalEntities.id, id))
+    .where(eq(eoEntities.id, id))
     .returning();
 
   if (!entity) {
@@ -498,7 +488,7 @@ organizationalEntitiesRouter.delete('/:id', async (c) => {
 });
 
 // GET /:id/values — list eo_field_values for an entity
-organizationalEntitiesRouter.get('/:id/values', async (c) => {
+eoEntitiesRouter.get('/:id/values', async (c) => {
   const eoId = c.req.param('id');
 
   const result = await db
@@ -510,7 +500,7 @@ organizationalEntitiesRouter.get('/:id/values', async (c) => {
 });
 
 // GET /:id/audit — list audit log entries for an entity
-organizationalEntitiesRouter.get('/:id/audit', async (c) => {
+eoEntitiesRouter.get('/:id/audit', async (c) => {
   const entityId = c.req.param('id');
 
   const result = await db
@@ -523,7 +513,7 @@ organizationalEntitiesRouter.get('/:id/audit', async (c) => {
 });
 
 // GET /:id/comments — list field change comments for an entity
-organizationalEntitiesRouter.get('/:id/comments', async (c) => {
+eoEntitiesRouter.get('/:id/comments', async (c) => {
   const eoId = c.req.param('id');
 
   const result = await db
@@ -541,7 +531,7 @@ const bulkFieldValuesSchema = z.object({
   eo_ids: z.array(z.string().uuid()).min(1),
 });
 
-organizationalEntitiesRouter.post('/field-values/bulk', async (c) => {
+eoEntitiesRouter.post('/field-values/bulk', async (c) => {
   const body = await c.req.json();
   const parsed = bulkFieldValuesSchema.safeParse(body);
   if (!parsed.success) {
@@ -561,4 +551,4 @@ organizationalEntitiesRouter.post('/field-values/bulk', async (c) => {
   return c.json(toSnakeCase(result));
 });
 
-export default organizationalEntitiesRouter;
+export default eoEntitiesRouter;

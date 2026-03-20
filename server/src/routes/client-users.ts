@@ -3,7 +3,7 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { db } from '../db/index.js';
 import {
-  profiles,
+  accounts,
   userClientMemberships,
   userFieldDefinitions,
   userFieldValues,
@@ -47,14 +47,14 @@ clientUsersRouter.get('/', async (c) => {
 
   const userProfiles = await db
     .select({
-      id: profiles.id,
-      email: profiles.email,
-      firstName: profiles.firstName,
-      lastName: profiles.lastName,
-      createdAt: profiles.createdAt,
+      id: accounts.id,
+      email: accounts.email,
+      firstName: accounts.firstName,
+      lastName: accounts.lastName,
+      createdAt: accounts.createdAt,
     })
-    .from(profiles)
-    .where(inArray(profiles.id, userIds));
+    .from(accounts)
+    .where(inArray(accounts.id, userIds));
 
   const result = toSnakeCase(memberships).map((m: Record<string, unknown>) => ({
     ...m,
@@ -151,7 +151,7 @@ clientUsersRouter.get('/field-definitions', async (c) => {
     .select()
     .from(userFieldDefinitions)
     .where(and(eq(userFieldDefinitions.clientId, clientId), eq(userFieldDefinitions.isActive, true)))
-    .orderBy(userFieldDefinitions.displayOrder);
+    .orderBy(userFieldDefinitions.name);
 
   return c.json(toSnakeCase(result));
 });
@@ -159,14 +159,10 @@ clientUsersRouter.get('/field-definitions', async (c) => {
 const createFieldDefSchema = z.object({
   clientId: z.string().uuid(),
   name: z.string().min(1),
-  slug: z.string().min(1),
   fieldType: z.string().optional(),
   description: z.string().optional(),
   isRequired: z.boolean().optional(),
   isUnique: z.boolean().optional(),
-  isUserEditable: z.boolean().optional(),
-  displayOrder: z.number().optional(),
-  options: z.any().optional(),
   settings: z.any().optional(),
   defaultValue: z.any().optional(),
 });
@@ -186,14 +182,10 @@ clientUsersRouter.post('/field-definitions', async (c) => {
     .values({
       clientId: parsed.data.clientId,
       name: parsed.data.name,
-      slug: parsed.data.slug,
       fieldType: parsed.data.fieldType || 'text',
       description: parsed.data.description,
       isRequired: parsed.data.isRequired,
       isUnique: parsed.data.isUnique,
-      isUserEditable: parsed.data.isUserEditable,
-      displayOrder: parsed.data.displayOrder,
-      options: parsed.data.options,
       settings: parsed.data.settings,
       defaultValue: parsed.data.defaultValue,
       createdBy: currentUser.sub,
@@ -205,14 +197,10 @@ clientUsersRouter.post('/field-definitions', async (c) => {
 
 const updateFieldDefSchema = z.object({
   name: z.string().min(1).optional(),
-  slug: z.string().min(1).optional(),
   fieldType: z.string().optional(),
   description: z.string().optional(),
   isRequired: z.boolean().optional(),
   isUnique: z.boolean().optional(),
-  isUserEditable: z.boolean().optional(),
-  displayOrder: z.number().optional(),
-  options: z.any().optional(),
   settings: z.any().optional(),
   defaultValue: z.any().optional(),
 });
@@ -227,22 +215,18 @@ clientUsersRouter.patch('/field-definitions/:id', async (c) => {
   }
 
   const {
-    name, slug, fieldType, description, isRequired,
-    isUnique, isUserEditable, displayOrder, options, settings, defaultValue,
+    name, fieldType, description, isRequired,
+    isUnique, settings, defaultValue,
   } = parsed.data;
 
   const [def] = await db
     .update(userFieldDefinitions)
     .set({
       ...(name !== undefined && { name }),
-      ...(slug !== undefined && { slug }),
       ...(fieldType !== undefined && { fieldType }),
       ...(description !== undefined && { description }),
       ...(isRequired !== undefined && { isRequired }),
       ...(isUnique !== undefined && { isUnique }),
-      ...(isUserEditable !== undefined && { isUserEditable }),
-      ...(displayOrder !== undefined && { displayOrder }),
-      ...(options !== undefined && { options }),
       ...(settings !== undefined && { settings }),
       ...(defaultValue !== undefined && { defaultValue }),
       updatedAt: new Date(),
@@ -299,9 +283,9 @@ clientUsersRouter.post('/invite', async (c) => {
 
   // Check if profile already exists
   const [existing] = await db
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(eq(profiles.email, email.toLowerCase()));
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.email, email.toLowerCase()));
 
   let userId: string;
 
@@ -310,7 +294,7 @@ clientUsersRouter.post('/invite', async (c) => {
   } else {
     const passwordHash = await bcrypt.hash(defaultPassword, 12);
     const [newUser] = await db
-      .insert(profiles)
+      .insert(accounts)
       .values({
         email: email.toLowerCase(),
         passwordHash,

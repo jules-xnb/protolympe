@@ -8,9 +8,9 @@ async function main() {
   const sql = neon(process.env.DATABASE_URL!);
   const db = drizzle(sql, { schema });
 
-  const [updated] = await db.update(schema.profiles)
+  const [updated] = await db.update(schema.accounts)
     .set({ persona: 'admin_delta' })
-    .where(eq(schema.profiles.id, 'aa991ff3-31ed-4c4a-b1c0-71a076372fdb'))
+    .where(eq(schema.accounts.id, 'aa991ff3-31ed-4c4a-b1c0-71a076372fdb'))
     .returning();
 
   console.log('Admin persona set:', updated);

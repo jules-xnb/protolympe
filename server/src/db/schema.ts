@@ -24,7 +24,7 @@ export const systemPersonaEnum = pgEnum('system_persona', [
 // Socle — Utilisateurs & Accès
 // =============================================
 
-export const profiles = pgTable('profiles', {
+export const accounts = pgTable('accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
@@ -45,19 +45,19 @@ export const clients = pgTable('clients', {
 
 export const integratorClientAssignments = pgTable('integrator_client_assignments', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   persona: systemPersonaEnum('persona').notNull(),
-  assignedBy: uuid('assigned_by').references(() => profiles.id),
+  assignedBy: uuid('assigned_by').references(() => accounts.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const userClientMemberships = pgTable('user_client_memberships', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   isActive: boolean('is_active').default(true).notNull(),
-  invitedBy: uuid('invited_by').references(() => profiles.id),
+  invitedBy: uuid('invited_by').references(() => accounts.id),
   activatedAt: timestamp('activated_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -72,6 +72,7 @@ export const clientModules = pgTable('client_modules', {
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   moduleSlug: text('module_slug').notNull(),
   isActive: boolean('is_active').default(true).notNull(),
+  displayOrder: integer('display_order').default(0).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -109,16 +110,14 @@ export const moduleWorkflows = pgTable('module_workflows', {
 // Entités organisationnelles
 // =============================================
 
-export const organizationalEntities = pgTable('organizational_entities', {
+export const eoEntities = pgTable('eo_entities', {
   id: uuid('id').primaryKey().defaultRandom(),
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  code: text('code'),
   description: text('description'),
   parentId: uuid('parent_id'),
   path: text('path').notNull().default(''),
   level: integer('level').notNull().default(0),
-  slug: text('slug').notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   isArchived: boolean('is_archived').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -130,15 +129,11 @@ export const eoFieldDefinitions = pgTable('eo_field_definitions', {
   id: uuid('id').primaryKey().defaultRandom(),
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  slug: text('slug').notNull(),
   description: text('description'),
   fieldType: text('field_type').notNull(),
   isRequired: boolean('is_required').default(false).notNull(),
   isUnique: boolean('is_unique').default(false).notNull(),
-  isSystem: boolean('is_system').default(false).notNull(),
-  isHidden: boolean('is_hidden').default(false).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
-  displayOrder: integer('display_order').default(0).notNull(),
   commentOnChange: text('comment_on_change').default('none').notNull(),
   settings: jsonb('settings'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -147,9 +142,9 @@ export const eoFieldDefinitions = pgTable('eo_field_definitions', {
 
 export const eoFieldValues = pgTable('eo_field_values', {
   id: uuid('id').primaryKey().defaultRandom(),
-  eoId: uuid('eo_id').notNull().references(() => organizationalEntities.id, { onDelete: 'cascade' }),
+  eoId: uuid('eo_id').notNull().references(() => eoEntities.id, { onDelete: 'cascade' }),
   fieldDefinitionId: uuid('field_definition_id').notNull().references(() => eoFieldDefinitions.id, { onDelete: 'cascade' }),
-  value: text('value'),
+  value: jsonb('value'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   lastModifiedBy: uuid('last_modified_by'),
@@ -169,14 +164,15 @@ export const eoGroups = pgTable('eo_groups', {
 export const eoGroupMembers = pgTable('eo_group_members', {
   id: uuid('id').primaryKey().defaultRandom(),
   groupId: uuid('group_id').notNull().references(() => eoGroups.id, { onDelete: 'cascade' }),
-  eoId: uuid('eo_id').notNull().references(() => organizationalEntities.id, { onDelete: 'cascade' }),
+  eoId: uuid('eo_id').notNull().references(() => eoEntities.id, { onDelete: 'cascade' }),
   includeDescendants: boolean('include_descendants').default(false).notNull(),
+  createdBy: uuid('created_by'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const eoFieldChangeComments = pgTable('eo_field_change_comments', {
   id: uuid('id').primaryKey().defaultRandom(),
-  eoId: uuid('eo_id').notNull().references(() => organizationalEntities.id, { onDelete: 'cascade' }),
+  eoId: uuid('eo_id').notNull().references(() => eoEntities.id, { onDelete: 'cascade' }),
   fieldDefinitionId: uuid('field_definition_id').notNull().references(() => eoFieldDefinitions.id, { onDelete: 'cascade' }),
   oldValue: text('old_value'),
   newValue: text('new_value'),
@@ -187,7 +183,7 @@ export const eoFieldChangeComments = pgTable('eo_field_change_comments', {
 
 export const eoAuditLog = pgTable('eo_audit_log', {
   id: uuid('id').primaryKey().defaultRandom(),
-  entityId: uuid('entity_id').notNull().references(() => organizationalEntities.id, { onDelete: 'cascade' }),
+  entityId: uuid('entity_id').notNull().references(() => eoEntities.id, { onDelete: 'cascade' }),
   action: text('action').notNull(),
   changedBy: uuid('changed_by'),
   changedFields: jsonb('changed_fields'),
@@ -209,43 +205,42 @@ export const eoExportHistory = pgTable('eo_export_history', {
 // Profils (Templates)
 // =============================================
 
-export const profileTemplates = pgTable('profile_templates', {
+export const clientProfiles = pgTable('client_profiles', {
   id: uuid('id').primaryKey().defaultRandom(),
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
-  isActive: boolean('is_active').default(true).notNull(),
   isArchived: boolean('is_archived').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const userProfileTemplates = pgTable('user_profile_templates', {
+export const clientProfileUsers = pgTable('client_profile_users', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
-  templateId: uuid('template_id').notNull().references(() => profileTemplates.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  profileId: uuid('profile_id').notNull().references(() => clientProfiles.id, { onDelete: 'cascade' }),
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const profileTemplateEos = pgTable('profile_template_eos', {
+export const clientProfileEos = pgTable('client_profile_eos', {
   id: uuid('id').primaryKey().defaultRandom(),
-  templateId: uuid('template_id').notNull().references(() => profileTemplates.id, { onDelete: 'cascade' }),
-  eoId: uuid('eo_id').notNull().references(() => organizationalEntities.id, { onDelete: 'cascade' }),
+  profileId: uuid('profile_id').notNull().references(() => clientProfiles.id, { onDelete: 'cascade' }),
+  eoId: uuid('eo_id').notNull().references(() => eoEntities.id, { onDelete: 'cascade' }),
   includeDescendants: boolean('include_descendants').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const profileTemplateEoGroups = pgTable('profile_template_eo_groups', {
+export const clientProfileEoGroups = pgTable('client_profile_eo_groups', {
   id: uuid('id').primaryKey().defaultRandom(),
-  templateId: uuid('template_id').notNull().references(() => profileTemplates.id, { onDelete: 'cascade' }),
+  profileId: uuid('profile_id').notNull().references(() => clientProfiles.id, { onDelete: 'cascade' }),
   groupId: uuid('group_id').notNull().references(() => eoGroups.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const profileTemplateModuleRoles = pgTable('profile_template_module_roles', {
+export const clientProfileModuleRoles = pgTable('client_profile_module_roles', {
   id: uuid('id').primaryKey().defaultRandom(),
-  templateId: uuid('template_id').notNull().references(() => profileTemplates.id, { onDelete: 'cascade' }),
+  profileId: uuid('profile_id').notNull().references(() => clientProfiles.id, { onDelete: 'cascade' }),
   moduleRoleId: uuid('module_role_id').notNull().references(() => moduleRoles.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -258,15 +253,11 @@ export const userFieldDefinitions = pgTable('user_field_definitions', {
   id: uuid('id').primaryKey().defaultRandom(),
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  slug: text('slug').notNull(),
   fieldType: text('field_type').notNull().default('text'),
   description: text('description'),
   isRequired: boolean('is_required').default(false).notNull(),
   isUnique: boolean('is_unique').default(false).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
-  isUserEditable: boolean('is_user_editable').default(false).notNull(),
-  displayOrder: integer('display_order').default(0).notNull(),
-  options: jsonb('options').default([]),
   settings: jsonb('settings'),
   defaultValue: jsonb('default_value'),
   createdBy: uuid('created_by'),
@@ -284,61 +275,25 @@ export const userFieldValues = pgTable('user_field_values', {
 });
 
 // =============================================
-// Navigation
-// =============================================
-
-export const navigationConfigs = pgTable('navigation_configs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
-  parentId: uuid('parent_id'),
-  label: text('label').notNull(),
-  displayLabel: text('display_label'),
-  slug: text('slug').notNull(),
-  icon: text('icon'),
-  type: text('type').default('group').notNull(),
-  clientModuleId: uuid('client_module_id').references(() => clientModules.id, { onDelete: 'set null' }),
-  url: text('url'),
-  displayOrder: integer('display_order').default(0),
-  isActive: boolean('is_active').default(true),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-  createdBy: uuid('created_by').references(() => profiles.id, { onDelete: 'set null' }),
-});
-
-export const navPermissions = pgTable('nav_permissions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  navigationConfigId: uuid('navigation_config_id').notNull().references(() => navigationConfigs.id, { onDelete: 'cascade' }),
-  roleId: uuid('role_id'),
-  categoryId: uuid('category_id'),
-  isVisible: boolean('is_visible').default(true),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
-// =============================================
 // Listes (référentiels)
 // =============================================
 
-export const referentials = pgTable('referentials', {
+export const lists = pgTable('lists', {
   id: uuid('id').primaryKey().defaultRandom(),
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  slug: text('slug').notNull(),
   description: text('description'),
-  tag: text('tag'),
-  isActive: boolean('is_active').default(true).notNull(),
   isArchived: boolean('is_archived').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const referentialValues = pgTable('referential_values', {
+export const listValues = pgTable('list_values', {
   id: uuid('id').primaryKey().defaultRandom(),
-  referentialId: uuid('referential_id').notNull().references(() => referentials.id, { onDelete: 'cascade' }),
+  listId: uuid('list_id').notNull().references(() => lists.id, { onDelete: 'cascade' }),
   label: text('label').notNull(),
-  code: text('code'),
   description: text('description'),
   color: text('color'),
-  icon: text('icon'),
   displayOrder: integer('display_order').default(0).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   parentId: uuid('parent_id'),
@@ -356,15 +311,11 @@ export const clientDesignConfigs = pgTable('client_design_configs', {
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   primaryColor: text('primary_color').default('#3B82F6').notNull(),
   secondaryColor: text('secondary_color').default('#6B7280').notNull(),
-  textOnPrimary: text('text_on_primary').default('#FFFFFF').notNull(),
-  textOnSecondary: text('text_on_secondary').default('#FFFFFF').notNull(),
   accentColor: text('accent_color'),
   borderRadius: integer('border_radius').default(8).notNull(),
   fontFamily: text('font_family').default('Inter').notNull(),
   logoUrl: text('logo_url'),
   appName: text('app_name'),
-  fontSizeBase: integer('font_size_base'),
-  fontWeightMain: text('font_weight_main'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -398,10 +349,9 @@ export const moduleCvFieldDefinitions = pgTable('module_cv_field_definitions', {
   id: uuid('id').primaryKey().defaultRandom(),
   surveyTypeId: uuid('survey_type_id').notNull().references(() => moduleCvSurveyTypes.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  slug: text('slug').notNull(),
   fieldType: text('field_type').notNull(),
   description: text('description'),
-  referentialId: uuid('referential_id').references(() => referentials.id, { onDelete: 'set null' }),
+  listId: uuid('list_id').references(() => lists.id, { onDelete: 'set null' }),
   settings: jsonb('settings'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -411,7 +361,6 @@ export const moduleCvStatuses = pgTable('module_cv_statuses', {
   id: uuid('id').primaryKey().defaultRandom(),
   surveyTypeId: uuid('survey_type_id').notNull().references(() => moduleCvSurveyTypes.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  slug: text('slug').notNull(),
   color: text('color'),
   displayOrder: integer('display_order').default(0).notNull(),
   isInitial: boolean('is_initial').default(false).notNull(),
@@ -533,7 +482,7 @@ export const moduleCvCampaigns = pgTable('module_cv_campaigns', {
   status: text('status').default('draft').notNull(),
   startDate: timestamp('start_date', { withTimezone: true }),
   endDate: timestamp('end_date', { withTimezone: true }),
-  createdBy: uuid('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdBy: uuid('created_by').references(() => accounts.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -541,19 +490,19 @@ export const moduleCvCampaigns = pgTable('module_cv_campaigns', {
 export const moduleCvCampaignTargets = pgTable('module_cv_campaign_targets', {
   id: uuid('id').primaryKey().defaultRandom(),
   campaignId: uuid('campaign_id').notNull().references(() => moduleCvCampaigns.id, { onDelete: 'cascade' }),
-  eoId: uuid('eo_id').notNull().references(() => organizationalEntities.id, { onDelete: 'cascade' }),
+  eoId: uuid('eo_id').notNull().references(() => eoEntities.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const moduleCvResponses = pgTable('module_cv_responses', {
   id: uuid('id').primaryKey().defaultRandom(),
   campaignId: uuid('campaign_id').notNull().references(() => moduleCvCampaigns.id, { onDelete: 'cascade' }),
-  eoId: uuid('eo_id').notNull().references(() => organizationalEntities.id, { onDelete: 'cascade' }),
+  eoId: uuid('eo_id').notNull().references(() => eoEntities.id, { onDelete: 'cascade' }),
   statusId: uuid('status_id').notNull().references(() => moduleCvStatuses.id),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
-  submittedBy: uuid('submitted_by').references(() => profiles.id, { onDelete: 'set null' }),
+  submittedBy: uuid('submitted_by').references(() => accounts.id, { onDelete: 'set null' }),
   validatedAt: timestamp('validated_at', { withTimezone: true }),
-  validatedBy: uuid('validated_by').references(() => profiles.id, { onDelete: 'set null' }),
+  validatedBy: uuid('validated_by').references(() => accounts.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -562,7 +511,7 @@ export const moduleCvResponseValues = pgTable('module_cv_response_values', {
   id: uuid('id').primaryKey().defaultRandom(),
   responseId: uuid('response_id').notNull().references(() => moduleCvResponses.id, { onDelete: 'cascade' }),
   fieldDefinitionId: uuid('field_definition_id').notNull().references(() => moduleCvFieldDefinitions.id, { onDelete: 'cascade' }),
-  value: text('value'),
+  value: jsonb('value'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   lastModifiedBy: uuid('last_modified_by'),
 });
@@ -573,7 +522,7 @@ export const moduleCvFieldComments = pgTable('module_cv_field_comments', {
   fieldDefinitionId: uuid('field_definition_id').notNull().references(() => moduleCvFieldDefinitions.id, { onDelete: 'cascade' }),
   comment: text('comment').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  createdBy: uuid('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdBy: uuid('created_by').references(() => accounts.id, { onDelete: 'set null' }),
 });
 
 export const moduleCvResponseDocuments = pgTable('module_cv_response_documents', {
@@ -586,7 +535,7 @@ export const moduleCvResponseDocuments = pgTable('module_cv_response_documents',
   mimeType: text('mime_type'),
   displayOrder: integer('display_order').default(0).notNull(),
   uploadedAt: timestamp('uploaded_at', { withTimezone: true }).defaultNow().notNull(),
-  uploadedBy: uuid('uploaded_by').references(() => profiles.id, { onDelete: 'set null' }),
+  uploadedBy: uuid('uploaded_by').references(() => accounts.id, { onDelete: 'set null' }),
 });
 
 export const moduleCvResponseAuditLog = pgTable('module_cv_response_audit_log', {
@@ -596,7 +545,7 @@ export const moduleCvResponseAuditLog = pgTable('module_cv_response_audit_log', 
   fieldName: text('field_name'),
   oldValue: text('old_value'),
   newValue: text('new_value'),
-  changedBy: uuid('changed_by').references(() => profiles.id, { onDelete: 'set null' }),
+  changedBy: uuid('changed_by').references(() => accounts.id, { onDelete: 'set null' }),
   changedAt: timestamp('changed_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

@@ -2,13 +2,13 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { db } from '../db/index.js';
-import { profiles } from '../db/schema.js';
+import { accounts } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { signToken } from '../lib/jwt.js';
 
 const auth = new Hono();
 
-function userResponse(user: typeof profiles.$inferSelect) {
+function userResponse(user: typeof accounts.$inferSelect) {
   return {
     id: user.id,
     email: user.email,
@@ -40,8 +40,8 @@ auth.post('/signin', async (c) => {
 
   const [user] = await db
     .select()
-    .from(profiles)
-    .where(eq(profiles.email, email.toLowerCase()));
+    .from(accounts)
+    .where(eq(accounts.email, email.toLowerCase()));
 
   if (!user) {
     return c.json({ error: 'Email ou mot de passe incorrect' }, 401);
@@ -67,9 +67,9 @@ auth.post('/signup', async (c) => {
   const { email, password, firstName, lastName } = parsed.data;
 
   const existing = await db
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(eq(profiles.email, email.toLowerCase()));
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.email, email.toLowerCase()));
 
   if (existing.length > 0) {
     return c.json({ error: 'Un compte existe déjà avec cet email' }, 409);
@@ -78,7 +78,7 @@ auth.post('/signup', async (c) => {
   const passwordHash = await bcrypt.hash(password, 12);
 
   const [user] = await db
-    .insert(profiles)
+    .insert(accounts)
     .values({
       email: email.toLowerCase(),
       passwordHash,
@@ -116,9 +116,9 @@ auth.post('/update-password', async (c) => {
     const passwordHash = await bcrypt.hash(parsed.data.password, 12);
 
     const [user] = await db
-      .update(profiles)
+      .update(accounts)
       .set({ passwordHash })
-      .where(eq(profiles.id, payload.sub))
+      .where(eq(accounts.id, payload.sub))
       .returning();
 
     if (!user) {
@@ -143,8 +143,8 @@ auth.get('/me', async (c) => {
 
     const [user] = await db
       .select()
-      .from(profiles)
-      .where(eq(profiles.id, payload.sub));
+      .from(accounts)
+      .where(eq(accounts.id, payload.sub));
 
     if (!user) {
       return c.json({ error: 'Utilisateur introuvable' }, 404);

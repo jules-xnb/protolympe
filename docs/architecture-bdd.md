@@ -81,6 +81,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | client_id | Le client qui utilise ce module |
 | module_slug | Identifiant technique du module (ex : `collecte_valeur`) |
 | is_active | Si le module est activé |
+| display_order | Ordre d'affichage dans le menu FO |
 | created_at | Date d'activation |
 | updated_at | Date de dernière modification |
 
@@ -146,12 +147,10 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | id | Identifiant unique |
 | client_id | Le client propriétaire |
 | name | Nom de l'entité (ex : "Direction Financière") |
-| code | Code interne optionnel (ex : "DF-001") |
 | description | Description |
 | parent_id | Entité parente dans l'arbre (null = racine) |
 | path | Chemin matérialisé dans l'arbre (pour les requêtes de descendance) |
 | level | Profondeur dans l'arbre (0 = racine) |
-| slug | Identifiant technique |
 | is_active | Si l'entité est active |
 | is_archived | Si l'entité est archivée |
 | created_at | Date de création |
@@ -169,15 +168,11 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | id | Identifiant unique |
 | client_id | Le client concerné |
 | name | Nom affiché du champ |
-| slug | Identifiant technique |
 | description | Description du champ |
 | field_type | Type de champ (texte, nombre, date, liste, etc.) |
 | is_required | Si le champ est obligatoire |
 | is_unique | Si la valeur doit être unique par entité |
-| is_system | Si c'est un champ système (non modifiable par l'intégrateur) |
-| is_hidden | Si le champ est masqué dans l'interface |
 | is_active | Si le champ est actif |
-| display_order | Ordre d'affichage |
 | comment_on_change | Comportement du commentaire lors d'une modification : `none` (pas de commentaire), `optional` (commentaire proposé), `required` (commentaire obligatoire) |
 | settings | Paramètres supplémentaires (format libre) |
 | created_at | Date de création |
@@ -194,7 +189,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | id | Identifiant unique |
 | eo_id | L'entité concernée |
 | field_definition_id | Le champ concerné |
-| value | La valeur saisie |
+| value | La valeur saisie (format JSON pour supporter tous les types) |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |
 | last_modified_by | Dernier utilisateur ayant modifié cette valeur |
@@ -228,6 +223,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | group_id | Le groupe |
 | eo_id | L'entité membre |
 | include_descendants | Si les sous-entités sont automatiquement incluses |
+| created_by | Qui a ajouté cette entité au groupe |
 | created_at | Date d'ajout |
 
 ---
@@ -283,9 +279,9 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ## 4. Profils (Templates)
 
-### profile_templates
+### client_profiles
 
-**Modèle de profil.** Un profil type (ex : "Chef de service", "Directeur RSE") qui définit un ensemble de droits : quelles entités sont accessibles et quels rôles dans quels modules. Un utilisateur peut avoir plusieurs profils.
+**Profil client.** Un profil (ex : "Chef de service", "Directeur RSE") qui définit un ensemble de droits : quelles entités sont accessibles et quels rôles dans quels modules. Un utilisateur peut avoir plusieurs profils.
 
 | Colonne | Description |
 |---|---|
@@ -293,62 +289,61 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | client_id | Le client propriétaire |
 | name | Nom du profil (ex : "Gestionnaire HSE") |
 | description | Description |
-| is_active | Si le profil est actif |
 | is_archived | Si le profil est archivé |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |
 
 ---
 
-### user_profile_templates
+### user_client_profiles
 
-**Attribution d'un profil à un utilisateur.** Lie un utilisateur à un profil template dans le contexte d'un client.
+**Attribution d'un profil à un utilisateur.** Lie un utilisateur à un profil dans le contexte d'un client.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
 | user_id | L'utilisateur |
-| template_id | Le profil attribué |
+| profile_id | Le profil attribué |
 | client_id | Le client dans lequel ce profil s'applique |
 | created_at | Date d'attribution |
 
 ---
 
-### profile_template_eos
+### client_profile_eos
 
 **Entités accessibles via un profil.** Définit quelles entités organisationnelles un utilisateur peut voir/gérer grâce à ce profil.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| template_id | Le profil |
+| profile_id | Le profil |
 | eo_id | L'entité accessible |
 | include_descendants | Si les sous-entités sont automatiquement incluses |
 | created_at | Date de création |
 
 ---
 
-### profile_template_eo_groups
+### client_profile_eo_groups
 
 **Groupes d'entités accessibles via un profil.** Même principe que ci-dessus, mais via un groupe d'entités (plutôt qu'une entité individuelle).
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| template_id | Le profil |
+| profile_id | Le profil |
 | group_id | Le groupe d'entités accessible |
 | created_at | Date de création |
 
 ---
 
-### profile_template_module_roles
+### client_profile_module_roles
 
 **Rôles modules attribués via un profil.** Définit quels rôles métier (dans quels modules) sont accordés par ce profil.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| template_id | Le profil |
+| profile_id | Le profil |
 | module_role_id | Le rôle module attribué |
 | created_at | Date de création |
 
@@ -365,15 +360,11 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | id | Identifiant unique |
 | client_id | Le client concerné |
 | name | Nom affiché du champ |
-| slug | Identifiant technique |
 | field_type | Type de champ (texte, nombre, date, liste, etc.) |
 | description | Description |
 | is_required | Si le champ est obligatoire |
 | is_unique | Si la valeur doit être unique |
 | is_active | Si le champ est actif |
-| is_user_editable | Si l'utilisateur final peut modifier lui-même ce champ |
-| display_order | Ordre d'affichage |
-| options | Options possibles (pour les champs de type liste) |
 | settings | Paramètres supplémentaires |
 | default_value | Valeur par défaut |
 | created_by | Qui a créé ce champ |
@@ -397,48 +388,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ---
 
-## 6. Navigation
-
-### navigation_configs
-
-**Élément de navigation.** Représente un élément du menu de l'application (menu, sous-menu, lien). Les éléments forment un arbre hiérarchique configurable par client.
-
-| Colonne | Description |
-|---|---|
-| id | Identifiant unique |
-| client_id | Le client concerné |
-| parent_id | Élément parent dans le menu (null = racine) |
-| label | Libellé technique |
-| display_label | Libellé affiché (peut être traduit) |
-| slug | Identifiant technique |
-| icon | Icône associée |
-| type | Type d'élément : `group` (dossier), `link` (lien), `module` (accès module) |
-| client_module_id | Si type = module, vers quel module ce menu pointe |
-| url | Si type = link, URL de destination |
-| display_order | Ordre d'affichage |
-| is_active | Si l'élément est visible |
-| created_at | Date de création |
-| updated_at | Date de dernière modification |
-| created_by | Qui a créé cet élément |
-
----
-
-### nav_permissions
-
-**Permission de visibilité sur un élément de navigation.** Définit quel rôle peut voir quel élément de menu.
-
-| Colonne | Description |
-|---|---|
-| id | Identifiant unique |
-| navigation_config_id | L'élément de navigation |
-| role_id | Le rôle module concerné |
-| category_id | Catégorie (usage futur) |
-| is_visible | Si l'élément est visible pour ce rôle |
-| created_at | Date de création |
-
----
-
-## 7. Listes
+## 6. Listes
 
 ### referentials
 
@@ -449,10 +399,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | id | Identifiant unique |
 | client_id | Le client propriétaire |
 | name | Nom de la liste |
-| slug | Identifiant technique |
 | description | Description |
-| tag | Tag pour catégoriser les listes |
-| is_active | Si la liste est active |
 | is_archived | Si la liste est archivée |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |
@@ -468,10 +415,8 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | id | Identifiant unique |
 | referential_id | La liste à laquelle cette valeur appartient |
 | label | Libellé affiché |
-| code | Code interne optionnel |
 | description | Description |
 | color | Couleur associée (pour l'affichage) |
-| icon | Icône associée |
 | display_order | Ordre d'affichage |
 | is_active | Si la valeur est active |
 | parent_id | Valeur parente (pour les listes hiérarchiques) |
@@ -493,15 +438,11 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | client_id | Le client concerné |
 | primary_color | Couleur principale |
 | secondary_color | Couleur secondaire |
-| text_on_primary | Couleur du texte sur fond primaire |
-| text_on_secondary | Couleur du texte sur fond secondaire |
 | accent_color | Couleur d'accentuation |
 | border_radius | Arrondi des bords (en pixels) |
 | font_family | Police de caractères |
 | logo_url | URL du logo |
 | app_name | Nom de l'application affiché |
-| font_size_base | Taille de police de base |
-| font_weight_main | Graisse de police principale |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |
 
@@ -551,7 +492,6 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | id | Identifiant unique |
 | survey_type_id | Le type de campagne auquel ce champ appartient |
 | name | Nom affiché du champ |
-| slug | Identifiant technique |
 | field_type | Type de champ (texte, nombre, date, liste, fichier, etc.) |
 | description | Description |
 | referential_id | Si le champ est de type liste, vers quelle liste de valeurs il pointe |
@@ -570,7 +510,6 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | id | Identifiant unique |
 | survey_type_id | Le type de campagne |
 | name | Nom du statut (ex : "En attente de validation") |
-| slug | Identifiant technique |
 | color | Couleur associée |
 | display_order | Ordre d'affichage |
 | is_initial | Si c'est le statut de départ (quand une réponse est créée) |
@@ -718,7 +657,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | id | Identifiant unique |
 | response_id | La réponse |
 | field_definition_id | Le champ |
-| value | La valeur saisie |
+| value | La valeur saisie (format JSON pour supporter tous les types) |
 | updated_at | Date de dernière modification |
 | last_modified_by | Dernier utilisateur ayant modifié |
 

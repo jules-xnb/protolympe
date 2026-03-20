@@ -6,18 +6,18 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ## 1. Socle — Utilisateurs & Accès
 
-### profiles
+### accounts
 
-**Compte utilisateur.** Toute personne qui se connecte à Delta RM possède un profil. Le type d'utilisateur (admin, intégrateur, utilisateur final) est défini par le champ persona.
+**Compte de connexion.** Toute personne qui se connecte à Delta RM possède un compte. Le type d'utilisateur est défini par le champ persona.
 
 | Colonne | Description |
 |---|---|
-| id | Identifiant unique du profil |
+| id | Identifiant unique |
 | email | Adresse email de connexion (unique) |
 | password_hash | Mot de passe chiffré |
 | first_name | Prénom |
 | last_name | Nom |
-| persona | Type d'utilisateur : `admin_delta` (administrateur de la plateforme), `integrator_delta` (intégrateur employé Delta), `integrator_external` (intégrateur prestataire externe), `client_user` (utilisateur final d'une entreprise cliente) |
+| persona | Type d'utilisateur : `admin_delta` (administrateur plateforme), `integrator_delta` (intégrateur employé Delta), `integrator_external` (intégrateur prestataire externe), `client_user` (utilisateur final d'une entreprise cliente) |
 | created_at | Date de création du compte |
 | updated_at | Date de dernière modification |
 
@@ -25,11 +25,11 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### clients
 
-**Entreprise cliente.** Chaque client est une organisation (ex : Total, BNP, La Poste) qui utilise la plateforme pour ses besoins métier.
+**Entreprise cliente.** Chaque client est une organisation (ex : Total, BNP, La Poste) qui utilise la plateforme.
 
 | Colonne | Description |
 |---|---|
-| id | Identifiant unique du client |
+| id | Identifiant unique |
 | name | Nom de l'entreprise |
 | is_active | Si le client est actif ou désactivé |
 | created_at | Date de création |
@@ -39,14 +39,14 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### integrator_client_assignments
 
-**Affectation d'un intégrateur à un client.** Définit quel intégrateur (Delta ou externe) travaille pour quel client. Un intégrateur peut être affecté à plusieurs clients.
+**Affectation d'un intégrateur à un client.** Un intégrateur peut être affecté à plusieurs clients.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
 | user_id | L'intégrateur concerné |
 | client_id | Le client auquel il est affecté |
-| persona | Le rôle de l'intégrateur pour ce client (`integrator_delta` ou `integrator_external`) |
+| persona | Le rôle de l'intégrateur pour ce client |
 | assigned_by | Qui a fait l'affectation |
 | created_at | Date d'affectation |
 
@@ -54,7 +54,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### user_client_memberships
 
-**Appartenance d'un utilisateur final à un client.** Quand un utilisateur final est invité dans une entreprise cliente, cette table enregistre son appartenance. Un utilisateur peut être membre de plusieurs clients.
+**Appartenance d'un utilisateur final à un client.** Un utilisateur peut être membre de plusieurs clients.
 
 | Colonne | Description |
 |---|---|
@@ -63,7 +63,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | client_id | L'entreprise cliente |
 | is_active | Si l'appartenance est active |
 | invited_by | Qui a invité cet utilisateur |
-| activated_at | Date à laquelle l'utilisateur a activé son compte |
+| activated_at | Date d'activation du compte |
 | created_at | Date d'invitation |
 | updated_at | Date de dernière modification |
 
@@ -73,13 +73,13 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### client_modules
 
-**Module activé pour un client.** Delta RM propose des modules métier (ex : Collecte de Valeur). Chaque client active les modules dont il a besoin. Les modules sont définis par Delta, pas par les clients.
+**Module activé pour un client.** Delta RM propose des modules métier. Chaque client active les modules dont il a besoin. L'ordre d'affichage dans le menu FO est configurable.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_id | Le client qui utilise ce module |
-| module_slug | Identifiant technique du module (ex : `collecte_valeur`) |
+| client_id | Le client |
+| module_slug | Identifiant technique du module (ex : `collecte_valeur`, `organisation`, `users`, `profils`) |
 | is_active | Si le module est activé |
 | display_order | Ordre d'affichage dans le menu FO |
 | created_at | Date d'activation |
@@ -89,15 +89,15 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_roles
 
-**Rôle métier dans un module.** Chaque module possède ses propres rôles (ex : dans Collecte de Valeur → "Gestionnaire", "Contributeur", "Validateur"). Ces rôles sont configurés par l'intégrateur pour chaque client.
+**Rôle métier dans un module.** Chaque module possède ses propres rôles configurés par l'intégrateur.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_module_id | Le module dans lequel ce rôle existe |
+| client_module_id | Le module |
 | name | Nom affiché du rôle (ex : "Validateur") |
-| color | Couleur associée au rôle (pour l'affichage) |
-| description | Description du rôle |
+| color | Couleur associée |
+| description | Description |
 | is_active | Si le rôle est actif |
 | created_at | Date de création |
 
@@ -105,27 +105,27 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_permissions
 
-**Permission accordée à un rôle dans un module.** Chaque module a une liste fixe de permissions (définies par Delta). L'intégrateur décide quels rôles ont quelles permissions.
+**Permission accordée à un rôle dans un module.** Chaque module a une liste fixe de permissions définie par Delta. L'intégrateur active/désactive par rôle.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_module_id | Le module concerné |
-| permission_slug | Identifiant de la permission (ex : `can_launch_campaign`) |
-| module_role_id | Le rôle qui reçoit cette permission |
-| is_granted | Si la permission est accordée ou non |
+| client_module_id | Le module |
+| permission_slug | Identifiant de la permission |
+| module_role_id | Le rôle |
+| is_granted | Si la permission est accordée |
 | created_at | Date de création |
 
 ---
 
 ### module_workflows
 
-**Workflow rattaché à un module.** Décrit un processus métier au sein d'un module (ex : le workflow de collecte avec ses étapes).
+**Workflow rattaché à un module.**
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_module_id | Le module auquel ce workflow appartient |
+| client_module_id | Le module |
 | name | Nom du workflow |
 | description | Description |
 | is_active | Si le workflow est actif |
@@ -134,13 +134,11 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ---
 
----
-
 ## 3. Entités organisationnelles
 
-### organizational_entities
+### eo_entities
 
-**Entité de l'organigramme d'un client.** Représente la structure organisationnelle : sites, directions, services, équipes. Les entités forment un arbre hiérarchique.
+**Entité de l'organigramme d'un client.** Sites, directions, services, équipes. Les entités forment un arbre hiérarchique.
 
 | Colonne | Description |
 |---|---|
@@ -161,20 +159,20 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### eo_field_definitions
 
-**Champ personnalisé sur les entités organisationnelles.** L'intégrateur peut ajouter des champs supplémentaires aux entités d'un client (ex : "Code comptable", "Responsable site").
+**Champ personnalisé sur les entités.** L'intégrateur peut ajouter des champs supplémentaires aux entités d'un client.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_id | Le client concerné |
+| client_id | Le client |
 | name | Nom affiché du champ |
-| description | Description du champ |
+| description | Description |
 | field_type | Type de champ (texte, nombre, date, liste, etc.) |
 | is_required | Si le champ est obligatoire |
-| is_unique | Si la valeur doit être unique par entité |
+| is_unique | Si la valeur doit être unique |
 | is_active | Si le champ est actif |
-| comment_on_change | Comportement du commentaire lors d'une modification : `none` (pas de commentaire), `optional` (commentaire proposé), `required` (commentaire obligatoire) |
-| settings | Paramètres supplémentaires (format libre) |
+| comment_on_change | Comportement du commentaire lors d'une modification : `none`, `optional`, `required` |
+| settings | Paramètres supplémentaires |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |
 
@@ -182,28 +180,28 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### eo_field_values
 
-**Valeur d'un champ personnalisé pour une entité.** Stocke la valeur saisie pour un champ donné sur une entité donnée.
+**Valeur d'un champ personnalisé pour une entité.**
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| eo_id | L'entité concernée |
-| field_definition_id | Le champ concerné |
-| value | La valeur saisie (format JSON pour supporter tous les types) |
+| eo_id | L'entité |
+| field_definition_id | Le champ |
+| value | La valeur (format JSON pour supporter tous les types) |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |
-| last_modified_by | Dernier utilisateur ayant modifié cette valeur |
+| last_modified_by | Dernier utilisateur ayant modifié |
 
 ---
 
 ### eo_groups
 
-**Groupe d'entités organisationnelles.** Permet de regrouper des entités qui ne sont pas forcément dans la même branche hiérarchique (ex : "Toutes les usines", "Sites certifiés ISO").
+**Groupe d'entités.** Permet de regrouper des entités qui ne sont pas dans la même branche hiérarchique.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_id | Le client concerné |
+| client_id | Le client |
 | name | Nom du groupe |
 | description | Description |
 | is_active | Si le groupe est actif |
@@ -215,7 +213,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### eo_group_members
 
-**Membre d'un groupe d'entités.** Lie une entité à un groupe, avec la possibilité d'inclure automatiquement ses descendants.
+**Membre d'un groupe d'entités.**
 
 | Colonne | Description |
 |---|---|
@@ -230,29 +228,29 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### eo_field_change_comments
 
-**Commentaire lors d'une modification de valeur sur une entité.** Quand un utilisateur change la valeur d'un champ personnalisé, il peut laisser un commentaire expliquant pourquoi.
+**Commentaire lors d'une modification de valeur.** Quand un utilisateur change la valeur d'un champ, il peut laisser un commentaire.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| eo_id | L'entité concernée |
+| eo_id | L'entité |
 | field_definition_id | Le champ modifié |
 | old_value | Ancienne valeur |
 | new_value | Nouvelle valeur |
-| comment | Commentaire de l'utilisateur |
+| comment | Commentaire |
 | created_at | Date du changement |
-| created_by | Auteur du changement |
+| created_by | Auteur |
 
 ---
 
 ### eo_audit_log
 
-**Journal d'audit des entités.** Trace toutes les modifications faites sur les entités (création, modification, suppression) pour la traçabilité.
+**Journal d'audit des entités.** Trace toutes les modifications pour la traçabilité.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| entity_id | L'entité concernée |
+| entity_id | L'entité |
 | action | Type d'action (create, update, delete, archive...) |
 | changed_by | Qui a fait la modification |
 | changed_fields | Liste des champs modifiés |
@@ -264,12 +262,12 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### eo_export_history
 
-**Historique des exports d'entités.** Trace chaque export réalisé par un utilisateur (pour audit et suivi).
+**Historique des exports d'entités.**
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_id | Le client concerné |
+| client_id | Le client |
 | exported_by | Qui a lancé l'export |
 | exported_at | Date de l'export |
 | row_count | Nombre de lignes exportées |
@@ -277,11 +275,11 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ---
 
-## 4. Profils (Templates)
+## 4. Profils client
 
 ### client_profiles
 
-**Profil client.** Un profil (ex : "Chef de service", "Directeur RSE") qui définit un ensemble de droits : quelles entités sont accessibles et quels rôles dans quels modules. Un utilisateur peut avoir plusieurs profils.
+**Profil client.** Un profil définit un ensemble de droits : quelles entités sont accessibles et quels rôles dans quels modules. Un utilisateur peut avoir plusieurs profils.
 
 | Colonne | Description |
 |---|---|
@@ -295,37 +293,37 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ---
 
-### user_client_profiles
+### client_profile_users
 
-**Attribution d'un profil à un utilisateur.** Lie un utilisateur à un profil dans le contexte d'un client.
+**Attribution d'un profil à un utilisateur.**
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
 | user_id | L'utilisateur |
 | profile_id | Le profil attribué |
-| client_id | Le client dans lequel ce profil s'applique |
+| client_id | Le client |
 | created_at | Date d'attribution |
 
 ---
 
 ### client_profile_eos
 
-**Entités accessibles via un profil.** Définit quelles entités organisationnelles un utilisateur peut voir/gérer grâce à ce profil.
+**Entités accessibles via un profil.**
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
 | profile_id | Le profil |
 | eo_id | L'entité accessible |
-| include_descendants | Si les sous-entités sont automatiquement incluses |
+| include_descendants | Si les sous-entités sont incluses |
 | created_at | Date de création |
 
 ---
 
 ### client_profile_eo_groups
 
-**Groupes d'entités accessibles via un profil.** Même principe que ci-dessus, mais via un groupe d'entités (plutôt qu'une entité individuelle).
+**Groupes d'entités accessibles via un profil.**
 
 | Colonne | Description |
 |---|---|
@@ -338,7 +336,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### client_profile_module_roles
 
-**Rôles modules attribués via un profil.** Définit quels rôles métier (dans quels modules) sont accordés par ce profil.
+**Rôles modules attribués via un profil.**
 
 | Colonne | Description |
 |---|---|
@@ -353,14 +351,14 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### user_field_definitions
 
-**Champ personnalisé sur les utilisateurs.** L'intégrateur peut définir des champs supplémentaires sur les fiches utilisateur d'un client (ex : "Matricule", "Date d'entrée", "Département").
+**Champ personnalisé sur les utilisateurs.** L'intégrateur peut définir des champs supplémentaires sur les fiches utilisateur.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_id | Le client concerné |
+| client_id | Le client |
 | name | Nom affiché du champ |
-| field_type | Type de champ (texte, nombre, date, liste, etc.) |
+| field_type | Type de champ |
 | description | Description |
 | is_required | Si le champ est obligatoire |
 | is_unique | Si la valeur doit être unique |
@@ -380,9 +378,9 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| user_id | L'utilisateur concerné |
-| field_definition_id | Le champ concerné |
-| value | La valeur (format JSON pour supporter tous les types) |
+| user_id | L'utilisateur |
+| field_definition_id | Le champ |
+| value | La valeur (format JSON) |
 | updated_by | Dernier utilisateur ayant modifié |
 | updated_at | Date de dernière modification |
 
@@ -390,9 +388,9 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ## 6. Listes
 
-### referentials
+### lists
 
-**Liste de valeurs.** Les listes permettent de définir des ensembles de valeurs réutilisables (ex : "Niveaux de gravité", "Types de risque", "Pays"). Elles sont utilisées comme source pour les champs de type liste.
+**Liste de valeurs.** Ensembles de valeurs réutilisables (ex : "Niveaux de gravité", "Types de risque"). Utilisées comme source pour les champs de type liste.
 
 | Colonne | Description |
 |---|---|
@@ -406,36 +404,36 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ---
 
-### referential_values
+### list_values
 
-**Valeur dans une liste.** Les valeurs peuvent être hiérarchiques (arbre) pour les listes complexes.
+**Valeur dans une liste.** Les valeurs peuvent être hiérarchiques.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| referential_id | La liste à laquelle cette valeur appartient |
+| list_id | La liste |
 | label | Libellé affiché |
 | description | Description |
-| color | Couleur associée (pour l'affichage) |
+| color | Couleur associée |
 | display_order | Ordre d'affichage |
 | is_active | Si la valeur est active |
-| parent_id | Valeur parente (pour les listes hiérarchiques) |
+| parent_id | Valeur parente (listes hiérarchiques) |
 | level | Profondeur dans la hiérarchie |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |
 
 ---
 
-## 8. Design & Internationalisation
+## 7. Design & Internationalisation
 
 ### client_design_configs
 
-**Personnalisation visuelle par client.** Chaque client peut personnaliser l'apparence de son instance de la plateforme (couleurs, logo, police).
+**Personnalisation visuelle par client.**
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_id | Le client concerné |
+| client_id | Le client |
 | primary_color | Couleur principale |
 | secondary_color | Couleur secondaire |
 | accent_color | Couleur d'accentuation |
@@ -450,13 +448,13 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### translations
 
-**Traductions personnalisées par client.** Permet de surcharger les libellés de l'interface par client et par langue.
+**Traductions personnalisées par client.**
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_id | Le client concerné |
-| scope | Contexte de la traduction (ex : `navigation`, `module_cv`) |
+| client_id | Le client |
+| scope | Contexte (ex : `navigation`, `module_cv`) |
 | language | Code langue (ex : `fr`, `en`) |
 | key | Clé de traduction |
 | value | Texte traduit |
@@ -465,16 +463,16 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ---
 
-## 9. Module Collecte de Valeur — Configuration
+## 8. Module Collecte de Valeur — Configuration
 
 ### module_cv_survey_types
 
-**Type de campagne de collecte.** Chaque type de campagne représente un processus métier complet : un objet métier (= ensemble de champs), un workflow (= statuts et transitions), et des formulaires (= vues par étape). Exemples : "Collecte annuelle DUERP", "Auto-évaluation conformité".
+**Type de campagne de collecte.** Un processus métier complet : objet métier, workflow, formulaires. Exemples : "Collecte annuelle DUERP", "Auto-évaluation conformité".
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_module_id | Le module Collecte de Valeur de ce client |
+| client_module_id | Le module CV de ce client |
 | name | Nom du type de campagne |
 | description | Description |
 | is_active | Si le type est actif |
@@ -485,16 +483,16 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_cv_field_definitions
 
-**Champ de l'objet métier d'un type de campagne.** Définit la structure des données collectées. Un type de campagne = un objet métier = l'ensemble de tous ses champs. L'intégrateur configure les champs (fixes ou customs).
+**Champ de l'objet métier d'un type de campagne.** Un type de campagne = un objet métier = l'ensemble de tous ses champs.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| survey_type_id | Le type de campagne auquel ce champ appartient |
-| name | Nom affiché du champ |
-| field_type | Type de champ (texte, nombre, date, liste, fichier, etc.) |
+| survey_type_id | Le type de campagne |
+| name | Nom du champ |
+| field_type | Type de champ |
 | description | Description |
-| referential_id | Si le champ est de type liste, vers quelle liste de valeurs il pointe |
+| list_id | Si type liste, vers quelle liste de valeurs |
 | settings | Paramètres supplémentaires |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |
@@ -503,24 +501,24 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_cv_statuses
 
-**Statut possible d'une réponse.** Les statuts sont dynamiques et configurés par l'intégrateur pour chaque type de campagne. Exemple : "Brouillon" → "Soumis" → "Validé" → "Rejeté".
+**Statut possible d'une réponse.** Configurés par l'intégrateur pour chaque type de campagne.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
 | survey_type_id | Le type de campagne |
-| name | Nom du statut (ex : "En attente de validation") |
-| color | Couleur associée |
+| name | Nom du statut |
+| color | Couleur |
 | display_order | Ordre d'affichage |
-| is_initial | Si c'est le statut de départ (quand une réponse est créée) |
-| is_final | Si c'est un statut terminal (le processus est terminé) |
+| is_initial | Si c'est le statut de départ |
+| is_final | Si c'est un statut terminal |
 | created_at | Date de création |
 
 ---
 
 ### module_cv_status_transitions
 
-**Transition autorisée entre deux statuts.** Définit les chemins possibles dans le workflow : depuis quel statut on peut aller vers quel autre statut.
+**Transition autorisée entre deux statuts.**
 
 | Colonne | Description |
 |---|---|
@@ -528,19 +526,19 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | survey_type_id | Le type de campagne |
 | from_status_id | Statut de départ |
 | to_status_id | Statut d'arrivée |
-| label | Libellé de la transition (ex : "Soumettre", "Valider", "Rejeter") |
+| label | Libellé (ex : "Soumettre", "Valider") |
 | created_at | Date de création |
 
 ---
 
 ### module_cv_status_transition_roles
 
-**Quel rôle peut exécuter quelle transition.** Contrôle qui peut faire avancer le workflow (ex : seul le "Validateur" peut exécuter la transition "Valider").
+**Quel rôle peut exécuter quelle transition.**
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| transition_id | La transition concernée |
+| transition_id | La transition |
 | module_role_id | Le rôle autorisé |
 | created_at | Date de création |
 
@@ -548,14 +546,14 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_cv_forms
 
-**Formulaire lié à une étape du workflow.** Chaque statut a son propre formulaire qui définit ce que l'utilisateur voit à cette étape. Un formulaire est une vue sur un sous-ensemble des champs de l'objet métier.
+**Formulaire lié à une étape du workflow.** Chaque statut a son propre formulaire.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
 | survey_type_id | Le type de campagne |
-| status_id | Le statut auquel ce formulaire est associé |
-| name | Nom du formulaire (ex : "Formulaire de saisie") |
+| status_id | Le statut associé |
+| name | Nom du formulaire |
 | description | Description |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |
@@ -564,7 +562,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_cv_form_fields
 
-**Champ dans un formulaire.** Définit quels champs de l'objet métier apparaissent dans ce formulaire et leurs règles métier (obligatoire, conditions de visibilité, coloration). La visibilité et l'éditabilité par rôle sont gérées via les display configs (section 14).
+**Champ dans un formulaire.** Règles métier qui s'appliquent à tous les rôles. La visibilité et l'éditabilité par rôle sont gérées via les display configs.
 
 | Colonne | Description |
 |---|---|
@@ -572,42 +570,131 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | form_id | Le formulaire |
 | field_definition_id | Le champ de l'objet métier |
 | is_required | Si le champ est obligatoire à cette étape |
-| visibility_conditions | Conditions pour afficher/masquer dynamiquement ce champ (format JSON) |
-| conditional_coloring | Règles de coloration conditionnelle basées sur la comparaison avec la valeur N-1 (format JSON) |
+| visibility_conditions | Conditions d'affichage dynamique (JSON) |
+| conditional_coloring | Coloration conditionnelle basée sur la valeur N-1 (JSON) |
+| created_at | Date de création |
+
+---
+
+### module_cv_form_display_configs
+
+**Configuration d'affichage d'un formulaire CV.** Définit comment un formulaire est présenté pour un groupe de rôles.
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| form_id | Le formulaire |
+| name | Nom de la configuration |
+| created_at | Date de création |
+| updated_at | Date de dernière modification |
+
+---
+
+### module_cv_form_display_config_roles
+
+**Association rôle ↔ configuration d'affichage formulaire.**
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration |
+| module_role_id | Le rôle |
+| created_at | Date de création |
+
+---
+
+### module_cv_form_display_config_fields
+
+**Champ dans une configuration d'affichage formulaire.** Contrôle ce que chaque groupe de rôles peut voir et éditer.
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration |
+| form_field_id | Le champ du formulaire |
+| can_view | Si le champ est visible |
+| can_edit | Si le champ est modifiable |
+| display_order | Ordre d'affichage |
+| created_at | Date de création |
+
+---
+
+### module_cv_display_configs
+
+**Configuration d'affichage des tableaux listing CV.** Pour les listes de campagnes et réponses.
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| client_module_id | Le module CV |
+| name | Nom de la configuration |
+| filters | Filtres disponibles (JSON) |
+| pre_filters | Filtres appliqués par défaut (JSON) |
+| created_at | Date de création |
+| updated_at | Date de dernière modification |
+
+---
+
+### module_cv_display_config_roles
+
+**Association rôle ↔ configuration d'affichage listing.**
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration |
+| module_role_id | Le rôle |
+| created_at | Date de création |
+
+---
+
+### module_cv_display_config_fields
+
+**Champ dans une configuration d'affichage listing.**
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration |
+| field_slug | Champ fixe (ex : "status", "reference_year"). Null si champ custom |
+| cv_field_definition_id | Champ custom. Null si champ fixe |
+| show_in_table | Visible comme colonne |
+| show_in_export | Inclus dans l'export CSV |
+| display_order | Ordre d'affichage |
 | created_at | Date de création |
 
 ---
 
 ### module_cv_validation_rules
 
-**Règle de validation sur un champ.** Permet à l'intégrateur de configurer des contraintes de validation métier (ex : "ce champ doit être > 0", "ce champ est requis si tel autre champ = X").
+**Règle de validation sur un champ.** Contraintes métier configurées par l'intégrateur.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
 | survey_type_id | Le type de campagne |
-| field_definition_id | Le champ concerné (null = règle globale) |
-| rule_type | Type de règle (ex : `min_value`, `max_value`, `required_if`, `regex`) |
-| config | Configuration de la règle (format JSON) |
+| field_definition_id | Le champ (null = règle globale) |
+| rule_type | Type de règle (ex : `min_value`, `required_if`, `regex`) |
+| config | Configuration (JSON) |
 | created_at | Date de création |
 
 ---
 
-## 10. Module Collecte de Valeur — Exécution
+## 9. Module Collecte de Valeur — Exécution
 
 ### module_cv_campaigns
 
-**Campagne de collecte.** Instance concrète d'un type de campagne, lancée par un gestionnaire côté utilisateur final. Chaque campagne a une année de référence et peut être pré-remplie à partir d'une campagne précédente du même type.
+**Campagne de collecte.** Lancée par un gestionnaire côté FO. Chaque campagne a une année de référence et peut être pré-remplie à partir d'une campagne précédente.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
 | survey_type_id | Le type de campagne |
-| name | Nom de la campagne (ex : "Collecte DUERP 2026") |
+| name | Nom (ex : "Collecte DUERP 2026") |
 | description | Description |
-| reference_year | Année de référence de la campagne |
-| prefill_campaign_id | Campagne précédente choisie pour le pré-remplissage des valeurs N-1 (même type, terminée) |
-| status | Statut de la campagne elle-même (brouillon, en cours, terminée) |
+| reference_year | Année de référence |
+| prefill_campaign_id | Campagne N-1 choisie pour le pré-remplissage |
+| status | Statut de la campagne (brouillon, en cours, terminée) |
 | start_date | Date de début |
 | end_date | Date de fin |
 | created_by | Gestionnaire qui a lancé la campagne |
@@ -618,7 +705,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_cv_campaign_targets
 
-**Entité ciblée par une campagne.** Quand une campagne est lancée, le gestionnaire sélectionne les entités organisationnelles qui doivent répondre.
+**Entité ciblée par une campagne.**
 
 | Colonne | Description |
 |---|---|
@@ -631,14 +718,14 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_cv_responses
 
-**Réponse d'une entité à une campagne.** Chaque entité ciblée a une réponse qui suit le workflow (statuts, transitions). C'est l'objet métier instancié.
+**Réponse d'une entité à une campagne.** L'objet métier instancié, qui suit le workflow.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
 | campaign_id | La campagne |
 | eo_id | L'entité qui répond |
-| status_id | Statut actuel de la réponse dans le workflow |
+| status_id | Statut actuel dans le workflow |
 | submitted_at | Date de soumission |
 | submitted_by | Qui a soumis |
 | validated_at | Date de validation |
@@ -650,14 +737,14 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_cv_response_values
 
-**Valeur saisie dans une réponse.** Stocke chaque valeur renseignée pour chaque champ de l'objet métier, pour une réponse donnée.
+**Valeur saisie dans une réponse.**
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
 | response_id | La réponse |
 | field_definition_id | Le champ |
-| value | La valeur saisie (format JSON pour supporter tous les types) |
+| value | La valeur (format JSON) |
 | updated_at | Date de dernière modification |
 | last_modified_by | Dernier utilisateur ayant modifié |
 
@@ -665,7 +752,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_cv_field_comments
 
-**Commentaire sur un champ d'une réponse.** Permet à un validateur ou contributeur de commenter une valeur spécifique (ex : "Valeur incohérente, merci de vérifier").
+**Commentaire sur un champ d'une réponse.**
 
 | Colonne | Description |
 |---|---|
@@ -673,14 +760,14 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | response_id | La réponse |
 | field_definition_id | Le champ commenté |
 | comment | Le commentaire |
-| created_at | Date du commentaire |
-| created_by | Auteur du commentaire |
+| created_at | Date |
+| created_by | Auteur |
 
 ---
 
 ### module_cv_response_documents
 
-**Document joint à une réponse.** Pièce jointe rattachée à un champ de type fichier dans une réponse.
+**Document joint à une réponse.**
 
 | Colonne | Description |
 |---|---|
@@ -691,7 +778,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | file_path | Chemin de stockage |
 | file_size | Taille en octets |
 | mime_type | Type MIME |
-| display_order | Ordre d'affichage (si plusieurs fichiers par champ) |
+| display_order | Ordre d'affichage |
 | uploaded_at | Date d'upload |
 | uploaded_by | Qui a uploadé |
 
@@ -699,35 +786,35 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_cv_response_audit_log
 
-**Journal d'audit des modifications de réponses.** Trace chaque modification de valeur dans une réponse pour la traçabilité complète.
+**Journal d'audit des modifications de réponses.**
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| response_id | La réponse concernée |
+| response_id | La réponse |
 | field_definition_id | Le champ modifié |
-| field_name | Nom du champ (sauvegardé pour garder l'historique même si le champ est supprimé) |
-| old_value | Valeur avant modification |
-| new_value | Valeur après modification |
-| changed_by | Qui a fait la modification |
+| field_name | Nom du champ (conservé même si le champ est supprimé) |
+| old_value | Valeur avant |
+| new_value | Valeur après |
+| changed_by | Qui a modifié |
 | changed_at | Date de la modification |
 
 ---
 
-## 11. Module Organisation — Configuration d'affichage
+## 10. Module Organisation — Configuration d'affichage
 
 ### module_org_display_configs
 
-**Configuration d'affichage du module Organisation.** Définit comment les entités organisationnelles sont présentées pour un groupe de rôles. Chaque configuration peut être partagée par plusieurs rôles.
+**Configuration d'affichage du module Organisation.** Partageable par plusieurs rôles.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_module_id | Le module Organisation de ce client |
-| name | Nom de la configuration (ex : "Vue Manager", "Vue Consultant") |
-| default_view_mode | Mode de vue affiché par défaut : `list`, `tree` ou `canvas` (tous restent accessibles) |
-| filters | Filtres disponibles pour l'utilisateur (format JSON) |
-| pre_filters | Filtres appliqués automatiquement par défaut (format JSON) |
+| client_module_id | Le module Organisation |
+| name | Nom de la configuration (ex : "Vue Manager") |
+| default_view_mode | Mode par défaut : `list`, `tree` ou `canvas` (tous accessibles) |
+| filters | Filtres disponibles (JSON) |
+| pre_filters | Filtres par défaut (JSON) |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |
 
@@ -735,37 +822,37 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_org_display_config_roles
 
-**Association rôle ↔ configuration d'affichage Organisation.** Plusieurs rôles peuvent partager la même configuration.
+**Association rôle ↔ configuration Organisation.**
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| display_config_id | La configuration d'affichage |
-| module_role_id | Le rôle qui utilise cette configuration |
+| display_config_id | La configuration |
+| module_role_id | Le rôle |
 | created_at | Date de création |
 
 ---
 
 ### module_org_display_config_fields
 
-**Champ dans une configuration d'affichage Organisation.** Définit champ par champ ce qui est visible, éditable, exportable. Côté API, chaque modification est vérifiée contre cette table.
+**Champ dans une configuration d'affichage Organisation.** Côté API, chaque modification est vérifiée contre cette table.
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| display_config_id | La configuration d'affichage |
-| field_slug | Identifiant du champ fixe (ex : "name", "code"). Null si champ custom |
-| eo_field_definition_id | Champ custom des entités. Null si champ fixe |
+| display_config_id | La configuration |
+| field_slug | Champ fixe (ex : "name", "description"). Null si champ custom |
+| eo_field_definition_id | Champ custom. Null si champ fixe |
 | can_edit | Si le champ peut être modifié |
-| show_in_table | Visible comme colonne dans le tableau |
-| show_in_drawer | Visible dans le drawer de détail |
-| show_in_export | Inclus dans l'export CSV |
+| show_in_table | Visible dans le tableau |
+| show_in_drawer | Visible dans le drawer |
+| show_in_export | Inclus dans l'export |
 | display_order | Ordre d'affichage |
 | created_at | Date de création |
 
 ---
 
-## 12. Module Users — Configuration d'affichage
+## 11. Module Users — Configuration d'affichage
 
 ### module_users_display_configs
 
@@ -774,10 +861,10 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_module_id | Le module Users de ce client |
+| client_module_id | Le module Users |
 | name | Nom de la configuration |
-| filters | Filtres disponibles (format JSON) |
-| pre_filters | Filtres appliqués par défaut (format JSON) |
+| filters | Filtres disponibles (JSON) |
+| pre_filters | Filtres par défaut (JSON) |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |
 
@@ -785,13 +872,13 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_users_display_config_roles
 
-**Association rôle ↔ configuration d'affichage Users.**
+**Association rôle ↔ configuration Users.**
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| display_config_id | La configuration d'affichage |
-| module_role_id | Le rôle qui utilise cette configuration |
+| display_config_id | La configuration |
+| module_role_id | Le rôle |
 | created_at | Date de création |
 
 ---
@@ -803,20 +890,20 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| display_config_id | La configuration d'affichage |
-| field_slug | Identifiant du champ fixe (ex : "first_name", "email"). Null si champ custom |
+| display_config_id | La configuration |
+| field_slug | Champ fixe (ex : "first_name", "email"). Null si champ custom |
 | user_field_definition_id | Champ custom utilisateur. Null si champ fixe |
 | can_edit | Si le champ peut être modifié |
-| show_in_table | Visible comme colonne dans le tableau |
-| show_in_drawer | Visible dans le drawer de détail |
-| show_in_export | Inclus dans l'export CSV |
+| show_in_table | Visible dans le tableau |
+| show_in_drawer | Visible dans le drawer |
+| show_in_export | Inclus dans l'export |
 | is_anonymized | Si le champ est masqué (ex : email → ju***@...) |
 | display_order | Ordre d'affichage |
 | created_at | Date de création |
 
 ---
 
-## 13. Module Profils — Configuration d'affichage
+## 12. Module Profils — Configuration d'affichage
 
 ### module_profils_display_configs
 
@@ -825,10 +912,10 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| client_module_id | Le module Profils de ce client |
+| client_module_id | Le module Profils |
 | name | Nom de la configuration |
-| filters | Filtres disponibles (format JSON) |
-| pre_filters | Filtres appliqués par défaut (format JSON) |
+| filters | Filtres disponibles (JSON) |
+| pre_filters | Filtres par défaut (JSON) |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |
 
@@ -836,13 +923,13 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_profils_display_config_roles
 
-**Association rôle ↔ configuration d'affichage Profils.**
+**Association rôle ↔ configuration Profils.**
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| display_config_id | La configuration d'affichage |
-| module_role_id | Le rôle qui utilise cette configuration |
+| display_config_id | La configuration |
+| module_role_id | Le rôle |
 | created_at | Date de création |
 
 ---
@@ -854,102 +941,11 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
-| display_config_id | La configuration d'affichage |
+| display_config_id | La configuration |
 | field_slug | Identifiant du champ (ex : "name", "description", "roles", "entities") |
 | can_edit | Si le champ peut être modifié |
-| show_in_table | Visible comme colonne dans le tableau |
-| show_in_drawer | Visible dans le drawer de détail |
-| show_in_export | Inclus dans l'export CSV |
-| display_order | Ordre d'affichage |
-| created_at | Date de création |
-
----
-
-## 14. Module Collecte de Valeur — Configuration d'affichage
-
-### module_cv_form_display_configs
-
-**Configuration d'affichage d'un formulaire CV.** Définit comment un formulaire (= une étape du workflow) est présenté pour un groupe de rôles. Remplace l'ancien système `module_cv_form_field_roles`.
-
-| Colonne | Description |
-|---|---|
-| id | Identifiant unique |
-| form_id | Le formulaire concerné |
-| name | Nom de la configuration |
-| created_at | Date de création |
-| updated_at | Date de dernière modification |
-
----
-
-### module_cv_form_display_config_roles
-
-**Association rôle ↔ configuration d'affichage formulaire CV.**
-
-| Colonne | Description |
-|---|---|
-| id | Identifiant unique |
-| display_config_id | La configuration d'affichage |
-| module_role_id | Le rôle qui utilise cette configuration |
-| created_at | Date de création |
-
----
-
-### module_cv_form_display_config_fields
-
-**Champ dans une configuration d'affichage formulaire CV.** Contrôle ce que chaque groupe de rôles peut voir et éditer dans un formulaire.
-
-| Colonne | Description |
-|---|---|
-| id | Identifiant unique |
-| display_config_id | La configuration d'affichage |
-| form_field_id | Le champ du formulaire |
-| can_view | Si le champ est visible |
-| can_edit | Si le champ est modifiable |
-| display_order | Ordre d'affichage |
-| created_at | Date de création |
-
----
-
-### module_cv_display_configs
-
-**Configuration d'affichage des tableaux listing CV.** Définit comment les listes de campagnes et réponses sont présentées.
-
-| Colonne | Description |
-|---|---|
-| id | Identifiant unique |
-| client_module_id | Le module CV de ce client |
-| name | Nom de la configuration |
-| filters | Filtres disponibles (format JSON) |
-| pre_filters | Filtres appliqués par défaut (format JSON) |
-| created_at | Date de création |
-| updated_at | Date de dernière modification |
-
----
-
-### module_cv_display_config_roles
-
-**Association rôle ↔ configuration d'affichage listing CV.**
-
-| Colonne | Description |
-|---|---|
-| id | Identifiant unique |
-| display_config_id | La configuration d'affichage |
-| module_role_id | Le rôle qui utilise cette configuration |
-| created_at | Date de création |
-
----
-
-### module_cv_display_config_fields
-
-**Champ dans une configuration d'affichage listing CV.**
-
-| Colonne | Description |
-|---|---|
-| id | Identifiant unique |
-| display_config_id | La configuration d'affichage |
-| field_slug | Identifiant du champ fixe (ex : "status", "reference_year"). Null si champ custom |
-| cv_field_definition_id | Champ custom du BO. Null si champ fixe |
-| show_in_table | Visible comme colonne dans le tableau |
-| show_in_export | Inclus dans l'export CSV |
+| show_in_table | Visible dans le tableau |
+| show_in_drawer | Visible dans le drawer |
+| show_in_export | Inclus dans l'export |
 | display_order | Ordre d'affichage |
 | created_at | Date de création |

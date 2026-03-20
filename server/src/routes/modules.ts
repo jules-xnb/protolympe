@@ -12,6 +12,7 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 import type { JwtPayload } from '../lib/jwt.js';
+import { logAdminAction } from '../lib/audit.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
@@ -138,6 +139,8 @@ modulesRouter.post('/clients/:clientId/modules', async (c) => {
     })
     .returning();
 
+  await logAdminAction(user.sub, 'module.activate', 'client_module', clientModule.id, { client_id: clientId, module_slug });
+
   return c.json(toSnakeCase(clientModule), 201);
 });
 
@@ -182,6 +185,8 @@ modulesRouter.patch('/clients/:clientId/modules/:id', async (c) => {
   if (!updated) {
     return c.json({ error: 'Module introuvable' }, 404);
   }
+
+  await logAdminAction(user.sub, 'module.update', 'client_module', id, { client_id: clientId, ...parsed.data });
 
   return c.json(toSnakeCase(updated));
 });
@@ -292,6 +297,8 @@ modulesRouter.post('/modules/:moduleId/roles', async (c) => {
     })
     .returning();
 
+  await logAdminAction(user.sub, 'module.role.create', 'module_role', role.id, { module_id: moduleId, name });
+
   return c.json(toSnakeCase(role), 201);
 });
 
@@ -339,6 +346,8 @@ modulesRouter.patch('/modules/:moduleId/roles/:id', async (c) => {
   if (!role) {
     return c.json({ error: 'Rôle introuvable' }, 404);
   }
+
+  await logAdminAction(user.sub, 'module.role.update', 'module_role', id, { module_id: moduleId, ...parsed.data });
 
   return c.json(toSnakeCase(role));
 });
@@ -467,6 +476,8 @@ modulesRouter.put('/modules/:moduleId/permissions', async (c) => {
     .from(modulePermissions)
     .where(eq(modulePermissions.clientModuleId, moduleId))
     .orderBy(modulePermissions.permissionSlug);
+
+  await logAdminAction(user.sub, 'module.permissions.update', 'client_module', moduleId, { count: permissions.length });
 
   return c.json(toSnakeCase(updated));
 });

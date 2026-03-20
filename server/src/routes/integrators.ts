@@ -295,6 +295,8 @@ app.delete('/:id/clients/:clientId', async (c) => {
 
   if (!deleted) return c.json({ error: 'Assignation introuvable' }, 404);
 
+  await logAdminAction(user.sub, 'integrator.client.remove', 'account', id, { client_id: clientId });
+
   return c.json({ success: true });
 });
 

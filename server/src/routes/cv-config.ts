@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq, and, asc, inArray } from 'drizzle-orm';
+import { eq, and, asc, inArray, count } from 'drizzle-orm';
+import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 import { db } from '../db/index.js';
 import {
   clientModules,
@@ -254,6 +255,7 @@ function validationRuleToSnake(row: typeof moduleCvValidationRules.$inferSelect)
 app.get('/survey-types', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
+  const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
   if (!(await canConfigure(user, moduleId))) {
     return c.json({ error: 'Accès refusé' }, 403);
@@ -262,13 +264,16 @@ app.get('/survey-types', async (c) => {
   const mod = await getModule(moduleId);
   if (!mod) return c.json({ error: 'Module introuvable' }, 404);
 
+  const where = eq(moduleCvSurveyTypes.clientModuleId, moduleId);
+  const [{ total }] = await db.select({ total: count() }).from(moduleCvSurveyTypes).where(where);
   const rows = await db
     .select()
     .from(moduleCvSurveyTypes)
-    .where(eq(moduleCvSurveyTypes.clientModuleId, moduleId))
-    .orderBy(moduleCvSurveyTypes.createdAt);
+    .where(where)
+    .orderBy(moduleCvSurveyTypes.createdAt)
+    .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
-  return c.json(rows.map(surveyTypeToSnake));
+  return c.json(paginatedResponse(rows.map(surveyTypeToSnake), total, pagination));
 });
 
 // 2. GET /survey-types/:id

@@ -134,36 +134,41 @@ router.post('/refresh', async (c) => {
   if (!refreshToken) return c.json({ error: 'Refresh token manquant' }, 401);
 
   const tokenHash = hashToken(refreshToken);
-  const now = new Date();
 
-  const [stored] = await db
-    .select()
-    .from(refreshTokens)
-    .where(eq(refreshTokens.tokenHash, tokenHash))
-    .limit(1);
+  // Atomically delete the old token and capture it — prevents race conditions
+  const result = await db.transaction(async (tx) => {
+    const [stored] = await tx
+      .delete(refreshTokens)
+      .where(eq(refreshTokens.tokenHash, tokenHash))
+      .returning();
 
-  if (!stored) {
-    return c.json({ error: 'Token invalide' }, 401);
-  }
+    if (!stored) return null;
+    if (new Date() > stored.expiresAt) return null;
 
-  if (stored.expiresAt < now) {
-    await db.delete(refreshTokens).where(eq(refreshTokens.id, stored.id));
-    return c.json({ error: 'Token expiré' }, 401);
-  }
+    const newToken = generateRefreshToken();
+    const newTokenHash = hashToken(newToken);
+
+    await tx.insert(refreshTokens).values({
+      userId: stored.userId,
+      tokenHash: newTokenHash,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+
+    return { userId: stored.userId, newRefreshToken: newToken };
+  });
+
+  if (!result) return c.json({ error: 'Token invalide ou expiré' }, 401);
 
   // Fetch account
   const [account] = await db
     .select()
     .from(accounts)
-    .where(eq(accounts.id, stored.userId))
+    .where(eq(accounts.id, result.userId))
     .limit(1);
 
   if (!account) {
     return c.json({ error: 'Compte introuvable' }, 401);
   }
-
-  // Token rotation: delete old, create new
-  await db.delete(refreshTokens).where(eq(refreshTokens.id, stored.id));
 
   const accessToken = await signAccessToken({
     sub: account.id,
@@ -171,9 +176,7 @@ router.post('/refresh', async (c) => {
     persona: account.persona,
   });
 
-  const newRefreshToken = await createRefreshToken(account.id);
-
-  setCookie(c, 'refresh_token', newRefreshToken, {
+  setCookie(c, 'refresh_token', result.newRefreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'Strict',
@@ -293,7 +296,8 @@ router.post('/forgot-password', rateLimit(3, 60_000), async (c) => {
   });
 
   // In production: send email with token
-  return c.json({ success: true, token });
+  if (process.env.NODE_ENV !== 'production') console.log('DEV ONLY - Reset token:', token);
+  return c.json({ success: true });
 });
 
 // ---------------------------------------------------------------------------

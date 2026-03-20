@@ -12,6 +12,7 @@ import {
 } from '../db/schema.js';
 import { eq, and, count } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireClientAccess } from '../middleware/client-access.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 import { getEditableFieldSlugs } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';
@@ -28,6 +29,12 @@ usersRouter.use('*', authMiddleware);
 // GET /clients/:clientId/users
 usersRouter.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
+  const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(userClientMemberships)
+    .where(eq(userClientMemberships.clientId, clientId));
 
   const result = await db
     .select({
@@ -45,9 +52,10 @@ usersRouter.get('/', async (c) => {
     .from(userClientMemberships)
     .innerJoin(accounts, eq(userClientMemberships.userId, accounts.id))
     .where(eq(userClientMemberships.clientId, clientId))
-    .orderBy(accounts.lastName, accounts.firstName);
+    .orderBy(accounts.lastName, accounts.firstName)
+    .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
-  return c.json(toSnakeCase(result));
+  return c.json(paginatedResponse(toSnakeCase(result) as any[], total, pagination));
 });
 
 // ─── Invite — static route before /:id ───────────────────────────────────────
@@ -439,7 +447,13 @@ usersRouter.delete('/:id/profiles/:profileId', async (c) => {
 
 // GET /clients/:clientId/users/:id/field-values
 usersRouter.get('/:id/field-values', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+  const userId = id;
+
+  const [membership] = await db.select({ id: userClientMemberships.id }).from(userClientMemberships)
+    .where(and(eq(userClientMemberships.userId, userId), eq(userClientMemberships.clientId, clientId)));
+  if (!membership) return c.json({ error: 'Utilisateur introuvable' }, 404);
 
   const result = await db
     .select({
@@ -469,8 +483,15 @@ const upsertFieldValueSchema = z.object({
 
 // POST /clients/:clientId/users/:id/field-values
 usersRouter.post('/:id/field-values', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+  const userId = id;
   const requestingUser = c.get('user');
+
+  const [membership] = await db.select({ id: userClientMemberships.id }).from(userClientMemberships)
+    .where(and(eq(userClientMemberships.userId, userId), eq(userClientMemberships.clientId, clientId)));
+  if (!membership) return c.json({ error: 'Utilisateur introuvable' }, 404);
+
   const body = await c.req.json();
   const parsed = upsertFieldValueSchema.safeParse(body);
   if (!parsed.success) {

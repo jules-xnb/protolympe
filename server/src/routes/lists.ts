@@ -2,10 +2,11 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import { lists, listValues } from '../db/schema.js';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, count } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireAdminOrIntegrator } from '../middleware/persona.js';
 import { toSnakeCase } from '../lib/case-transform.js';
+import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 
 // Mounted at /clients/:clientId/lists
 const listsRouter = new Hono();
@@ -19,14 +20,18 @@ listsRouter.use('*', authMiddleware);
 // GET / — list all non-archived lists for client
 listsRouter.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
+  const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
+  const where = and(eq(lists.clientId, clientId), eq(lists.isArchived, false));
 
+  const [{ total }] = await db.select({ total: count() }).from(lists).where(where);
   const result = await db
     .select()
     .from(lists)
-    .where(and(eq(lists.clientId, clientId), eq(lists.isArchived, false)))
-    .orderBy(lists.name);
+    .where(where)
+    .orderBy(lists.name)
+    .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
-  return c.json(toSnakeCase(result));
+  return c.json(paginatedResponse(toSnakeCase(result) as any[], total, pagination));
 });
 
 // GET /:id — detail with values
@@ -140,6 +145,7 @@ listsRouter.patch('/:id/archive', requireAdminOrIntegrator(), async (c) => {
 listsRouter.get('/:id/values', async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+  const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
   const [list] = await db
     .select()
@@ -150,13 +156,15 @@ listsRouter.get('/:id/values', async (c) => {
     return c.json({ error: 'Liste introuvable' }, 404);
   }
 
+  const [{ total }] = await db.select({ total: count() }).from(listValues).where(eq(listValues.listId, id));
   const result = await db
     .select()
     .from(listValues)
     .where(eq(listValues.listId, id))
-    .orderBy(asc(listValues.displayOrder));
+    .orderBy(asc(listValues.displayOrder))
+    .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
-  return c.json(toSnakeCase(result));
+  return c.json(paginatedResponse(toSnakeCase(result) as any[], total, pagination));
 });
 
 const createValueSchema = z.object({

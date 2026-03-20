@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, count } from 'drizzle-orm';
+import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 import { db } from '../db/index.js';
 import {
   moduleCvCampaigns,
@@ -208,6 +209,7 @@ async function requireManageCampaign(
 app.get('/campaigns', async (c) => {
   const user = c.get('user');
   const moduleId = c.req.param('moduleId') as string;
+  const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
   // Verify module access: survey types are scoped to the module
   const surveyTypes = await db
@@ -217,16 +219,19 @@ app.get('/campaigns', async (c) => {
 
   const surveyTypeIds = surveyTypes.map((st) => st.id);
   if (surveyTypeIds.length === 0) {
-    return c.json([]);
+    return c.json(paginatedResponse([], 0, pagination));
   }
 
+  const where = inArray(moduleCvCampaigns.surveyTypeId, surveyTypeIds);
+  const [{ total }] = await db.select({ total: count() }).from(moduleCvCampaigns).where(where);
   const campaigns = await db
     .select()
     .from(moduleCvCampaigns)
-    .where(inArray(moduleCvCampaigns.surveyTypeId, surveyTypeIds))
-    .orderBy(moduleCvCampaigns.createdAt);
+    .where(where)
+    .orderBy(moduleCvCampaigns.createdAt)
+    .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
-  return c.json(campaigns.map(campaignToSnake));
+  return c.json(paginatedResponse(campaigns.map(campaignToSnake), total, pagination));
 });
 
 // 2. GET /campaigns/:id
@@ -402,6 +407,7 @@ app.patch('/campaigns/:id/close', async (c) => {
 app.get('/campaigns/:id/targets', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
+  const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
   const [campaign] = await db
     .select()
@@ -420,6 +426,7 @@ app.get('/campaigns/:id/targets', async (c) => {
     );
   if (!surveyType) return c.json({ error: 'Campagne introuvable' }, 404);
 
+  const [{ total }] = await db.select({ total: count() }).from(moduleCvCampaignTargets).where(eq(moduleCvCampaignTargets.campaignId, id));
   const rows = await db
     .select({
       target: moduleCvCampaignTargets,
@@ -427,9 +434,10 @@ app.get('/campaigns/:id/targets', async (c) => {
     })
     .from(moduleCvCampaignTargets)
     .innerJoin(eoEntities, eq(eoEntities.id, moduleCvCampaignTargets.eoId))
-    .where(eq(moduleCvCampaignTargets.campaignId, id));
+    .where(eq(moduleCvCampaignTargets.campaignId, id))
+    .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
-  return c.json(rows.map((r) => targetToSnake(r.target, r.eo)));
+  return c.json(paginatedResponse(rows.map((r) => targetToSnake(r.target, r.eo)), total, pagination));
 });
 
 // 7. POST /campaigns/:id/targets — Add targets
@@ -604,6 +612,7 @@ app.delete('/campaigns/:id/targets/:targetId', async (c) => {
 app.get('/campaigns/:id/responses', async (c) => {
   const { id } = c.req.param();
   const moduleId = c.req.param('moduleId') as string;
+  const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
   const [campaign] = await db
     .select()
@@ -622,6 +631,7 @@ app.get('/campaigns/:id/responses', async (c) => {
     );
   if (!surveyType) return c.json({ error: 'Campagne introuvable' }, 404);
 
+  const [{ total }] = await db.select({ total: count() }).from(moduleCvResponses).where(eq(moduleCvResponses.campaignId, id));
   const rows = await db
     .select({
       response: moduleCvResponses,
@@ -632,15 +642,20 @@ app.get('/campaigns/:id/responses', async (c) => {
     .from(moduleCvResponses)
     .innerJoin(eoEntities, eq(eoEntities.id, moduleCvResponses.eoId))
     .innerJoin(moduleCvStatuses, eq(moduleCvStatuses.id, moduleCvResponses.statusId))
-    .where(eq(moduleCvResponses.campaignId, id));
+    .where(eq(moduleCvResponses.campaignId, id))
+    .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
   return c.json(
-    rows.map((r) =>
-      responseToSnake(r.response, {
-        eo_name: r.eo_name,
-        status_name: r.status_name,
-        status_color: r.status_color,
-      })
+    paginatedResponse(
+      rows.map((r) =>
+        responseToSnake(r.response, {
+          eo_name: r.eo_name,
+          status_name: r.status_name,
+          status_color: r.status_color,
+        })
+      ),
+      total,
+      pagination
     )
   );
 });

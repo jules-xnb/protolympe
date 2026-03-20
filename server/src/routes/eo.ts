@@ -13,6 +13,7 @@ import {
 } from '../db/schema.js';
 import { eq, and, count } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireClientAccess } from '../middleware/client-access.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 import { getEditableFieldSlugs } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';

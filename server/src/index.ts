@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import authRouter from './routes/auth.js';
+import adminAuditRouter from './routes/admin-audit.js';
 import clientsRouter from './routes/clients.js';
 import integratorsRouter from './routes/integrators.js';
 import modulesRouter from './routes/modules.js';
@@ -33,6 +34,9 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 
 // Auth
 app.route('/api/auth', authRouter);
+
+// Admin audit log
+app.route('/api/admin/audit', adminAuditRouter);
 
 // Admin / Integrator management
 app.route('/api/clients', clientsRouter);

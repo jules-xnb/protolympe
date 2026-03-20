@@ -15,6 +15,7 @@ import {
 } from '../db/schema.js';
 import { eq, and, count } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireClientAccess } from '../middleware/client-access.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 import { getEditableFieldSlugs } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';
@@ -25,6 +26,7 @@ type Env = { Variables: { user: JwtPayload } };
 const profilesRouter = new Hono<Env>();
 
 profilesRouter.use('*', authMiddleware);
+profilesRouter.use('*', requireClientAccess());
 
 // ─── Profiles ───────────────────────────────────────────────────────────────
 
@@ -213,7 +215,12 @@ profilesRouter.patch('/:id/archive', async (c) => {
 
 // GET /clients/:clientId/profiles/:id/eos
 profilesRouter.get('/:id/eos', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+
+  const [profile] = await db.select({ id: clientProfiles.id }).from(clientProfiles)
+    .where(and(eq(clientProfiles.id, id), eq(clientProfiles.clientId, clientId)));
+  if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
 
   const result = await db
     .select({
@@ -240,7 +247,13 @@ const addEoSchema = z.object({
 
 // POST /clients/:clientId/profiles/:id/eos
 profilesRouter.post('/:id/eos', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+
+  const [profile] = await db.select({ id: clientProfiles.id }).from(clientProfiles)
+    .where(and(eq(clientProfiles.id, id), eq(clientProfiles.clientId, clientId)));
+  if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
+
   const body = await c.req.json();
   const parsed = addEoSchema.safeParse(body);
   if (!parsed.success) {
@@ -263,8 +276,13 @@ profilesRouter.post('/:id/eos', async (c) => {
 
 // DELETE /clients/:clientId/profiles/:id/eos/:eoId
 profilesRouter.delete('/:id/eos/:eoId', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const eoId = c.req.param('eoId');
+
+  const [profile] = await db.select({ id: clientProfiles.id }).from(clientProfiles)
+    .where(and(eq(clientProfiles.id, id), eq(clientProfiles.clientId, clientId)));
+  if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
 
   const [entry] = await db
     .delete(clientProfileEos)
@@ -282,7 +300,12 @@ profilesRouter.delete('/:id/eos/:eoId', async (c) => {
 
 // GET /clients/:clientId/profiles/:id/eo-groups
 profilesRouter.get('/:id/eo-groups', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+
+  const [profile] = await db.select({ id: clientProfiles.id }).from(clientProfiles)
+    .where(and(eq(clientProfiles.id, id), eq(clientProfiles.clientId, clientId)));
+  if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
 
   const result = await db
     .select({
@@ -306,7 +329,13 @@ const addEoGroupSchema = z.object({
 
 // POST /clients/:clientId/profiles/:id/eo-groups
 profilesRouter.post('/:id/eo-groups', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+
+  const [profile] = await db.select({ id: clientProfiles.id }).from(clientProfiles)
+    .where(and(eq(clientProfiles.id, id), eq(clientProfiles.clientId, clientId)));
+  if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
+
   const body = await c.req.json();
   const parsed = addEoGroupSchema.safeParse(body);
   if (!parsed.success) {
@@ -326,8 +355,13 @@ profilesRouter.post('/:id/eo-groups', async (c) => {
 
 // DELETE /clients/:clientId/profiles/:id/eo-groups/:groupId
 profilesRouter.delete('/:id/eo-groups/:groupId', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const groupId = c.req.param('groupId');
+
+  const [profile] = await db.select({ id: clientProfiles.id }).from(clientProfiles)
+    .where(and(eq(clientProfiles.id, id), eq(clientProfiles.clientId, clientId)));
+  if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
 
   const [entry] = await db
     .delete(clientProfileEoGroups)
@@ -345,7 +379,12 @@ profilesRouter.delete('/:id/eo-groups/:groupId', async (c) => {
 
 // GET /clients/:clientId/profiles/:id/module-roles
 profilesRouter.get('/:id/module-roles', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+
+  const [profile] = await db.select({ id: clientProfiles.id }).from(clientProfiles)
+    .where(and(eq(clientProfiles.id, id), eq(clientProfiles.clientId, clientId)));
+  if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
 
   const result = await db
     .select({
@@ -370,7 +409,13 @@ const addModuleRoleSchema = z.object({
 
 // POST /clients/:clientId/profiles/:id/module-roles
 profilesRouter.post('/:id/module-roles', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+
+  const [profile] = await db.select({ id: clientProfiles.id }).from(clientProfiles)
+    .where(and(eq(clientProfiles.id, id), eq(clientProfiles.clientId, clientId)));
+  if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
+
   const body = await c.req.json();
   const parsed = addModuleRoleSchema.safeParse(body);
   if (!parsed.success) {
@@ -390,8 +435,13 @@ profilesRouter.post('/:id/module-roles', async (c) => {
 
 // DELETE /clients/:clientId/profiles/:id/module-roles/:roleId
 profilesRouter.delete('/:id/module-roles/:roleId', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const roleId = c.req.param('roleId');
+
+  const [profile] = await db.select({ id: clientProfiles.id }).from(clientProfiles)
+    .where(and(eq(clientProfiles.id, id), eq(clientProfiles.clientId, clientId)));
+  if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
 
   const [entry] = await db
     .delete(clientProfileModuleRoles)
@@ -414,7 +464,12 @@ profilesRouter.delete('/:id/module-roles/:roleId', async (c) => {
 
 // GET /clients/:clientId/profiles/:id/users
 profilesRouter.get('/:id/users', async (c) => {
+  const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
+
+  const [profile] = await db.select({ id: clientProfiles.id }).from(clientProfiles)
+    .where(and(eq(clientProfiles.id, id), eq(clientProfiles.clientId, clientId)));
+  if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
 
   const result = await db
     .select({

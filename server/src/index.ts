@@ -3,18 +3,19 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import auth from './routes/auth.js';
+import authRouter from './routes/auth.js';
 import clientsRouter from './routes/clients.js';
 import integratorsRouter from './routes/integrators.js';
 import modulesRouter from './routes/modules.js';
-import moduleRolesRouter from './routes/module-roles.js';
-import modulePermissionsRouter from './routes/module-permissions.js';
-import organizationalEntitiesRouter from './routes/organizational-entities.js';
-import referentialsRouter from './routes/referentials.js';
-import profileTemplatesRouter from './routes/profile-templates.js';
-import clientUsersRouter from './routes/client-users.js';
+import eoRouter from './routes/eo.js';
+import profilesRouter from './routes/profiles.js';
+import usersRouter from './routes/users.js';
+import listsRouter from './routes/lists.js';
 import designRouter from './routes/design.js';
 import translationsRouter from './routes/translations.js';
+import cvConfigRouter from './routes/cv-config.js';
+import cvCampaignsRouter from './routes/cv-campaigns.js';
+import displayConfigsRouter from './routes/display-configs.js';
 
 const app = new Hono();
 
@@ -30,20 +31,30 @@ app.use(
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
-// Routes
-app.route('/api/auth', auth);
+// Auth
+app.route('/api/auth', authRouter);
+
+// Admin / Integrator management
 app.route('/api/clients', clientsRouter);
 app.route('/api/integrators', integratorsRouter);
-app.route('/api/modules', modulesRouter);
-app.route('/api/module-roles', moduleRolesRouter);
-app.route('/api/module-permissions', modulePermissionsRouter);
-app.route('/api/organizational-entities', organizationalEntitiesRouter);
-app.route('/api/referentials', referentialsRouter);
-app.route('/api/listes', referentialsRouter);
-app.route('/api/profile-templates', profileTemplatesRouter);
-app.route('/api/client-users', clientUsersRouter);
-app.route('/api/design', designRouter);
-app.route('/api/translations', translationsRouter);
+
+// Modules (mounted under /api for flexibility — routes handle their own prefixes)
+app.route('/api', modulesRouter);
+
+// Socle — scoped by client
+app.route('/api/clients/:clientId/eo', eoRouter);
+app.route('/api/clients/:clientId/profiles', profilesRouter);
+app.route('/api/clients/:clientId/users', usersRouter);
+app.route('/api/clients/:clientId/lists', listsRouter);
+app.route('/api/clients/:clientId/design', designRouter);
+app.route('/api/clients/:clientId/translations', translationsRouter);
+
+// Module CV
+app.route('/api/modules/:moduleId/cv', cvConfigRouter);
+app.route('/api/modules/:moduleId/cv', cvCampaignsRouter);
+
+// Display configs (all modules)
+app.route('/api/modules/:moduleId', displayConfigsRouter);
 
 const port = Number(process.env.PORT) || 3001;
 

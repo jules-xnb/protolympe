@@ -1,136 +1,474 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { clientModules } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import {
+  clientModules,
+  moduleRoles,
+  modulePermissions,
+  clientProfileUsers,
+  clientProfileModuleRoles,
+} from '../db/schema.js';
+import { eq, and, inArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { toSnakeCase } from '../lib/case-transform.js';
-import { MODULE_CATALOG } from '../lib/module-catalog.js';
+import type { JwtPayload } from '../lib/jwt.js';
 
-const modulesRouter = new Hono();
+type Env = { Variables: { user: JwtPayload } };
+
+const modulesRouter = new Hono<Env>();
 
 modulesRouter.use('*', authMiddleware);
 
-// GET /modules/catalog — return the full module catalog
-modulesRouter.get('/catalog', (c) => {
-  return c.json(MODULE_CATALOG);
-});
+// =============================================
+// Module activation — /clients/:clientId/modules
+// =============================================
 
-// GET /modules?client_id=X — list all client_modules for a given client
-modulesRouter.get('/', async (c) => {
-  const clientId = c.req.query('client_id');
+// GET /clients/:clientId/modules
+// Admin/integrator: all modules for the client.
+// client_user: only modules where they have a role via profiles.
+modulesRouter.get('/clients/:clientId/modules', async (c) => {
+  const { clientId } = c.req.param();
+  const user = c.get('user');
+  const persona = user.persona;
 
-  if (!clientId) {
-    return c.json({ error: 'Le paramètre client_id est requis' }, 400);
+  if (persona === 'client_user') {
+    const userId = user.sub;
+
+    // 1. Get all profiles the user belongs to
+    const profileRows = await db
+      .select({ profileId: clientProfileUsers.profileId })
+      .from(clientProfileUsers)
+      .where(eq(clientProfileUsers.userId, userId));
+
+    const profileIds = profileRows.map((r) => r.profileId);
+
+    if (profileIds.length === 0) {
+      return c.json([]);
+    }
+
+    // 2. Get all module role assignments for those profiles
+    const moduleRoleRows = await db
+      .select({ moduleRoleId: clientProfileModuleRoles.moduleRoleId })
+      .from(clientProfileModuleRoles)
+      .where(inArray(clientProfileModuleRoles.profileId, profileIds));
+
+    const moduleRoleIds = moduleRoleRows.map((r) => r.moduleRoleId);
+
+    if (moduleRoleIds.length === 0) {
+      return c.json([]);
+    }
+
+    // 3. Get client_module_ids from those module roles
+    const roleRows = await db
+      .select({ clientModuleId: moduleRoles.clientModuleId })
+      .from(moduleRoles)
+      .where(inArray(moduleRoles.id, moduleRoleIds));
+
+    const clientModuleIds = [...new Set(roleRows.map((r) => r.clientModuleId))];
+
+    if (clientModuleIds.length === 0) {
+      return c.json([]);
+    }
+
+    // 4. Return those client modules
+    const modules = await db
+      .select()
+      .from(clientModules)
+      .where(
+        and(
+          eq(clientModules.clientId, clientId),
+          inArray(clientModules.id, clientModuleIds),
+        ),
+      )
+      .orderBy(clientModules.displayOrder);
+
+    return c.json(toSnakeCase(modules));
   }
 
-  const result = await db
-    .select()
-    .from(clientModules)
-    .where(eq(clientModules.clientId, clientId))
-    .orderBy(clientModules.createdAt);
+  // Admin / integrator: return all modules for the client
+  if (
+    persona === 'admin_delta' ||
+    persona === 'integrator_delta' ||
+    persona === 'integrator_external'
+  ) {
+    const modules = await db
+      .select()
+      .from(clientModules)
+      .where(eq(clientModules.clientId, clientId))
+      .orderBy(clientModules.displayOrder);
 
-  return c.json(toSnakeCase(result));
-});
-
-// GET /modules/:id — get a single client_module by id, merged with catalog info
-modulesRouter.get('/:id', async (c) => {
-  const id = c.req.param('id');
-
-  const [mod] = await db
-    .select()
-    .from(clientModules)
-    .where(eq(clientModules.id, id));
-
-  if (!mod) {
-    return c.json({ error: 'Module introuvable' }, 404);
+    return c.json(toSnakeCase(modules));
   }
 
-  const catalogEntry = MODULE_CATALOG[mod.moduleSlug] || null;
-
-  return c.json({
-    ...toSnakeCase(mod),
-    catalog: catalogEntry,
-  });
+  return c.json({ error: 'Accès refusé' }, 403);
 });
 
-const createSchema = z.object({
-  clientId: z.string().uuid(),
-  moduleSlug: z.string().min(1),
+const activateModuleSchema = z.object({
+  module_slug: z.string().min(1),
 });
 
-// POST /modules — activate a module for a client
-modulesRouter.post('/', async (c) => {
+// POST /clients/:clientId/modules — activate a module for a client
+modulesRouter.post('/clients/:clientId/modules', async (c) => {
+  const user = c.get('user');
+  const persona = user.persona;
+
+  if (
+    persona !== 'admin_delta' &&
+    persona !== 'integrator_delta' &&
+    persona !== 'integrator_external'
+  ) {
+    return c.json({ error: 'Accès refusé' }, 403);
+  }
+
+  const { clientId } = c.req.param();
   const body = await c.req.json();
-  const parsed = createSchema.safeParse(body);
+  const parsed = activateModuleSchema.safeParse(body);
+
   if (!parsed.success) {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
   }
 
-  const { clientId, moduleSlug } = parsed.data;
+  const { module_slug } = parsed.data;
 
-  if (!MODULE_CATALOG[moduleSlug]) {
-    return c.json({ error: `Module "${moduleSlug}" introuvable dans le catalogue` }, 400);
-  }
-
-  const [mod] = await db
+  const [clientModule] = await db
     .insert(clientModules)
     .values({
       clientId,
-      moduleSlug,
+      moduleSlug: module_slug,
     })
     .returning();
 
-  return c.json(toSnakeCase(mod), 201);
+  return c.json(toSnakeCase(clientModule), 201);
 });
 
-const updateSchema = z.object({
-  config: z.any().optional(),
+const updateModuleSchema = z.object({
   is_active: z.boolean().optional(),
+  display_order: z.number().int().optional(),
 });
 
-// PATCH /modules/:id — update config or is_active
-modulesRouter.patch('/:id', async (c) => {
-  const id = c.req.param('id');
+// PATCH /clients/:clientId/modules/:id — update a module (is_active, display_order)
+modulesRouter.patch('/clients/:clientId/modules/:id', async (c) => {
+  const user = c.get('user');
+  const persona = user.persona;
+
+  if (
+    persona !== 'admin_delta' &&
+    persona !== 'integrator_delta' &&
+    persona !== 'integrator_external'
+  ) {
+    return c.json({ error: 'Accès refusé' }, 403);
+  }
+
+  const { clientId, id } = c.req.param();
   const body = await c.req.json();
-  const parsed = updateSchema.safeParse(body);
+  const parsed = updateModuleSchema.safeParse(body);
+
   if (!parsed.success) {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
   }
 
-  const { config, is_active } = parsed.data;
+  const { is_active, display_order } = parsed.data;
 
-  const [mod] = await db
+  const [updated] = await db
     .update(clientModules)
     .set({
-      ...(config !== undefined && { config }),
       ...(is_active !== undefined && { isActive: is_active }),
+      ...(display_order !== undefined && { displayOrder: display_order }),
       updatedAt: new Date(),
     })
-    .where(eq(clientModules.id, id))
+    .where(and(eq(clientModules.id, id), eq(clientModules.clientId, clientId)))
     .returning();
 
-  if (!mod) {
+  if (!updated) {
     return c.json({ error: 'Module introuvable' }, 404);
   }
 
-  return c.json(toSnakeCase(mod));
+  return c.json(toSnakeCase(updated));
 });
 
-// DELETE /modules/:id — remove a client_module
-modulesRouter.delete('/:id', async (c) => {
-  const id = c.req.param('id');
+const reorderModulesSchema = z.object({
+  module_ids: z.array(z.string().uuid()).min(1),
+});
 
-  const [mod] = await db
-    .delete(clientModules)
-    .where(eq(clientModules.id, id))
-    .returning();
+// PATCH /clients/:clientId/modules/reorder — reorder modules
+modulesRouter.patch('/clients/:clientId/modules/reorder', async (c) => {
+  const user = c.get('user');
+  const persona = user.persona;
 
-  if (!mod) {
-    return c.json({ error: 'Module introuvable' }, 404);
+  if (
+    persona !== 'admin_delta' &&
+    persona !== 'integrator_delta' &&
+    persona !== 'integrator_external'
+  ) {
+    return c.json({ error: 'Accès refusé' }, 403);
   }
 
+  const { clientId } = c.req.param();
+  const body = await c.req.json();
+  const parsed = reorderModulesSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+  }
+
+  const { module_ids } = parsed.data;
+
+  await Promise.all(
+    module_ids.map((moduleId, index) =>
+      db
+        .update(clientModules)
+        .set({ displayOrder: index, updatedAt: new Date() })
+        .where(and(eq(clientModules.id, moduleId), eq(clientModules.clientId, clientId))),
+    ),
+  );
+
   return c.json({ success: true });
+});
+
+// =============================================
+// Roles — /modules/:moduleId/roles
+// =============================================
+
+// GET /modules/:moduleId/roles — list roles for a module
+modulesRouter.get('/modules/:moduleId/roles', async (c) => {
+  const user = c.get('user');
+  const persona = user.persona;
+
+  if (
+    persona !== 'admin_delta' &&
+    persona !== 'integrator_delta' &&
+    persona !== 'integrator_external'
+  ) {
+    return c.json({ error: 'Accès refusé' }, 403);
+  }
+
+  const { moduleId } = c.req.param();
+
+  const roles = await db
+    .select()
+    .from(moduleRoles)
+    .where(eq(moduleRoles.clientModuleId, moduleId))
+    .orderBy(moduleRoles.createdAt);
+
+  return c.json(toSnakeCase(roles));
+});
+
+const createRoleSchema = z.object({
+  name: z.string().min(1),
+  color: z.string().optional(),
+  description: z.string().optional(),
+});
+
+// POST /modules/:moduleId/roles — create a role for a module
+modulesRouter.post('/modules/:moduleId/roles', async (c) => {
+  const user = c.get('user');
+  const persona = user.persona;
+
+  if (
+    persona !== 'admin_delta' &&
+    persona !== 'integrator_delta' &&
+    persona !== 'integrator_external'
+  ) {
+    return c.json({ error: 'Accès refusé' }, 403);
+  }
+
+  const { moduleId } = c.req.param();
+  const body = await c.req.json();
+  const parsed = createRoleSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+  }
+
+  const { name, color, description } = parsed.data;
+
+  const [role] = await db
+    .insert(moduleRoles)
+    .values({
+      clientModuleId: moduleId,
+      name,
+      ...(color !== undefined && { color }),
+      ...(description !== undefined && { description }),
+    })
+    .returning();
+
+  return c.json(toSnakeCase(role), 201);
+});
+
+const updateRoleSchema = z.object({
+  name: z.string().min(1).optional(),
+  color: z.string().optional(),
+  description: z.string().optional(),
+  is_active: z.boolean().optional(),
+});
+
+// PATCH /modules/:moduleId/roles/:id — update a role
+modulesRouter.patch('/modules/:moduleId/roles/:id', async (c) => {
+  const user = c.get('user');
+  const persona = user.persona;
+
+  if (
+    persona !== 'admin_delta' &&
+    persona !== 'integrator_delta' &&
+    persona !== 'integrator_external'
+  ) {
+    return c.json({ error: 'Accès refusé' }, 403);
+  }
+
+  const { moduleId, id } = c.req.param();
+  const body = await c.req.json();
+  const parsed = updateRoleSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+  }
+
+  const { name, color, description, is_active } = parsed.data;
+
+  const [role] = await db
+    .update(moduleRoles)
+    .set({
+      ...(name !== undefined && { name }),
+      ...(color !== undefined && { color }),
+      ...(description !== undefined && { description }),
+      ...(is_active !== undefined && { isActive: is_active }),
+    })
+    .where(and(eq(moduleRoles.id, id), eq(moduleRoles.clientModuleId, moduleId)))
+    .returning();
+
+  if (!role) {
+    return c.json({ error: 'Rôle introuvable' }, 404);
+  }
+
+  return c.json(toSnakeCase(role));
+});
+
+// PATCH /modules/:moduleId/roles/:id/deactivate — deactivate a role
+modulesRouter.patch('/modules/:moduleId/roles/:id/deactivate', async (c) => {
+  const user = c.get('user');
+  const persona = user.persona;
+
+  if (
+    persona !== 'admin_delta' &&
+    persona !== 'integrator_delta' &&
+    persona !== 'integrator_external'
+  ) {
+    return c.json({ error: 'Accès refusé' }, 403);
+  }
+
+  const { moduleId, id } = c.req.param();
+
+  const [role] = await db
+    .update(moduleRoles)
+    .set({ isActive: false })
+    .where(and(eq(moduleRoles.id, id), eq(moduleRoles.clientModuleId, moduleId)))
+    .returning();
+
+  if (!role) {
+    return c.json({ error: 'Rôle introuvable' }, 404);
+  }
+
+  return c.json(toSnakeCase(role));
+});
+
+// =============================================
+// Permissions — /modules/:moduleId/permissions
+// =============================================
+
+// GET /modules/:moduleId/permissions — list all permissions with grant status per role
+modulesRouter.get('/modules/:moduleId/permissions', async (c) => {
+  const user = c.get('user');
+  const persona = user.persona;
+
+  if (
+    persona !== 'admin_delta' &&
+    persona !== 'integrator_delta' &&
+    persona !== 'integrator_external'
+  ) {
+    return c.json({ error: 'Accès refusé' }, 403);
+  }
+
+  const { moduleId } = c.req.param();
+
+  const permissions = await db
+    .select({
+      id: modulePermissions.id,
+      clientModuleId: modulePermissions.clientModuleId,
+      permissionSlug: modulePermissions.permissionSlug,
+      moduleRoleId: modulePermissions.moduleRoleId,
+      isGranted: modulePermissions.isGranted,
+      createdAt: modulePermissions.createdAt,
+      roleName: moduleRoles.name,
+      roleColor: moduleRoles.color,
+      roleIsActive: moduleRoles.isActive,
+    })
+    .from(modulePermissions)
+    .innerJoin(moduleRoles, eq(modulePermissions.moduleRoleId, moduleRoles.id))
+    .where(eq(modulePermissions.clientModuleId, moduleId))
+    .orderBy(moduleRoles.name, modulePermissions.permissionSlug);
+
+  return c.json(toSnakeCase(permissions));
+});
+
+const updatePermissionsSchema = z.object({
+  permissions: z
+    .array(
+      z.object({
+        module_role_id: z.string().uuid(),
+        permission_slug: z.string().min(1),
+        is_granted: z.boolean(),
+      }),
+    )
+    .min(1),
+});
+
+// PUT /modules/:moduleId/permissions — batch update permissions
+modulesRouter.put('/modules/:moduleId/permissions', async (c) => {
+  const user = c.get('user');
+  const persona = user.persona;
+
+  if (
+    persona !== 'admin_delta' &&
+    persona !== 'integrator_delta' &&
+    persona !== 'integrator_external'
+  ) {
+    return c.json({ error: 'Accès refusé' }, 403);
+  }
+
+  const { moduleId } = c.req.param();
+  const body = await c.req.json();
+  const parsed = updatePermissionsSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+  }
+
+  const { permissions } = parsed.data;
+
+  await Promise.all(
+    permissions.map(({ module_role_id, permission_slug, is_granted }) =>
+      db
+        .insert(modulePermissions)
+        .values({
+          clientModuleId: moduleId,
+          moduleRoleId: module_role_id,
+          permissionSlug: permission_slug,
+          isGranted: is_granted,
+        })
+        .onConflictDoUpdate({
+          target: [modulePermissions.moduleRoleId, modulePermissions.permissionSlug],
+          set: { isGranted: is_granted },
+        }),
+    ),
+  );
+
+  const updated = await db
+    .select()
+    .from(modulePermissions)
+    .where(eq(modulePermissions.clientModuleId, moduleId))
+    .orderBy(modulePermissions.permissionSlug);
+
+  return c.json(toSnakeCase(updated));
 });
 
 export default modulesRouter;

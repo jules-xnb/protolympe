@@ -1,21 +1,31 @@
 import { SignJWT, jwtVerify } from 'jose';
 
-const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'dev-secret');
-
-export interface JwtPayload {
-  sub: string; // user id
-  email: string;
+const secret = process.env.JWT_SECRET;
+if (!secret) {
+  throw new Error('JWT_SECRET environment variable is required');
 }
 
-export async function signToken(payload: JwtPayload): Promise<string> {
+const encodedSecret = new TextEncoder().encode(secret);
+
+export interface JwtPayload {
+  sub: string;
+  email: string;
+  persona: string;
+}
+
+export async function signAccessToken(payload: JwtPayload): Promise<string> {
   return new SignJWT(payload as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d')
-    .sign(secret);
+    .setExpirationTime('15m')
+    .sign(encodedSecret);
 }
 
-export async function verifyToken(token: string): Promise<JwtPayload> {
-  const { payload } = await jwtVerify(token, secret);
-  return { sub: payload.sub as string, email: payload.email as string };
+export async function verifyAccessToken(token: string): Promise<JwtPayload> {
+  const { payload } = await jwtVerify(token, encodedSecret);
+  return {
+    sub: payload.sub as string,
+    email: payload.email as string,
+    persona: payload.persona as string,
+  };
 }

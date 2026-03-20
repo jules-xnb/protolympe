@@ -1,162 +1,402 @@
 import { Hono } from 'hono';
-import { z } from 'zod';
-import bcrypt from 'bcryptjs';
 import { db } from '../db/index.js';
-import { accounts } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
-import { signToken } from '../lib/jwt.js';
+import {
+  accounts,
+  refreshTokens,
+  passwordResetTokens,
+  clientSsoConfigs,
+  userClientMemberships,
+  integratorClientAssignments,
+} from '../db/schema.js';
+import { eq, and } from 'drizzle-orm';
+import { authMiddleware } from '../middleware/auth.js';
+import { signAccessToken } from '../lib/jwt.js';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import { z } from 'zod';
 
-const auth = new Hono();
+const router = new Hono();
 
-function userResponse(user: typeof accounts.$inferSelect) {
-  return {
-    id: user.id,
-    email: user.email,
-    first_name: user.firstName,
-    last_name: user.lastName,
-  };
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function generateRefreshToken(): string {
+  return crypto.randomBytes(64).toString('hex');
 }
 
-const signInSchema = z.object({
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+async function createRefreshToken(userId: string): Promise<string> {
+  const token = generateRefreshToken();
+  const tokenHash = hashToken(token);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+  await db.insert(refreshTokens).values({ userId, tokenHash, expiresAt });
+
+  return token;
+}
+
+// ---------------------------------------------------------------------------
+// POST /signin
+// ---------------------------------------------------------------------------
+
+const signinSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
 
-const signUpSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-});
-
-auth.post('/signin', async (c) => {
-  const body = await c.req.json();
-  const parsed = signInSchema.safeParse(body);
+router.post('/signin', async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = signinSchema.safeParse(body);
   if (!parsed.success) {
     return c.json({ error: 'Email et mot de passe requis' }, 400);
   }
 
   const { email, password } = parsed.data;
 
-  const [user] = await db
+  const [account] = await db
     .select()
     .from(accounts)
-    .where(eq(accounts.email, email.toLowerCase()));
+    .where(eq(accounts.email, email))
+    .limit(1);
 
-  if (!user) {
-    return c.json({ error: 'Email ou mot de passe incorrect' }, 401);
+  if (!account) {
+    return c.json({ error: 'Identifiants invalides' }, 401);
   }
 
-  if (!user.passwordHash) {
+  if (!account.passwordHash) {
     return c.json({ error: 'Connexion par mot de passe non disponible pour ce compte' }, 401);
   }
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) {
-    return c.json({ error: 'Email ou mot de passe incorrect' }, 401);
+
+  const passwordValid = await bcrypt.compare(password, account.passwordHash);
+  if (!passwordValid) {
+    return c.json({ error: 'Identifiants invalides' }, 401);
   }
 
-  const token = await signToken({ sub: user.id, email: user.email });
+  const accessToken = await signAccessToken({
+    sub: account.id,
+    email: account.email,
+    persona: account.persona,
+  });
 
-  return c.json({ token, user: userResponse(user) });
+  const refreshToken = await createRefreshToken(account.id);
+
+  return c.json({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    token_type: 'Bearer',
+  });
 });
 
-auth.post('/signup', async (c) => {
-  const body = await c.req.json();
-  const parsed = signUpSchema.safeParse(body);
+// ---------------------------------------------------------------------------
+// POST /refresh
+// ---------------------------------------------------------------------------
+
+const refreshSchema = z.object({
+  refresh_token: z.string().min(1),
+});
+
+router.post('/refresh', async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = refreshSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+    return c.json({ error: 'refresh_token requis' }, 400);
   }
 
-  const { email, password, firstName, lastName } = parsed.data;
+  const { refresh_token } = parsed.data;
+  const tokenHash = hashToken(refresh_token);
+  const now = new Date();
 
-  const existing = await db
-    .select({ id: accounts.id })
+  const [stored] = await db
+    .select()
+    .from(refreshTokens)
+    .where(eq(refreshTokens.tokenHash, tokenHash))
+    .limit(1);
+
+  if (!stored) {
+    return c.json({ error: 'Token invalide' }, 401);
+  }
+
+  if (stored.expiresAt < now) {
+    await db.delete(refreshTokens).where(eq(refreshTokens.id, stored.id));
+    return c.json({ error: 'Token expiré' }, 401);
+  }
+
+  // Fetch account
+  const [account] = await db
+    .select()
     .from(accounts)
-    .where(eq(accounts.email, email.toLowerCase()));
+    .where(eq(accounts.id, stored.userId))
+    .limit(1);
 
-  if (existing.length > 0) {
-    return c.json({ error: 'Un compte existe déjà avec cet email' }, 409);
+  if (!account) {
+    return c.json({ error: 'Compte introuvable' }, 401);
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  // Token rotation: delete old, create new
+  await db.delete(refreshTokens).where(eq(refreshTokens.id, stored.id));
 
-  const [user] = await db
-    .insert(accounts)
-    .values({
-      email: email.toLowerCase(),
-      passwordHash,
-      firstName: firstName || null,
-      lastName: lastName || null,
-      persona: 'admin_delta',
-    })
-    .returning();
+  const accessToken = await signAccessToken({
+    sub: account.id,
+    email: account.email,
+    persona: account.persona,
+  });
 
-  const token = await signToken({ sub: user.id, email: user.email });
+  const newRefreshToken = await createRefreshToken(account.id);
 
-  return c.json({ token, user: userResponse(user) });
+  return c.json({
+    access_token: accessToken,
+    refresh_token: newRefreshToken,
+    token_type: 'Bearer',
+  });
 });
 
-const updatePasswordSchema = z.object({
-  password: z.string().min(6),
-});
+// ---------------------------------------------------------------------------
+// POST /signout  (authenticated)
+// ---------------------------------------------------------------------------
 
-auth.post('/update-password', async (c) => {
-  const header = c.req.header('Authorization');
-  if (!header?.startsWith('Bearer ')) {
-    return c.json({ error: 'Non authentifié' }, 401);
+router.post('/signout', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = refreshSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'refresh_token requis' }, 400);
   }
 
-  try {
-    const { verifyToken } = await import('../lib/jwt.js');
-    const payload = await verifyToken(header.slice(7));
+  const { refresh_token } = parsed.data;
+  const tokenHash = hashToken(refresh_token);
 
-    const body = await c.req.json();
-    const parsed = updatePasswordSchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json({ error: 'Le mot de passe doit contenir au moins 6 caractères' }, 400);
-    }
+  await db.delete(refreshTokens).where(eq(refreshTokens.tokenHash, tokenHash));
 
-    const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+  return c.json({ success: true });
+});
 
-    const [user] = await db
-      .update(accounts)
-      .set({ passwordHash })
-      .where(eq(accounts.id, payload.sub))
-      .returning();
+// ---------------------------------------------------------------------------
+// PATCH /password  (authenticated)
+// ---------------------------------------------------------------------------
 
-    if (!user) {
-      return c.json({ error: 'Utilisateur introuvable' }, 404);
-    }
+const changePasswordSchema = z.object({
+  old_password: z.string().min(1),
+  new_password: z.string().min(8),
+});
 
+router.patch('/password', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json().catch(() => null);
+  const parsed = changePasswordSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'old_password et new_password (min 8 caractères) requis' }, 400);
+  }
+
+  const { old_password, new_password } = parsed.data;
+
+  const [account] = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.id, user.sub))
+    .limit(1);
+
+  if (!account || !account.passwordHash) {
+    return c.json({ error: 'Compte introuvable ou connexion par mot de passe non disponible' }, 400);
+  }
+
+  const passwordValid = await bcrypt.compare(old_password, account.passwordHash);
+  if (!passwordValid) {
+    return c.json({ error: 'Ancien mot de passe incorrect' }, 401);
+  }
+
+  const newHash = await bcrypt.hash(new_password, 12);
+
+  await db
+    .update(accounts)
+    .set({ passwordHash: newHash, updatedAt: new Date() })
+    .where(eq(accounts.id, user.sub));
+
+  return c.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// POST /forgot-password
+// ---------------------------------------------------------------------------
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+router.post('/forgot-password', async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = forgotPasswordSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'Email valide requis' }, 400);
+  }
+
+  const { email } = parsed.data;
+
+  const [account] = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.email, email))
+    .limit(1);
+
+  if (!account) {
+    // Don't leak whether the email exists
     return c.json({ success: true });
-  } catch {
-    return c.json({ error: 'Token invalide' }, 401);
   }
+
+  const token = generateRefreshToken(); // reuse same random bytes helper
+  const tokenHash = hashToken(token);
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  await db.insert(passwordResetTokens).values({
+    userId: account.id,
+    tokenHash,
+    expiresAt,
+  });
+
+  // In production: send email with token
+  return c.json({ success: true, token });
 });
 
-auth.get('/me', async (c) => {
-  const header = c.req.header('Authorization');
-  if (!header?.startsWith('Bearer ')) {
-    return c.json({ error: 'Non authentifié' }, 401);
-  }
+// ---------------------------------------------------------------------------
+// POST /reset-password
+// ---------------------------------------------------------------------------
 
-  try {
-    const { verifyToken } = await import('../lib/jwt.js');
-    const payload = await verifyToken(header.slice(7));
-
-    const [user] = await db
-      .select()
-      .from(accounts)
-      .where(eq(accounts.id, payload.sub));
-
-    if (!user) {
-      return c.json({ error: 'Utilisateur introuvable' }, 404);
-    }
-
-    return c.json({ user: userResponse(user) });
-  } catch {
-    return c.json({ error: 'Token invalide' }, 401);
-  }
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  new_password: z.string().min(8),
 });
 
-export default auth;
+router.post('/reset-password', async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = resetPasswordSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'token et new_password (min 8 caractères) requis' }, 400);
+  }
+
+  const { token, new_password } = parsed.data;
+  const tokenHash = hashToken(token);
+  const now = new Date();
+
+  const [stored] = await db
+    .select()
+    .from(passwordResetTokens)
+    .where(eq(passwordResetTokens.tokenHash, tokenHash))
+    .limit(1);
+
+  if (!stored) {
+    return c.json({ error: 'Token invalide' }, 400);
+  }
+
+  if (stored.expiresAt < now) {
+    return c.json({ error: 'Token expiré' }, 400);
+  }
+
+  if (stored.usedAt !== null) {
+    return c.json({ error: 'Token déjà utilisé' }, 400);
+  }
+
+  const newHash = await bcrypt.hash(new_password, 12);
+
+  await db
+    .update(accounts)
+    .set({ passwordHash: newHash, updatedAt: new Date() })
+    .where(eq(accounts.id, stored.userId));
+
+  await db
+    .update(passwordResetTokens)
+    .set({ usedAt: new Date() })
+    .where(eq(passwordResetTokens.id, stored.id));
+
+  return c.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// GET /me  (authenticated)
+// ---------------------------------------------------------------------------
+
+router.get('/me', authMiddleware, async (c) => {
+  const user = c.get('user');
+
+  const [account] = await db
+    .select({
+      id: accounts.id,
+      email: accounts.email,
+      firstName: accounts.firstName,
+      lastName: accounts.lastName,
+      persona: accounts.persona,
+      createdAt: accounts.createdAt,
+    })
+    .from(accounts)
+    .where(eq(accounts.id, user.sub))
+    .limit(1);
+
+  if (!account) {
+    return c.json({ error: 'Compte introuvable' }, 404);
+  }
+
+  let clientIds: string[] = [];
+
+  if (account.persona === 'client_user') {
+    const memberships = await db
+      .select({ clientId: userClientMemberships.clientId })
+      .from(userClientMemberships)
+      .where(
+        and(
+          eq(userClientMemberships.userId, account.id),
+          eq(userClientMemberships.isActive, true)
+        )
+      );
+    clientIds = memberships.map((m) => m.clientId);
+  } else if (
+    account.persona === 'integrator_delta' ||
+    account.persona === 'integrator_external'
+  ) {
+    const assignments = await db
+      .select({ clientId: integratorClientAssignments.clientId })
+      .from(integratorClientAssignments)
+      .where(eq(integratorClientAssignments.userId, account.id));
+    clientIds = assignments.map((a) => a.clientId);
+  }
+
+  return c.json({
+    id: account.id,
+    email: account.email,
+    first_name: account.firstName,
+    last_name: account.lastName,
+    persona: account.persona,
+    created_at: account.createdAt,
+    client_ids: clientIds,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /sso/:clientId/check  (public)
+// ---------------------------------------------------------------------------
+
+router.get('/sso/:clientId/check', async (c) => {
+  const clientId = c.req.param('clientId');
+
+  const [config] = await db
+    .select({
+      provider: clientSsoConfigs.provider,
+      isEnabled: clientSsoConfigs.isEnabled,
+    })
+    .from(clientSsoConfigs)
+    .where(
+      and(
+        eq(clientSsoConfigs.clientId, clientId),
+        eq(clientSsoConfigs.isEnabled, true)
+      )
+    )
+    .limit(1);
+
+  if (!config) {
+    return c.json({ enabled: false, provider: null });
+  }
+
+  return c.json({ enabled: true, provider: config.provider });
+});
+
+export default router;

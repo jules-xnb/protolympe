@@ -1,5 +1,5 @@
 import { createMiddleware } from 'hono/factory';
-import { verifyToken, type JwtPayload } from '../lib/jwt.js';
+import { verifyAccessToken, type JwtPayload } from '../lib/jwt.js';
 
 type Env = {
   Variables: {
@@ -10,15 +10,15 @@ type Env = {
 export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   const header = c.req.header('Authorization');
   if (!header?.startsWith('Bearer ')) {
-    return c.json({ error: 'Missing or invalid authorization header' }, 401);
+    return c.json({ error: 'En-tête d\'autorisation manquant ou invalide' }, 401);
   }
 
   try {
     const token = header.slice(7);
-    const payload = await verifyToken(token);
+    const payload = await verifyAccessToken(token);
     c.set('user', payload);
     await next();
   } catch {
-    return c.json({ error: 'Invalid or expired token' }, 401);
+    return c.json({ error: 'Token invalide ou expiré' }, 401);
   }
 });

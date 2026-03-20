@@ -1,274 +1,305 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { eq, and, or } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { db } from '../db/index.js';
 import {
   accounts,
-  integratorClientAssignments,
   clients,
+  integratorClientAssignments,
 } from '../db/schema.js';
-import { eq, inArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
-import { adminMiddleware } from '../middleware/admin.js';
-import { toSnakeCase } from '../lib/case-transform.js';
 import type { JwtPayload } from '../lib/jwt.js';
 
-type Env = {
-  Variables: {
-    user: JwtPayload;
-  };
-};
+type Env = { Variables: { user: JwtPayload } };
 
-function profileSelect() {
-  return {
-    id: accounts.id,
-    first_name: accounts.firstName,
-    last_name: accounts.lastName,
-    email: accounts.email,
-  };
-}
+const app = new Hono<Env>();
 
-const integratorsRouter = new Hono<Env>();
+app.use('*', authMiddleware);
 
-integratorsRouter.use('*', authMiddleware);
-integratorsRouter.use('*', adminMiddleware);
+// ─── Schemas ─────────────────────────────────────────────────────────────────
 
-// GET /integrators — list all integrators (admin_delta + integrator_delta)
-integratorsRouter.get('/', async (c) => {
+const inviteIntegratorSchema = z.object({
+  email: z.string().email(),
+  first_name: z.string().min(1),
+  last_name: z.string().min(1),
+  persona: z.enum(['integrator_delta', 'integrator_external']),
+});
+
+const updateIntegratorSchema = z.object({
+  persona: z.enum(['integrator_delta', 'integrator_external']).optional(),
+  first_name: z.string().min(1).optional(),
+  last_name: z.string().min(1).optional(),
+});
+
+const assignClientSchema = z.object({
+  client_id: z.string().uuid(),
+});
+
+// ─── GET / ───────────────────────────────────────────────────────────────────
+
+app.get('/', async (c) => {
+  const user = c.get('user');
+  if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
+
   const rows = await db
-    .select({
-      id: accounts.id,
-      userId: accounts.id,
-      persona: accounts.persona,
-      createdAt: accounts.createdAt,
-      first_name: accounts.firstName,
-      last_name: accounts.lastName,
-      email: accounts.email,
-    })
+    .select()
     .from(accounts)
     .where(
-      inArray(accounts.persona, ['admin_delta', 'integrator_delta'])
+      or(
+        eq(accounts.persona, 'integrator_delta'),
+        eq(accounts.persona, 'integrator_external')
+      )
     )
-    .orderBy(accounts.createdAt);
+    .orderBy(accounts.lastName, accounts.firstName);
 
-  const result = rows.map((row) => ({
-    id: row.id,
-    user_id: row.userId,
-    persona: row.persona,
-    created_at: row.createdAt,
-    profiles: {
-      id: row.id,
-      first_name: row.first_name,
-      last_name: row.last_name,
-      email: row.email,
-    },
-  }));
-
-  return c.json(result);
+  return c.json(rows.map(accountToSnake));
 });
 
-// GET /integrators/assignments — list all integrator-client assignments
-integratorsRouter.get('/assignments', async (c) => {
-  const assignments = await db
-    .select()
-    .from(integratorClientAssignments)
-    .orderBy(integratorClientAssignments.createdAt);
+// ─── POST /invite ─────────────────────────────────────────────────────────────
 
-  if (assignments.length === 0) return c.json([]);
+app.post('/invite', async (c) => {
+  const user = c.get('user');
+  if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
-  const userIds = [...new Set(assignments.map((a) => a.userId))];
-  const clientIds = [...new Set(assignments.map((a) => a.clientId))];
-
-  const [userProfiles, clientList] = await Promise.all([
-    db
-      .select(profileSelect())
-      .from(accounts)
-      .where(inArray(accounts.id, userIds)),
-    db
-      .select()
-      .from(clients)
-      .where(inArray(clients.id, clientIds)),
-  ]);
-
-  const result = toSnakeCase(assignments).map((a: Record<string, unknown>) => ({
-    ...a,
-    profiles: userProfiles.find((p) => p.id === a.user_id) || null,
-    clients: toSnakeCase(clientList.find((cl) => cl.id === a.client_id)) || null,
-  }));
-
-  return c.json(result);
-});
-
-// GET /integrators/users-without-role — users with no system persona (end users)
-integratorsRouter.get('/users-without-role', async (c) => {
-  const allProfiles = await db
-    .select({
-      ...profileSelect(),
-      created_at: accounts.createdAt,
-      persona: accounts.persona,
-    })
-    .from(accounts)
-    .orderBy(accounts.createdAt);
-
-  const result = allProfiles.filter(
-    (p) => p.persona !== 'admin_delta' && p.persona !== 'integrator_delta'
-  );
-
-  return c.json(result);
-});
-
-// GET /integrators/is-admin — check if current user is admin
-integratorsRouter.get('/is-admin', async (c) => {
-  return c.json({ isAdmin: true });
-});
-
-const inviteSchema = z.object({
-  email: z.string().email(),
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  persona: z.enum(['admin_delta', 'integrator_delta']),
-});
-
-// POST /integrators/invite — create integrator account
-integratorsRouter.post('/invite', async (c) => {
-  const body = await c.req.json();
-  const parsed = inviteSchema.safeParse(body);
+  const rawBody = await c.req.json();
+  const parsed = inviteIntegratorSchema.safeParse(rawBody);
   if (!parsed.success) {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
   }
-
-  const { email, firstName, lastName, persona } = parsed.data;
-  const defaultPassword = process.env.DEFAULT_PASSWORD || 'Delta75002-@';
+  const body = parsed.data;
 
   const [existing] = await db
-    .select({ id: accounts.id })
+    .select()
     .from(accounts)
-    .where(eq(accounts.email, email.toLowerCase()));
-
-  let userId: string;
+    .where(eq(accounts.email, body.email));
 
   if (existing) {
-    userId = existing.id;
-    await db
-      .update(accounts)
-      .set({ persona })
-      .where(eq(accounts.id, userId));
-  } else {
-    const passwordHash = await bcrypt.hash(defaultPassword, 12);
-    const [newUser] = await db
-      .insert(accounts)
-      .values({
-        email: email.toLowerCase(),
-        passwordHash,
-        firstName,
-        lastName,
-        persona,
-      })
-      .returning();
-    userId = newUser.id;
+    return c.json({ error: 'Un compte avec cet email existe déjà' }, 409);
   }
 
-  return c.json({
-    success: true,
-    userId,
-    message: existing
-      ? "Rôle ajouté à l'utilisateur existant"
-      : 'Compte créé avec le mot de passe par défaut',
-  });
-});
+  const DEFAULT_PASSWORD = 'ChangeMe123!';
+  const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
 
-const assignSchema = z.object({
-  userId: z.string().uuid(),
-  clientId: z.string().uuid(),
-  persona: z.enum(['admin_delta', 'integrator_delta']),
-});
-
-// POST /integrators/assign — assign integrator to client
-integratorsRouter.post('/assign', async (c) => {
-  const body = await c.req.json();
-  const parsed = assignSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ error: 'Données invalides' }, 400);
-  }
-
-  const currentUser = c.get('user');
-
-  const [assignment] = await db
-    .insert(integratorClientAssignments)
+  const [created] = await db
+    .insert(accounts)
     .values({
-      ...parsed.data,
-      assignedBy: currentUser.sub,
+      email: body.email,
+      firstName: body.first_name,
+      lastName: body.last_name,
+      persona: body.persona,
+      passwordHash,
     })
     .returning();
 
-  return c.json(toSnakeCase(assignment), 201);
+  return c.json(accountToSnake(created), 201);
 });
 
-// DELETE /integrators/assignments/:id — remove assignment
-integratorsRouter.delete('/assignments/:id', async (c) => {
-  const id = c.req.param('id');
+// ─── PATCH /:id ───────────────────────────────────────────────────────────────
 
-  const [deleted] = await db
-    .delete(integratorClientAssignments)
-    .where(eq(integratorClientAssignments.id, id))
-    .returning();
+app.patch('/:id', async (c) => {
+  const user = c.get('user');
+  if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
-  if (!deleted) {
-    return c.json({ error: 'Assignation introuvable' }, 404);
-  }
+  const { id } = c.req.param();
 
-  return c.json({ success: true });
-});
-
-// DELETE /integrators/role/:userId — remove system persona + all assignments
-integratorsRouter.delete('/role/:userId', async (c) => {
-  const userId = c.req.param('userId');
-
-  const [profile] = await db
+  const [existing] = await db
     .select()
     .from(accounts)
-    .where(eq(accounts.id, userId));
+    .where(
+      and(
+        eq(accounts.id, id),
+        or(
+          eq(accounts.persona, 'integrator_delta'),
+          eq(accounts.persona, 'integrator_external')
+        )
+      )
+    );
 
-  if (!profile) {
-    return c.json({ error: 'Utilisateur introuvable' }, 404);
-  }
+  if (!existing) return c.json({ error: 'Intégrateur introuvable' }, 404);
 
-  await db
-    .delete(integratorClientAssignments)
-    .where(eq(integratorClientAssignments.userId, userId));
-
-  await db
-    .update(accounts)
-    .set({ persona: 'integrator_external' })
-    .where(eq(accounts.id, userId));
-
-  return c.json({ success: true });
-});
-
-const updatePersonaSchema = z.object({
-  persona: z.enum(['admin_delta', 'integrator_delta']),
-});
-
-// PATCH /integrators/role/:userId — update persona
-integratorsRouter.patch('/role/:userId', async (c) => {
-  const userId = c.req.param('userId');
-  const body = await c.req.json();
-  const parsed = updatePersonaSchema.safeParse(body);
+  const rawBody = await c.req.json();
+  const parsed = updateIntegratorSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return c.json({ error: 'Données invalides' }, 400);
+    return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
   }
+  const body = parsed.data;
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  if (body.persona !== undefined) updateData.persona = body.persona;
+  if (body.first_name !== undefined) updateData.firstName = body.first_name;
+  if (body.last_name !== undefined) updateData.lastName = body.last_name;
 
   const [updated] = await db
     .update(accounts)
-    .set({ persona: parsed.data.persona })
-    .where(eq(accounts.id, userId))
+    .set(updateData)
+    .where(eq(accounts.id, id))
     .returning();
 
-  if (!updated) {
-    return c.json({ error: 'Utilisateur introuvable' }, 404);
-  }
-
-  return c.json(toSnakeCase(updated));
+  return c.json(accountToSnake(updated));
 });
 
-export default integratorsRouter;
+// ─── GET /:id/clients ─────────────────────────────────────────────────────────
+
+app.get('/:id/clients', async (c) => {
+  const user = c.get('user');
+  if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
+
+  const { id } = c.req.param();
+
+  const [existing] = await db
+    .select()
+    .from(accounts)
+    .where(
+      and(
+        eq(accounts.id, id),
+        or(
+          eq(accounts.persona, 'integrator_delta'),
+          eq(accounts.persona, 'integrator_external')
+        )
+      )
+    );
+
+  if (!existing) return c.json({ error: 'Intégrateur introuvable' }, 404);
+
+  const rows = await db
+    .select({
+      assignment_id: integratorClientAssignments.id,
+      assigned_at: integratorClientAssignments.createdAt,
+      assigned_by: integratorClientAssignments.assignedBy,
+      client_id: clients.id,
+      client_name: clients.name,
+      client_is_active: clients.isActive,
+    })
+    .from(integratorClientAssignments)
+    .innerJoin(clients, eq(clients.id, integratorClientAssignments.clientId))
+    .where(eq(integratorClientAssignments.userId, id))
+    .orderBy(clients.name);
+
+  return c.json(rows);
+});
+
+// ─── POST /:id/clients ────────────────────────────────────────────────────────
+
+app.post('/:id/clients', async (c) => {
+  const user = c.get('user');
+  if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
+
+  const { id } = c.req.param();
+
+  const [integrator] = await db
+    .select()
+    .from(accounts)
+    .where(
+      and(
+        eq(accounts.id, id),
+        or(
+          eq(accounts.persona, 'integrator_delta'),
+          eq(accounts.persona, 'integrator_external')
+        )
+      )
+    );
+
+  if (!integrator) return c.json({ error: 'Intégrateur introuvable' }, 404);
+
+  const rawBody = await c.req.json();
+  const parsed = assignClientSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+  }
+  const body = parsed.data;
+
+  const [client] = await db
+    .select()
+    .from(clients)
+    .where(eq(clients.id, body.client_id));
+
+  if (!client) return c.json({ error: 'Client introuvable' }, 404);
+
+  const [alreadyAssigned] = await db
+    .select()
+    .from(integratorClientAssignments)
+    .where(
+      and(
+        eq(integratorClientAssignments.userId, id),
+        eq(integratorClientAssignments.clientId, body.client_id)
+      )
+    );
+
+  if (alreadyAssigned) {
+    return c.json({ error: 'Cet intégrateur est déjà assigné à ce client' }, 409);
+  }
+
+  const [created] = await db
+    .insert(integratorClientAssignments)
+    .values({
+      userId: id,
+      clientId: body.client_id,
+      assignedBy: user.sub,
+    })
+    .returning();
+
+  return c.json(
+    {
+      id: created.id,
+      user_id: created.userId,
+      client_id: created.clientId,
+      assigned_by: created.assignedBy,
+      created_at: created.createdAt,
+    },
+    201
+  );
+});
+
+// ─── DELETE /:id/clients/:clientId ────────────────────────────────────────────
+
+app.delete('/:id/clients/:clientId', async (c) => {
+  const user = c.get('user');
+  if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
+
+  const { id, clientId } = c.req.param();
+
+  const [existing] = await db
+    .select()
+    .from(accounts)
+    .where(
+      and(
+        eq(accounts.id, id),
+        or(
+          eq(accounts.persona, 'integrator_delta'),
+          eq(accounts.persona, 'integrator_external')
+        )
+      )
+    );
+
+  if (!existing) return c.json({ error: 'Intégrateur introuvable' }, 404);
+
+  const [deleted] = await db
+    .delete(integratorClientAssignments)
+    .where(
+      and(
+        eq(integratorClientAssignments.userId, id),
+        eq(integratorClientAssignments.clientId, clientId)
+      )
+    )
+    .returning();
+
+  if (!deleted) return c.json({ error: 'Assignation introuvable' }, 404);
+
+  return c.json({ success: true });
+});
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function accountToSnake(account: typeof accounts.$inferSelect) {
+  return {
+    id: account.id,
+    email: account.email,
+    first_name: account.firstName,
+    last_name: account.lastName,
+    persona: account.persona,
+    created_at: account.createdAt,
+    updated_at: account.updatedAt,
+  };
+}
+
+export default app;

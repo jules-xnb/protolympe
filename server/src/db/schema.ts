@@ -449,20 +449,64 @@ export const moduleCvFormFields = pgTable('module_cv_form_fields', {
   id: uuid('id').primaryKey().defaultRandom(),
   formId: uuid('form_id').notNull().references(() => moduleCvForms.id, { onDelete: 'cascade' }),
   fieldDefinitionId: uuid('field_definition_id').notNull().references(() => moduleCvFieldDefinitions.id, { onDelete: 'cascade' }),
-  displayOrder: integer('display_order').default(0).notNull(),
   isRequired: boolean('is_required').default(false).notNull(),
-  isVisible: boolean('is_visible').default(true).notNull(),
   visibilityConditions: jsonb('visibility_conditions'),
   conditionalColoring: jsonb('conditional_coloring'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const moduleCvFormFieldRoles = pgTable('module_cv_form_field_roles', {
+export const moduleCvFormDisplayConfigs = pgTable('module_cv_form_display_configs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  formFieldId: uuid('form_field_id').notNull().references(() => moduleCvFormFields.id, { onDelete: 'cascade' }),
+  formId: uuid('form_id').notNull().references(() => moduleCvForms.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const moduleCvFormDisplayConfigRoles = pgTable('module_cv_form_display_config_roles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  displayConfigId: uuid('display_config_id').notNull().references(() => moduleCvFormDisplayConfigs.id, { onDelete: 'cascade' }),
   moduleRoleId: uuid('module_role_id').notNull().references(() => moduleRoles.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const moduleCvFormDisplayConfigFields = pgTable('module_cv_form_display_config_fields', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  displayConfigId: uuid('display_config_id').notNull().references(() => moduleCvFormDisplayConfigs.id, { onDelete: 'cascade' }),
+  formFieldId: uuid('form_field_id').notNull().references(() => moduleCvFormFields.id, { onDelete: 'cascade' }),
   canView: boolean('can_view').default(false).notNull(),
   canEdit: boolean('can_edit').default(false).notNull(),
+  displayOrder: integer('display_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// --- CV Listing display configs (tableaux campagnes/réponses) ---
+
+export const moduleCvDisplayConfigs = pgTable('module_cv_display_configs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientModuleId: uuid('client_module_id').notNull().references(() => clientModules.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  filters: jsonb('filters'),
+  preFilters: jsonb('pre_filters'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const moduleCvDisplayConfigRoles = pgTable('module_cv_display_config_roles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  displayConfigId: uuid('display_config_id').notNull().references(() => moduleCvDisplayConfigs.id, { onDelete: 'cascade' }),
+  moduleRoleId: uuid('module_role_id').notNull().references(() => moduleRoles.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const moduleCvDisplayConfigFields = pgTable('module_cv_display_config_fields', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  displayConfigId: uuid('display_config_id').notNull().references(() => moduleCvDisplayConfigs.id, { onDelete: 'cascade' }),
+  fieldSlug: text('field_slug'),
+  cvFieldDefinitionId: uuid('cv_field_definition_id').references(() => moduleCvFieldDefinitions.id, { onDelete: 'cascade' }),
+  showInTable: boolean('show_in_table').default(false).notNull(),
+  showInExport: boolean('show_in_export').default(false).notNull(),
+  displayOrder: integer('display_order').default(0).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -554,4 +598,107 @@ export const moduleCvResponseAuditLog = pgTable('module_cv_response_audit_log', 
   newValue: text('new_value'),
   changedBy: uuid('changed_by').references(() => profiles.id, { onDelete: 'set null' }),
   changedAt: timestamp('changed_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// =============================================
+// Module Organisation — Configuration d'affichage
+// =============================================
+
+export const moduleOrgDisplayConfigs = pgTable('module_org_display_configs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientModuleId: uuid('client_module_id').notNull().references(() => clientModules.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  defaultViewMode: text('default_view_mode').default('list').notNull(),
+  filters: jsonb('filters'),
+  preFilters: jsonb('pre_filters'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const moduleOrgDisplayConfigRoles = pgTable('module_org_display_config_roles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  displayConfigId: uuid('display_config_id').notNull().references(() => moduleOrgDisplayConfigs.id, { onDelete: 'cascade' }),
+  moduleRoleId: uuid('module_role_id').notNull().references(() => moduleRoles.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const moduleOrgDisplayConfigFields = pgTable('module_org_display_config_fields', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  displayConfigId: uuid('display_config_id').notNull().references(() => moduleOrgDisplayConfigs.id, { onDelete: 'cascade' }),
+  fieldSlug: text('field_slug'),
+  eoFieldDefinitionId: uuid('eo_field_definition_id').references(() => eoFieldDefinitions.id, { onDelete: 'cascade' }),
+  canEdit: boolean('can_edit').default(false).notNull(),
+  showInTable: boolean('show_in_table').default(false).notNull(),
+  showInDrawer: boolean('show_in_drawer').default(false).notNull(),
+  showInExport: boolean('show_in_export').default(false).notNull(),
+  displayOrder: integer('display_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// =============================================
+// Module Users — Configuration d'affichage
+// =============================================
+
+export const moduleUsersDisplayConfigs = pgTable('module_users_display_configs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientModuleId: uuid('client_module_id').notNull().references(() => clientModules.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  filters: jsonb('filters'),
+  preFilters: jsonb('pre_filters'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const moduleUsersDisplayConfigRoles = pgTable('module_users_display_config_roles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  displayConfigId: uuid('display_config_id').notNull().references(() => moduleUsersDisplayConfigs.id, { onDelete: 'cascade' }),
+  moduleRoleId: uuid('module_role_id').notNull().references(() => moduleRoles.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const moduleUsersDisplayConfigFields = pgTable('module_users_display_config_fields', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  displayConfigId: uuid('display_config_id').notNull().references(() => moduleUsersDisplayConfigs.id, { onDelete: 'cascade' }),
+  fieldSlug: text('field_slug'),
+  userFieldDefinitionId: uuid('user_field_definition_id').references(() => userFieldDefinitions.id, { onDelete: 'cascade' }),
+  canEdit: boolean('can_edit').default(false).notNull(),
+  showInTable: boolean('show_in_table').default(false).notNull(),
+  showInDrawer: boolean('show_in_drawer').default(false).notNull(),
+  showInExport: boolean('show_in_export').default(false).notNull(),
+  isAnonymized: boolean('is_anonymized').default(false).notNull(),
+  displayOrder: integer('display_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// =============================================
+// Module Profils — Configuration d'affichage
+// =============================================
+
+export const moduleProfilsDisplayConfigs = pgTable('module_profils_display_configs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientModuleId: uuid('client_module_id').notNull().references(() => clientModules.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  filters: jsonb('filters'),
+  preFilters: jsonb('pre_filters'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const moduleProfilsDisplayConfigRoles = pgTable('module_profils_display_config_roles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  displayConfigId: uuid('display_config_id').notNull().references(() => moduleProfilsDisplayConfigs.id, { onDelete: 'cascade' }),
+  moduleRoleId: uuid('module_role_id').notNull().references(() => moduleRoles.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const moduleProfilsDisplayConfigFields = pgTable('module_profils_display_config_fields', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  displayConfigId: uuid('display_config_id').notNull().references(() => moduleProfilsDisplayConfigs.id, { onDelete: 'cascade' }),
+  fieldSlug: text('field_slug').notNull(),
+  canEdit: boolean('can_edit').default(false).notNull(),
+  showInTable: boolean('show_in_table').default(false).notNull(),
+  showInDrawer: boolean('show_in_drawer').default(false).notNull(),
+  showInExport: boolean('show_in_export').default(false).notNull(),
+  displayOrder: integer('display_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });

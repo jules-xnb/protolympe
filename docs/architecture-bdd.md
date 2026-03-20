@@ -625,33 +625,16 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ### module_cv_form_fields
 
-**Champ dans un formulaire.** Définit quels champs de l'objet métier apparaissent dans ce formulaire, et comment ils se comportent à cette étape (ordre, obligatoire, visible, coloration).
+**Champ dans un formulaire.** Définit quels champs de l'objet métier apparaissent dans ce formulaire et leurs règles métier (obligatoire, conditions de visibilité, coloration). La visibilité et l'éditabilité par rôle sont gérées via les display configs (section 14).
 
 | Colonne | Description |
 |---|---|
 | id | Identifiant unique |
 | form_id | Le formulaire |
 | field_definition_id | Le champ de l'objet métier |
-| display_order | Ordre d'affichage dans le formulaire |
 | is_required | Si le champ est obligatoire à cette étape |
-| is_visible | Si le champ est visible à cette étape |
 | visibility_conditions | Conditions pour afficher/masquer dynamiquement ce champ (format JSON) |
 | conditional_coloring | Règles de coloration conditionnelle basées sur la comparaison avec la valeur N-1 (format JSON) |
-| created_at | Date de création |
-
----
-
-### module_cv_form_field_roles
-
-**Permissions par rôle par champ par formulaire.** Contrôle finement quel rôle peut voir et/ou éditer chaque champ dans chaque formulaire.
-
-| Colonne | Description |
-|---|---|
-| id | Identifiant unique |
-| form_field_id | Le champ dans le formulaire |
-| module_role_id | Le rôle |
-| can_view | Si ce rôle peut voir ce champ à cette étape |
-| can_edit | Si ce rôle peut modifier ce champ à cette étape |
 | created_at | Date de création |
 
 ---
@@ -789,3 +772,245 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | new_value | Valeur après modification |
 | changed_by | Qui a fait la modification |
 | changed_at | Date de la modification |
+
+---
+
+## 11. Module Organisation — Configuration d'affichage
+
+### module_org_display_configs
+
+**Configuration d'affichage du module Organisation.** Définit comment les entités organisationnelles sont présentées pour un groupe de rôles. Chaque configuration peut être partagée par plusieurs rôles.
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| client_module_id | Le module Organisation de ce client |
+| name | Nom de la configuration (ex : "Vue Manager", "Vue Consultant") |
+| default_view_mode | Mode de vue affiché par défaut : `list`, `tree` ou `canvas` (tous restent accessibles) |
+| filters | Filtres disponibles pour l'utilisateur (format JSON) |
+| pre_filters | Filtres appliqués automatiquement par défaut (format JSON) |
+| created_at | Date de création |
+| updated_at | Date de dernière modification |
+
+---
+
+### module_org_display_config_roles
+
+**Association rôle ↔ configuration d'affichage Organisation.** Plusieurs rôles peuvent partager la même configuration.
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration d'affichage |
+| module_role_id | Le rôle qui utilise cette configuration |
+| created_at | Date de création |
+
+---
+
+### module_org_display_config_fields
+
+**Champ dans une configuration d'affichage Organisation.** Définit champ par champ ce qui est visible, éditable, exportable. Côté API, chaque modification est vérifiée contre cette table.
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration d'affichage |
+| field_slug | Identifiant du champ fixe (ex : "name", "code"). Null si champ custom |
+| eo_field_definition_id | Champ custom des entités. Null si champ fixe |
+| can_edit | Si le champ peut être modifié |
+| show_in_table | Visible comme colonne dans le tableau |
+| show_in_drawer | Visible dans le drawer de détail |
+| show_in_export | Inclus dans l'export CSV |
+| display_order | Ordre d'affichage |
+| created_at | Date de création |
+
+---
+
+## 12. Module Users — Configuration d'affichage
+
+### module_users_display_configs
+
+**Configuration d'affichage du module Users.**
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| client_module_id | Le module Users de ce client |
+| name | Nom de la configuration |
+| filters | Filtres disponibles (format JSON) |
+| pre_filters | Filtres appliqués par défaut (format JSON) |
+| created_at | Date de création |
+| updated_at | Date de dernière modification |
+
+---
+
+### module_users_display_config_roles
+
+**Association rôle ↔ configuration d'affichage Users.**
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration d'affichage |
+| module_role_id | Le rôle qui utilise cette configuration |
+| created_at | Date de création |
+
+---
+
+### module_users_display_config_fields
+
+**Champ dans une configuration d'affichage Users.**
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration d'affichage |
+| field_slug | Identifiant du champ fixe (ex : "first_name", "email"). Null si champ custom |
+| user_field_definition_id | Champ custom utilisateur. Null si champ fixe |
+| can_edit | Si le champ peut être modifié |
+| show_in_table | Visible comme colonne dans le tableau |
+| show_in_drawer | Visible dans le drawer de détail |
+| show_in_export | Inclus dans l'export CSV |
+| is_anonymized | Si le champ est masqué (ex : email → ju***@...) |
+| display_order | Ordre d'affichage |
+| created_at | Date de création |
+
+---
+
+## 13. Module Profils — Configuration d'affichage
+
+### module_profils_display_configs
+
+**Configuration d'affichage du module Profils.**
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| client_module_id | Le module Profils de ce client |
+| name | Nom de la configuration |
+| filters | Filtres disponibles (format JSON) |
+| pre_filters | Filtres appliqués par défaut (format JSON) |
+| created_at | Date de création |
+| updated_at | Date de dernière modification |
+
+---
+
+### module_profils_display_config_roles
+
+**Association rôle ↔ configuration d'affichage Profils.**
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration d'affichage |
+| module_role_id | Le rôle qui utilise cette configuration |
+| created_at | Date de création |
+
+---
+
+### module_profils_display_config_fields
+
+**Champ dans une configuration d'affichage Profils.**
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration d'affichage |
+| field_slug | Identifiant du champ (ex : "name", "description", "roles", "entities") |
+| can_edit | Si le champ peut être modifié |
+| show_in_table | Visible comme colonne dans le tableau |
+| show_in_drawer | Visible dans le drawer de détail |
+| show_in_export | Inclus dans l'export CSV |
+| display_order | Ordre d'affichage |
+| created_at | Date de création |
+
+---
+
+## 14. Module Collecte de Valeur — Configuration d'affichage
+
+### module_cv_form_display_configs
+
+**Configuration d'affichage d'un formulaire CV.** Définit comment un formulaire (= une étape du workflow) est présenté pour un groupe de rôles. Remplace l'ancien système `module_cv_form_field_roles`.
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| form_id | Le formulaire concerné |
+| name | Nom de la configuration |
+| created_at | Date de création |
+| updated_at | Date de dernière modification |
+
+---
+
+### module_cv_form_display_config_roles
+
+**Association rôle ↔ configuration d'affichage formulaire CV.**
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration d'affichage |
+| module_role_id | Le rôle qui utilise cette configuration |
+| created_at | Date de création |
+
+---
+
+### module_cv_form_display_config_fields
+
+**Champ dans une configuration d'affichage formulaire CV.** Contrôle ce que chaque groupe de rôles peut voir et éditer dans un formulaire.
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration d'affichage |
+| form_field_id | Le champ du formulaire |
+| can_view | Si le champ est visible |
+| can_edit | Si le champ est modifiable |
+| display_order | Ordre d'affichage |
+| created_at | Date de création |
+
+---
+
+### module_cv_display_configs
+
+**Configuration d'affichage des tableaux listing CV.** Définit comment les listes de campagnes et réponses sont présentées.
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| client_module_id | Le module CV de ce client |
+| name | Nom de la configuration |
+| filters | Filtres disponibles (format JSON) |
+| pre_filters | Filtres appliqués par défaut (format JSON) |
+| created_at | Date de création |
+| updated_at | Date de dernière modification |
+
+---
+
+### module_cv_display_config_roles
+
+**Association rôle ↔ configuration d'affichage listing CV.**
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration d'affichage |
+| module_role_id | Le rôle qui utilise cette configuration |
+| created_at | Date de création |
+
+---
+
+### module_cv_display_config_fields
+
+**Champ dans une configuration d'affichage listing CV.**
+
+| Colonne | Description |
+|---|---|
+| id | Identifiant unique |
+| display_config_id | La configuration d'affichage |
+| field_slug | Identifiant du champ fixe (ex : "status", "reference_year"). Null si champ custom |
+| cv_field_definition_id | Champ custom du BO. Null si champ fixe |
+| show_in_table | Visible comme colonne dans le tableau |
+| show_in_export | Inclus dans l'export CSV |
+| display_order | Ordre d'affichage |
+| created_at | Date de création |

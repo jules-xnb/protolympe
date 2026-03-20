@@ -178,6 +178,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | is_hidden | Si le champ est masqué dans l'interface |
 | is_active | Si le champ est actif |
 | display_order | Ordre d'affichage |
+| comment_on_change | Comportement du commentaire lors d'une modification : `none` (pas de commentaire), `optional` (commentaire proposé), `required` (commentaire obligatoire) |
 | settings | Paramètres supplémentaires (format libre) |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |

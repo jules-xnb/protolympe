@@ -139,6 +139,7 @@ export const eoFieldDefinitions = pgTable('eo_field_definitions', {
   isHidden: boolean('is_hidden').default(false).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   displayOrder: integer('display_order').default(0).notNull(),
+  commentOnChange: text('comment_on_change').default('none').notNull(),
   settings: jsonb('settings'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

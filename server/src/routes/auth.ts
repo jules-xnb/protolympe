@@ -47,6 +47,9 @@ auth.post('/signin', async (c) => {
     return c.json({ error: 'Email ou mot de passe incorrect' }, 401);
   }
 
+  if (!user.passwordHash) {
+    return c.json({ error: 'Connexion par mot de passe non disponible pour ce compte' }, 401);
+  }
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     return c.json({ error: 'Email ou mot de passe incorrect' }, 401);

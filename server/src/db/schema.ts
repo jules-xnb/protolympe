@@ -27,7 +27,7 @@ export const systemPersonaEnum = pgEnum('system_persona', [
 export const accounts = pgTable('accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
-  passwordHash: text('password_hash').notNull(),
+  passwordHash: text('password_hash'),
   firstName: text('first_name'),
   lastName: text('last_name'),
   persona: systemPersonaEnum('persona').notNull(),
@@ -76,7 +76,6 @@ export const integratorClientAssignments = pgTable('integrator_client_assignment
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
-  persona: systemPersonaEnum('persona').notNull(),
   assignedBy: uuid('assigned_by').references(() => accounts.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -141,7 +140,7 @@ export const eoEntities = pgTable('eo_entities', {
   isArchived: boolean('is_archived').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-  createdBy: uuid('created_by'),
+  createdBy: uuid('created_by').references(() => accounts.id, { onDelete: 'set null' }),
 });
 
 export const eoFieldDefinitions = pgTable('eo_field_definitions', {
@@ -154,6 +153,7 @@ export const eoFieldDefinitions = pgTable('eo_field_definitions', {
   isUnique: boolean('is_unique').default(false).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   commentOnChange: text('comment_on_change').default('none').notNull(),
+  listId: uuid('list_id').references(() => lists.id, { onDelete: 'set null' }),
   settings: jsonb('settings'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -166,7 +166,7 @@ export const eoFieldValues = pgTable('eo_field_values', {
   value: jsonb('value'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-  lastModifiedBy: uuid('last_modified_by'),
+  lastModifiedBy: uuid('last_modified_by').references(() => accounts.id, { onDelete: 'set null' }),
 });
 
 export const eoGroups = pgTable('eo_groups', {
@@ -175,9 +175,9 @@ export const eoGroups = pgTable('eo_groups', {
   name: text('name').notNull(),
   description: text('description'),
   isActive: boolean('is_active').default(true).notNull(),
-  createdBy: uuid('created_by'),
+  createdBy: uuid('created_by').references(() => accounts.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const eoGroupMembers = pgTable('eo_group_members', {
@@ -185,7 +185,7 @@ export const eoGroupMembers = pgTable('eo_group_members', {
   groupId: uuid('group_id').notNull().references(() => eoGroups.id, { onDelete: 'cascade' }),
   eoId: uuid('eo_id').notNull().references(() => eoEntities.id, { onDelete: 'cascade' }),
   includeDescendants: boolean('include_descendants').default(false).notNull(),
-  createdBy: uuid('created_by'),
+  createdBy: uuid('created_by').references(() => accounts.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -193,18 +193,18 @@ export const eoFieldChangeComments = pgTable('eo_field_change_comments', {
   id: uuid('id').primaryKey().defaultRandom(),
   eoId: uuid('eo_id').notNull().references(() => eoEntities.id, { onDelete: 'cascade' }),
   fieldDefinitionId: uuid('field_definition_id').notNull().references(() => eoFieldDefinitions.id, { onDelete: 'cascade' }),
-  oldValue: text('old_value'),
-  newValue: text('new_value'),
+  oldValue: jsonb('old_value'),
+  newValue: jsonb('new_value'),
   comment: text('comment'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  createdBy: uuid('created_by'),
+  createdBy: uuid('created_by').references(() => accounts.id, { onDelete: 'set null' }),
 });
 
 export const eoAuditLog = pgTable('eo_audit_log', {
   id: uuid('id').primaryKey().defaultRandom(),
   entityId: uuid('entity_id').notNull().references(() => eoEntities.id, { onDelete: 'cascade' }),
   action: text('action').notNull(),
-  changedBy: uuid('changed_by'),
+  changedBy: uuid('changed_by').references(() => accounts.id, { onDelete: 'set null' }),
   changedFields: jsonb('changed_fields'),
   previousValues: jsonb('previous_values'),
   newValues: jsonb('new_values'),
@@ -214,7 +214,7 @@ export const eoAuditLog = pgTable('eo_audit_log', {
 export const eoExportHistory = pgTable('eo_export_history', {
   id: uuid('id').primaryKey().defaultRandom(),
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
-  exportedBy: uuid('exported_by'),
+  exportedBy: uuid('exported_by').references(() => accounts.id, { onDelete: 'set null' }),
   exportedAt: timestamp('exported_at', { withTimezone: true }).defaultNow().notNull(),
   rowCount: integer('row_count'),
   fileName: text('file_name'),
@@ -238,7 +238,6 @@ export const clientProfileUsers = pgTable('client_profile_users', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   profileId: uuid('profile_id').notNull().references(() => clientProfiles.id, { onDelete: 'cascade' }),
-  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -277,19 +276,20 @@ export const userFieldDefinitions = pgTable('user_field_definitions', {
   isRequired: boolean('is_required').default(false).notNull(),
   isUnique: boolean('is_unique').default(false).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
+  listId: uuid('list_id').references(() => lists.id, { onDelete: 'set null' }),
   settings: jsonb('settings'),
   defaultValue: jsonb('default_value'),
-  createdBy: uuid('created_by'),
+  createdBy: uuid('created_by').references(() => accounts.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const userFieldValues = pgTable('user_field_values', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull(),
+  userId: uuid('user_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   fieldDefinitionId: uuid('field_definition_id').notNull().references(() => userFieldDefinitions.id, { onDelete: 'cascade' }),
   value: jsonb('value'),
-  updatedBy: uuid('updated_by'),
+  updatedBy: uuid('updated_by').references(() => accounts.id, { onDelete: 'set null' }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -371,6 +371,7 @@ export const moduleCvFieldDefinitions = pgTable('module_cv_field_definitions', {
   fieldType: text('field_type').notNull(),
   description: text('description'),
   listId: uuid('list_id').references(() => lists.id, { onDelete: 'set null' }),
+  isActive: boolean('is_active').default(true).notNull(),
   settings: jsonb('settings'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -497,8 +498,8 @@ export const moduleCvCampaigns = pgTable('module_cv_campaigns', {
   name: text('name').notNull(),
   description: text('description'),
   referenceYear: integer('reference_year').notNull(),
-  prefillCampaignId: uuid('prefill_campaign_id'),
-  status: text('status').default('draft').notNull(),
+  prefillCampaignId: uuid('prefill_campaign_id').references((): any => moduleCvCampaigns.id, { onDelete: 'set null' }),
+  status: text('status').default('open').notNull(),
   startDate: timestamp('start_date', { withTimezone: true }),
   endDate: timestamp('end_date', { withTimezone: true }),
   createdBy: uuid('created_by').references(() => accounts.id, { onDelete: 'set null' }),
@@ -518,10 +519,6 @@ export const moduleCvResponses = pgTable('module_cv_responses', {
   campaignId: uuid('campaign_id').notNull().references(() => moduleCvCampaigns.id, { onDelete: 'cascade' }),
   eoId: uuid('eo_id').notNull().references(() => eoEntities.id, { onDelete: 'cascade' }),
   statusId: uuid('status_id').notNull().references(() => moduleCvStatuses.id),
-  submittedAt: timestamp('submitted_at', { withTimezone: true }),
-  submittedBy: uuid('submitted_by').references(() => accounts.id, { onDelete: 'set null' }),
-  validatedAt: timestamp('validated_at', { withTimezone: true }),
-  validatedBy: uuid('validated_by').references(() => accounts.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -532,7 +529,7 @@ export const moduleCvResponseValues = pgTable('module_cv_response_values', {
   fieldDefinitionId: uuid('field_definition_id').notNull().references(() => moduleCvFieldDefinitions.id, { onDelete: 'cascade' }),
   value: jsonb('value'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-  lastModifiedBy: uuid('last_modified_by'),
+  lastModifiedBy: uuid('last_modified_by').references(() => accounts.id, { onDelete: 'set null' }),
 });
 
 export const moduleCvFieldComments = pgTable('module_cv_field_comments', {
@@ -562,8 +559,8 @@ export const moduleCvResponseAuditLog = pgTable('module_cv_response_audit_log', 
   responseId: uuid('response_id').notNull().references(() => moduleCvResponses.id, { onDelete: 'cascade' }),
   fieldDefinitionId: uuid('field_definition_id').references(() => moduleCvFieldDefinitions.id, { onDelete: 'set null' }),
   fieldName: text('field_name'),
-  oldValue: text('old_value'),
-  newValue: text('new_value'),
+  oldValue: jsonb('old_value'),
+  newValue: jsonb('new_value'),
   changedBy: uuid('changed_by').references(() => accounts.id, { onDelete: 'set null' }),
   changedAt: timestamp('changed_at', { withTimezone: true }).defaultNow().notNull(),
 });

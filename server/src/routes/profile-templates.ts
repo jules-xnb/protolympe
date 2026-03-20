@@ -71,10 +71,7 @@ profileTemplatesRouter.get('/user-templates', async (c) => {
     .select()
     .from(clientProfileUsers)
     .where(
-      and(
-        eq(clientProfileUsers.userId, userId),
-        eq(clientProfileUsers.clientId, clientId),
-      )
+      eq(clientProfileUsers.userId, userId)
     )
     .orderBy(clientProfileUsers.createdAt);
 
@@ -455,7 +452,6 @@ profileTemplatesRouter.post('/user-templates', async (c) => {
     .values({
       userId: parsed.data.userId,
       profileId: parsed.data.profileId,
-      clientId: parsed.data.clientId,
     })
     .returning();
 

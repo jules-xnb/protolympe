@@ -102,10 +102,20 @@ Tout le monde peut voir (liste et détail).
 
 ## Module Collecte de Valeur
 
-Déjà défini dans le schéma. Permissions et affichages gérés par :
-- `module_cv_form_fields` + `module_cv_form_field_roles` (champs × rôle × formulaire)
+### Permissions (liste fixe, en cours de définition)
+
+| Permission | Description |
+|---|---|
+| `can_configure_survey_type` | Configurer les types de campagne (champs, workflow, formulaires). Implique `can_manage_campaign` |
+| `can_manage_campaign` | Lancer, gérer et clôturer les campagnes |
+
+Note : d'autres permissions seront ajoutées au fur et à mesure.
+
+### Configuration déjà en place
+
+- `module_cv_form_fields` + display configs formulaires (champs × rôle × formulaire)
 - `module_cv_status_transition_roles` (qui peut exécuter quelle transition)
-- Config d'affichage des tableaux listing (campagnes, réponses) : à définir lors de l'implémentation
+- Display configs listing (tableaux campagnes/réponses)
 
 ---
 

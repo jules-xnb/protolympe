@@ -22,7 +22,6 @@ moduleRolesRouter.get('/by-client', async (c) => {
       id: moduleRoles.id,
       clientModuleId: moduleRoles.clientModuleId,
       name: moduleRoles.name,
-      slug: moduleRoles.slug,
       color: moduleRoles.color,
       description: moduleRoles.description,
       isActive: moduleRoles.isActive,
@@ -57,7 +56,6 @@ moduleRolesRouter.get('/', async (c) => {
 const createSchema = z.object({
   module_id: z.string().uuid(),
   name: z.string().min(1),
-  slug: z.string().min(1),
   color: z.string().optional(),
   description: z.string().optional(),
 });
@@ -70,14 +68,13 @@ moduleRolesRouter.post('/', async (c) => {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
   }
 
-  const { module_id, name, slug, color, description } = parsed.data;
+  const { module_id, name, color, description } = parsed.data;
 
   const [role] = await db
     .insert(moduleRoles)
     .values({
       clientModuleId: module_id,
       name,
-      slug,
       ...(color !== undefined && { color }),
       ...(description !== undefined && { description }),
     })
@@ -88,7 +85,6 @@ moduleRolesRouter.post('/', async (c) => {
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
-  slug: z.string().min(1).optional(),
   color: z.string().optional(),
   description: z.string().optional(),
   is_active: z.boolean().optional(),
@@ -103,13 +99,12 @@ moduleRolesRouter.patch('/:id', async (c) => {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
   }
 
-  const { name, slug, color, description, is_active } = parsed.data;
+  const { name, color, description, is_active } = parsed.data;
 
   const [role] = await db
     .update(moduleRoles)
     .set({
       ...(name !== undefined && { name }),
-      ...(slug !== undefined && { slug }),
       ...(color !== undefined && { color }),
       ...(description !== undefined && { description }),
       ...(is_active !== undefined && { isActive: is_active }),

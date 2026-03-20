@@ -39,7 +39,6 @@ export const clients = pgTable('clients', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   isActive: boolean('is_active').default(true).notNull(),
-  settings: jsonb('settings'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -72,7 +71,6 @@ export const clientModules = pgTable('client_modules', {
   id: uuid('id').primaryKey().defaultRandom(),
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   moduleSlug: text('module_slug').notNull(),
-  config: jsonb('config').default({}),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -82,7 +80,6 @@ export const moduleRoles = pgTable('module_roles', {
   id: uuid('id').primaryKey().defaultRandom(),
   clientModuleId: uuid('client_module_id').notNull().references(() => clientModules.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  slug: text('slug').notNull(),
   color: text('color'),
   description: text('description'),
   isActive: boolean('is_active').default(true).notNull(),
@@ -106,22 +103,6 @@ export const moduleWorkflows = pgTable('module_workflows', {
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
-export const moduleDisplayConfigs = pgTable('module_display_configs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  clientModuleId: uuid('client_module_id').notNull().references(() => clientModules.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  config: jsonb('config').default({}).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
-export const moduleDisplayConfigRoles = pgTable('module_display_config_roles', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  displayConfigId: uuid('display_config_id').notNull().references(() => moduleDisplayConfigs.id, { onDelete: 'cascade' }),
-  moduleRoleId: uuid('module_role_id').notNull().references(() => moduleRoles.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 // =============================================

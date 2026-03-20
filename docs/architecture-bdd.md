@@ -32,7 +32,6 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | id | Identifiant unique du client |
 | name | Nom de l'entreprise |
 | is_active | Si le client est actif ou désactivé |
-| settings | Paramètres spécifiques au client (format libre) |
 | created_at | Date de création |
 | updated_at | Date de dernière modification |
 
@@ -81,7 +80,6 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | id | Identifiant unique |
 | client_id | Le client qui utilise ce module |
 | module_slug | Identifiant technique du module (ex : `collecte_valeur`) |
-| config | Configuration spécifique du module pour ce client |
 | is_active | Si le module est activé |
 | created_at | Date d'activation |
 | updated_at | Date de dernière modification |
@@ -97,7 +95,6 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | id | Identifiant unique |
 | client_module_id | Le module dans lequel ce rôle existe |
 | name | Nom affiché du rôle (ex : "Validateur") |
-| slug | Identifiant technique (ex : `validateur`) |
 | color | Couleur associée au rôle (pour l'affichage) |
 | description | Description du rôle |
 | is_active | Si le rôle est actif |
@@ -135,32 +132,6 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | updated_at | Date de dernière modification |
 
 ---
-
-### module_display_configs
-
-**Configuration d'affichage d'un module.** Permet de définir différentes configurations d'affichage pour un même module (ex : vue tableau, vue kanban).
-
-| Colonne | Description |
-|---|---|
-| id | Identifiant unique |
-| client_module_id | Le module concerné |
-| name | Nom de la configuration |
-| config | Paramètres d'affichage (format libre) |
-| created_at | Date de création |
-| updated_at | Date de dernière modification |
-
----
-
-### module_display_config_roles
-
-**Association rôle ↔ configuration d'affichage.** Définit quel rôle voit quelle configuration d'affichage dans un module.
-
-| Colonne | Description |
-|---|---|
-| id | Identifiant unique |
-| display_config_id | La configuration d'affichage |
-| module_role_id | Le rôle qui voit cette configuration |
-| created_at | Date de création |
 
 ---
 

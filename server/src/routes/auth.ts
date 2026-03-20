@@ -8,8 +8,10 @@ import {
   clientSsoConfigs,
   userClientMemberships,
   integratorClientAssignments,
+  clientProfileUsers,
+  clientProfiles,
 } from '../db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { signAccessToken } from '../lib/jwt.js';
@@ -454,6 +456,40 @@ router.get('/me', authMiddleware, async (c) => {
     created_at: account.createdAt,
     client_ids: clientIds,
   });
+});
+
+// ---------------------------------------------------------------------------
+// GET /me/profiles  (authenticated, client_user)
+// ---------------------------------------------------------------------------
+
+router.get('/me/profiles', authMiddleware, async (c) => {
+  const user = c.get('user');
+
+  const results = await db
+    .select({
+      id: clientProfiles.id,
+      clientId: clientProfiles.clientId,
+      name: clientProfiles.name,
+      description: clientProfiles.description,
+      isArchived: clientProfiles.isArchived,
+    })
+    .from(clientProfileUsers)
+    .innerJoin(clientProfiles, eq(clientProfileUsers.profileId, clientProfiles.id))
+    .where(
+      and(
+        eq(clientProfileUsers.userId, user.sub),
+        eq(clientProfiles.isArchived, false),
+        isNull(clientProfileUsers.deletedAt)
+      )
+    )
+    .orderBy(clientProfiles.name);
+
+  return c.json(results.map((r) => ({
+    id: r.id,
+    client_id: r.clientId,
+    name: r.name,
+    description: r.description,
+  })));
 });
 
 // ---------------------------------------------------------------------------

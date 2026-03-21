@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq, and, inArray, count } from 'drizzle-orm';
+import { eq, and, inArray, count, isNull } from 'drizzle-orm';
 import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 import { db } from '../db/index.js';
 import {
@@ -456,7 +456,7 @@ router.get('/campaigns/:id/targets', async (c) => {
     );
   if (!surveyType) return c.json({ error: 'Campagne introuvable' }, 404);
 
-  const [{ total }] = await db.select({ total: count() }).from(moduleCvCampaignTargets).where(eq(moduleCvCampaignTargets.campaignId, id));
+  const [{ total }] = await db.select({ total: count() }).from(moduleCvCampaignTargets).where(and(eq(moduleCvCampaignTargets.campaignId, id), isNull(moduleCvCampaignTargets.deletedAt)));
   const rows = await db
     .select({
       target: moduleCvCampaignTargets,
@@ -464,7 +464,7 @@ router.get('/campaigns/:id/targets', async (c) => {
     })
     .from(moduleCvCampaignTargets)
     .innerJoin(eoEntities, eq(eoEntities.id, moduleCvCampaignTargets.eoId))
-    .where(eq(moduleCvCampaignTargets.campaignId, id))
+    .where(and(eq(moduleCvCampaignTargets.campaignId, id), isNull(moduleCvCampaignTargets.deletedAt)))
     .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
   return c.json(paginatedResponse(rows.map((r) => targetToSnake(r.target, r.eo)), total, pagination));
@@ -622,11 +622,13 @@ router.delete('/campaigns/:id/targets/:targetId', async (c) => {
   if (!surveyType) return c.json({ error: 'Campagne introuvable' }, 404);
 
   const [deleted] = await db
-    .delete(moduleCvCampaignTargets)
+    .update(moduleCvCampaignTargets)
+    .set({ deletedAt: new Date() })
     .where(
       and(
         eq(moduleCvCampaignTargets.id, targetId),
-        eq(moduleCvCampaignTargets.campaignId, id)
+        eq(moduleCvCampaignTargets.campaignId, id),
+        isNull(moduleCvCampaignTargets.deletedAt)
       )
     )
     .returning();
@@ -1131,7 +1133,7 @@ router.get('/responses/:id/documents', async (c) => {
   const documents = await db
     .select()
     .from(moduleCvResponseDocuments)
-    .where(eq(moduleCvResponseDocuments.responseId, id))
+    .where(and(eq(moduleCvResponseDocuments.responseId, id), isNull(moduleCvResponseDocuments.deletedAt)))
     .orderBy(moduleCvResponseDocuments.displayOrder);
 
   return c.json(documents.map(documentToSnake));
@@ -1229,11 +1231,13 @@ router.delete('/responses/:id/documents/:docId', async (c) => {
   if (!surveyType) return c.json({ error: 'Réponse introuvable' }, 404);
 
   const [deleted] = await db
-    .delete(moduleCvResponseDocuments)
+    .update(moduleCvResponseDocuments)
+    .set({ deletedAt: new Date() })
     .where(
       and(
         eq(moduleCvResponseDocuments.id, docId),
-        eq(moduleCvResponseDocuments.responseId, id)
+        eq(moduleCvResponseDocuments.responseId, id),
+        isNull(moduleCvResponseDocuments.deletedAt)
       )
     )
     .returning();

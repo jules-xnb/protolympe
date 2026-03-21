@@ -16,12 +16,14 @@
 - **Filtrage** : toujours côté API (même quand l'utilisateur a des filtres en front, ça conditionne la requête)
 - **Tri** : côté API sauf indication contraire
 - **Unicité** : vérifiée côté API avec erreur 409 si doublon
+- **Authentification par client** : un client = un mode d'auth (SSO exclusif OU email/mot de passe, jamais les deux)
 
 ## Pages auditées
 
 | # | Section | Page | Doc | Status |
 |---|---------|------|-----|--------|
-| 1 | BO | Clients | [page-1-clients.md](page-1-clients.md) | ✅ Audité — 22 refactos (4 API + 1 BDD + 17 front) |
-| 2 | BO | Intégrateurs | À faire | |
+| 0 | Auth | Connexion + Reset password + 2FA | [page-0-auth.md](page-0-auth.md) | ✅ Audité — 31 refactos (7 API + 2 BDD + 22 front) |
+| 1 | BO | Clients | [page-1-clients.md](page-1-clients.md) | ✅ Audité — 24 refactos (4 API + 1 BDD + 19 front) |
+| 2 | BO | Intégrateurs | [page-2-integrateurs.md](page-2-integrateurs.md) | ✅ Audité — 21 refactos (4 API + 0 BDD + 17 front) |
 | 3+ | MO | Entities, Users, Profiles, BO, Listes, Modules, Workflows, Design, Traductions | À faire | |
 | 40+ | FO | Profils, Modules, Vues, Workflows, Surveys, Campaigns | À faire | |

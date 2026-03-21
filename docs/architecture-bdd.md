@@ -18,6 +18,10 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | first_name | text | OUI | — | Prénom |
 | last_name | text | OUI | — | Nom |
 | persona | enum | NON | — | Type d'utilisateur : `admin_delta`, `integrator_delta`, `integrator_external`, `client_user` |
+| failed_login_attempts | integer | NON | 0 | Nombre de tentatives de connexion échouées consécutives |
+| locked_until | timestamptz | OUI | — | Date jusqu'à laquelle le compte est verrouillé (null si non verrouillé) |
+| totp_secret | text | OUI | — | Secret TOTP chiffré pour le 2FA (null si 2FA pas configuré) |
+| totp_enabled | boolean | NON | false | 2FA activé ou non. Obligatoire pour admin/intégrateurs, ignoré pour client_user et SSO. |
 | created_at | timestamptz | NON | now() | Date de création du compte |
 | updated_at | timestamptz | NON | now() | Date de dernière modification |
 
@@ -30,8 +34,10 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | Colonne | Type | Nullable | Défaut | Description |
 |---|---|---|---|---|
 | id | uuid | NON | random | Identifiant unique |
-| name | text | NON | — | Nom de l'entreprise |
+| name | text | NON | — | Nom de l'entreprise (unique) |
 | is_active | boolean | NON | true | Client actif ou désactivé |
+| subdomain | text | OUI | — | Sous-domaine dédié (ex : `laposte` → `laposte.delta-rm.com`). Unique si renseigné. |
+| custom_hostname | text | OUI | — | Hostname personnalisé via CNAME (ex : `app.laposte.com`). Unique si renseigné. |
 | created_at | timestamptz | NON | now() | Date de création |
 | updated_at | timestamptz | NON | now() | Date de dernière modification |
 
@@ -254,6 +260,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | include_descendants | boolean | NON | false | Si les sous-entités sont automatiquement incluses |
 | created_by | uuid | OUI | — | FK → accounts.id (set null on delete) |
 | created_at | timestamptz | NON | now() | Date d'ajout |
+| deleted_at | timestamptz | OUI | — | Date de suppression logique (null si actif) |
 
 ---
 
@@ -306,6 +313,22 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 
 ---
 
+### admin_audit_log
+
+**Journal d'audit des actions admin.** Trace toutes les actions effectuées par les administrateurs et intégrateurs.
+
+| Colonne | Type | Nullable | Défaut | Description |
+|---|---|---|---|---|
+| id | uuid | NON | random | Identifiant unique |
+| actor_id | uuid | OUI | — | FK → accounts.id (set null on delete) |
+| action | text | NON | — | Action effectuée |
+| target_type | text | NON | — | Type de la cible de l'action |
+| target_id | text | OUI | — | Identifiant de la cible |
+| details | jsonb | OUI | — | Détails complémentaires de l'action |
+| created_at | timestamptz | NON | now() | Date de l'action |
+
+---
+
 ## 4. Profils client
 
 ### client_profiles
@@ -334,6 +357,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | user_id | uuid | NON | — | FK → accounts.id (cascade delete) |
 | profile_id | uuid | NON | — | FK → client_profiles.id (cascade delete) |
 | created_at | timestamptz | NON | now() | Date d'attribution |
+| deleted_at | timestamptz | OUI | — | Date de suppression logique (null si actif) |
 
 ---
 
@@ -348,6 +372,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | eo_id | uuid | NON | — | FK → eo_entities.id (cascade delete) |
 | include_descendants | boolean | NON | false | Si les sous-entités sont incluses |
 | created_at | timestamptz | NON | now() | Date de création |
+| deleted_at | timestamptz | OUI | — | Date de suppression logique (null si actif) |
 
 ---
 
@@ -361,6 +386,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | profile_id | uuid | NON | — | FK → client_profiles.id (cascade delete) |
 | group_id | uuid | NON | — | FK → eo_groups.id (cascade delete) |
 | created_at | timestamptz | NON | now() | Date de création |
+| deleted_at | timestamptz | OUI | — | Date de suppression logique (null si actif) |
 
 ---
 
@@ -374,6 +400,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | profile_id | uuid | NON | — | FK → client_profiles.id (cascade delete) |
 | module_role_id | uuid | NON | — | FK → module_roles.id (cascade delete) |
 | created_at | timestamptz | NON | now() | Date de création |
+| deleted_at | timestamptz | OUI | — | Date de suppression logique (null si actif) |
 
 ---
 

@@ -61,7 +61,7 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
     const assignments = await db
       .select({ clientId: integratorClientAssignments.clientId })
       .from(integratorClientAssignments)
-      .where(eq(integratorClientAssignments.userId, userId));
+      .where(and(eq(integratorClientAssignments.userId, userId), isNull(integratorClientAssignments.deletedAt)));
     clientIds = assignments.map((a) => a.clientId);
   } else {
     const memberships = await db

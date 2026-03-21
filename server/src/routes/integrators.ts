@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq, and, or, count } from 'drizzle-orm';
+import { eq, and, or, count, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import {
   accounts,
@@ -187,7 +187,7 @@ router.get('/:id/clients', async (c) => {
     })
     .from(integratorClientAssignments)
     .innerJoin(clients, eq(clients.id, integratorClientAssignments.clientId))
-    .where(eq(integratorClientAssignments.userId, id))
+    .where(and(eq(integratorClientAssignments.userId, id), isNull(integratorClientAssignments.deletedAt)))
     .orderBy(clients.name);
 
   return c.json(rows);
@@ -236,7 +236,8 @@ router.post('/:id/clients', async (c) => {
     .where(
       and(
         eq(integratorClientAssignments.userId, id),
-        eq(integratorClientAssignments.clientId, body.client_id)
+        eq(integratorClientAssignments.clientId, body.client_id),
+        isNull(integratorClientAssignments.deletedAt)
       )
     );
 
@@ -291,11 +292,13 @@ router.delete('/:id/clients/:clientId', async (c) => {
   if (!existing) return c.json({ error: 'Intégrateur introuvable' }, 404);
 
   const [deleted] = await db
-    .delete(integratorClientAssignments)
+    .update(integratorClientAssignments)
+    .set({ deletedAt: new Date() })
     .where(
       and(
         eq(integratorClientAssignments.userId, id),
-        eq(integratorClientAssignments.clientId, clientId)
+        eq(integratorClientAssignments.clientId, clientId),
+        isNull(integratorClientAssignments.deletedAt)
       )
     )
     .returning();

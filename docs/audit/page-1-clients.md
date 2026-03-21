@@ -32,9 +32,11 @@
 ├─────────────────────────────────────────────────────────────────────┤
 │  [🔍 Rechercher un client...]                                      │
 ├─────────────────────────────────────────────────────────────────────┤
+│  ◀ 1/1 ▶                                          1 résultat       │
+├─────────────────────────────────────────────────────────────────────┤
 │  Nom                                                                │
 │ ─────────────────────────────────────────────────────────────────── │
-│  OldCorp                                       [Restaurer ↩]       │
+│  OldCorp                          [Restaurer ↩] ← popup confirm    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -101,6 +103,52 @@
 │  │            [Supprimer la config SSO]   │  │
 │  └────────────────────────────────────────┘  │
 │                                              │
+│  ─────────────────────────────────────────── │
+│                                              │
+│  🌐 Accès & Domaines                        │
+│                                              │
+│  ┌────────────────────────────────────────┐  │
+│  │ Sous-domaine                           │  │
+│  │ [laposte        ] .delta-rm.com        │  │
+│  │                                        │  │
+│  │ Hostname personnalisé (CNAME)          │  │
+│  │ [app.laposte.com              ]        │  │
+│  └────────────────────────────────────────┘  │
+│                                              │
+│         [Archiver ce client 📦]              │
+│                                              │
+└──────────────────────────────────────────────┘
+```
+
+### Drawer client — Mode Admin (sans SSO configuré)
+
+```
+┌─── Sheet (droite) ──────────────────────────┐
+│                                              │
+│  🏢  Acme Corporation                        │
+│                                              │
+│  ┌────────────────────────────────────────┐  │
+│  │ Nom                                    │  │
+│  │ [Acme Corporation          ]  auto-save│  │
+│  └────────────────────────────────────────┘  │
+│                                              │
+│  ─────────────────────────────────────────── │
+│                                              │
+│  👥 Intégrateurs (2)              [Ajouter +]│
+│  ...                                         │
+│                                              │
+│  ─────────────────────────────────────────── │
+│                                              │
+│  🔐 Configuration SSO                       │
+│                                              │
+│  ┌────────────────────────────────────────┐  │
+│  │  Aucune configuration SSO.             │  │
+│  │  Les utilisateurs se connectent        │  │
+│  │  par email et mot de passe.            │  │
+│  │                                        │  │
+│  │          [Configurer SSO +]            │  │
+│  └────────────────────────────────────────┘  │
+│                                              │
 │         [Archiver ce client 📦]              │
 │                                              │
 └──────────────────────────────────────────────┘
@@ -130,7 +178,54 @@
 │  │     charles@ext.com                    │  │
 │  └────────────────────────────────────────┘  │
 │                                              │
-│  (pas de section SSO)                        │
+│  ─────────────────────────────────────────── │
+│                                              │
+│  🔐 Configuration SSO         (lecture seule)│
+│                                              │
+│  ┌────────────────────────────────────────┐  │
+│  │ Provider                               │  │
+│  │  Azure AD               (non éditable) │  │
+│  │                                        │  │
+│  │ Issuer URL                             │  │
+│  │  https://login.microsoft (non éditable)│  │
+│  │                                        │  │
+│  │ Client ID (OIDC)                       │  │
+│  │  abc-123-def-456         (non éditable)│  │
+│  │                                        │  │
+│  │ Client Secret                          │  │
+│  │  ••••••••                (non éditable)│  │
+│  │                                        │  │
+│  │ Activé                   ●═══ (disabled)│  │
+│  │                                        │  │
+│  │  (pas de bouton Supprimer)             │  │
+│  └────────────────────────────────────────┘  │
+│                                              │
+│  (pas de bouton Archiver)                    │
+│                                              │
+└──────────────────────────────────────────────┘
+```
+
+### Drawer client — Mode Intégrateur (sans SSO configuré)
+
+```
+┌─── Sheet (droite) ──────────────────────────┐
+│                                              │
+│  🏢  La Poste                                │
+│                                              │
+│  ...                                         │
+│                                              │
+│  ─────────────────────────────────────────── │
+│                                              │
+│  🔐 Configuration SSO         (lecture seule)│
+│                                              │
+│  ┌────────────────────────────────────────┐  │
+│  │  Aucune configuration SSO.             │  │
+│  │  Les utilisateurs se connectent        │  │
+│  │  par email et mot de passe.            │  │
+│  │                                        │  │
+│  │  (pas de bouton Configurer)            │  │
+│  └────────────────────────────────────────┘  │
+│                                              │
 │  (pas de bouton Archiver)                    │
 │                                              │
 └──────────────────────────────────────────────┘
@@ -192,6 +287,22 @@
 │  plus accessible mais pourra être restauré.  │
 │                                              │
 │                    [Annuler]    [Archiver]    │
+│                                              │
+└──────────────────────────────────────────────┘
+```
+
+### Dialog "Restaurer le client" (Admin uniquement, vue archivés)
+
+```
+┌─── AlertDialog ─────────────────────────────┐
+│                                              │
+│  Restaurer le client                         │
+│                                              │
+│  Êtes-vous sûr de vouloir restaurer le       │
+│  client « OldCorp » ? Il redeviendra         │
+│  accessible sur la plateforme.               │
+│                                              │
+│                    [Annuler]   [Restaurer]    │
 │                                              │
 └──────────────────────────────────────────────┘
 ```
@@ -288,7 +399,7 @@
 
 ## 1.3 Drawer client
 
-**Accès** : Admin (lecture/écriture) / Intégrateurs (lecture seule — champs disabled, pas de boutons d'action, pas de section SSO)
+**Accès** : Admin (lecture/écriture) / Intégrateurs (lecture seule — champs disabled, pas de boutons d'action, section SSO visible mais non éditable)
 
 Le drawer s'ouvre au clic sur une ligne du tableau. C'est un `Sheet` (shadcn) qui s'ouvre à droite.
 
@@ -339,7 +450,7 @@ Le drawer s'ouvre au clic sur une ligne du tableau. C'est un `Sheet` (shadcn) qu
 |---------|:---:|:---:|:---:|---|---|
 | Endpoint archivage | ✅ | ✅ `PATCH /:id/deactivate` | ⚠️ Utilise `PATCH /:id` | **REFACTO FRONT** | Créer hook `useDeactivateClient()` → `PATCH /api/clients/${id}/deactivate` |
 | Texte bouton confirmation | — | — | ⚠️ "Supprimer" | **REFACTO FRONT** | Changer en "Archiver" dans le DeleteConfirmDialog (props custom) |
-| Restaurer (vue archivés) | ✅ | ✅ `PATCH /:id` + `is_active: true` | ✅ | ✅ OK | — |
+| Restaurer (vue archivés) | ✅ | ✅ `PATCH /:id` + `is_active: true` | ⚠️ Pas de popup de confirmation | **REFACTO FRONT** | Ajouter dialog de confirmation avant restauration |
 
 ### 1.3.4 Intégrateurs assignés (Admin — lecture seule pour intégrateurs)
 
@@ -394,12 +505,13 @@ Le drawer s'ouvre au clic sur une ligne du tableau. C'est un `Sheet` (shadcn) qu
 | Bouton "Ajouter" + état loading | ✅ | ✅ OK |
 | Filtrage "déjà assignés" | ⚠️ Dépend de `useIntegratorAssignments()` cassé | **REFACTO** | Recalculer avec `useClientIntegrators()` |
 
-### 1.3.5 Configuration SSO (NOUVEAU — Admin uniquement)
+### 1.3.5 Configuration SSO (NOUVEAU — Admin lecture/écriture, Intégrateur lecture seule)
 
 **Comportement cible** :
-- Section visible uniquement pour admin
+- Section visible pour admin (éditable) et intégrateurs (lecture seule, champs disabled, pas de bouton supprimer)
 - Séparateur + titre "Configuration SSO" avec icône Lock
-- Si pas de config SSO : message "Aucune configuration SSO" + bouton "Configurer SSO"
+- **Règle métier** : un client = un mode d'auth. SSO activé = SSO exclusif (pas d'email/mot de passe). Pas de SSO = email/mot de passe uniquement. Jamais les deux en même temps.
+- Si pas de config SSO : message "Aucune configuration SSO. Les utilisateurs se connectent par email et mot de passe." + bouton "Configurer SSO" (admin)
 - Si config existante : formulaire avec les champs suivants :
   - **Provider** : Input text, requis, min 1 char, placeholder "Azure AD, Okta..."
   - **Issuer URL** : Input text, requis, URL valide, placeholder "https://login.microsoftonline.com/..."
@@ -426,8 +538,28 @@ Le drawer s'ouvre au clic sur une ligne du tableau. C'est un `Sheet` (shadcn) qu
 | Table `client_sso_configs` | ✅ FK cascade → clients | — | — | ✅ OK | — |
 | Lire config SSO | ✅ | ✅ `GET /clients/:id/sso` | ❌ N'existe pas | **REFACTO FRONT** | Créer hook `useClientSso(clientId)` |
 | Formulaire SSO | ✅ toutes colonnes | ✅ `PUT /clients/:id/sso` | ❌ N'existe pas | **REFACTO FRONT** | Créer composant `ClientSsoSection` |
-| Supprimer SSO | ✅ | ✅ `DELETE /clients/:id/sso` | ❌ N'existe pas | **REFACTO FRONT** | Bouton + dialog confirmation |
+| Supprimer SSO | ✅ | ✅ `DELETE /clients/:id/sso` | ❌ N'existe pas | **REFACTO FRONT** | Bouton + dialog confirmation (admin uniquement) |
 | Secret masqué | ✅ chiffré en BDD | ✅ retourne `***` | ❌ | **REFACTO FRONT** | Afficher `••••••••`, champ vide = pas de modif |
+| Mode lecture seule SSO (intégrateurs) | — | ✅ `GET` autorisé pour intégrateurs assignés | ❌ | **REFACTO FRONT** | Afficher les champs disabled, masquer bouton supprimer |
+
+### 1.3.6 Accès & Domaines (NOUVEAU — Admin uniquement, Intégrateur lecture seule)
+
+**Comportement cible** :
+- Séparateur + titre "Accès & Domaines" avec icône Globe
+- Champs configurables (admin, auto-save) :
+  - **Sous-domaine** : Input text, optionnel, placeholder "laposte" → résultat affiché : `laposte.delta-rm.com`
+  - **Hostname personnalisé (CNAME)** : Input text, optionnel, placeholder "app.laposte.com"
+- Ces champs servent à la détection automatique du mode d'auth (SSO vs email/mot de passe) sur la page de connexion
+- La détection par email se fait via les `user_client_memberships` (pas besoin de champ domaine)
+- Mode intégrateur : lecture seule
+
+**API** : `PATCH /api/clients/:id` — les champs `subdomain`, `custom_hostname` sont dans le schema de mise à jour
+
+| Élément | BDD | API | Front | Status | Refacto |
+|---------|:---:|:---:|:---:|---|---|
+| Colonne `subdomain` | ✅ Ajoutée, unique | ✅ `PATCH /clients/:id` | ❌ N'existe pas | **REFACTO FRONT** | Ajouter champ dans le drawer |
+| Colonne `custom_hostname` | ✅ Ajoutée, unique | ✅ `PATCH /clients/:id` | ❌ N'existe pas | **REFACTO FRONT** | Ajouter champ dans le drawer |
+| Mode lecture seule (intégrateurs) | — | — | ❌ | **REFACTO FRONT** | Champs disabled si non-admin |
 
 ---
 
@@ -456,14 +588,15 @@ Le drawer s'ouvre au clic sur une ligne du tableau. C'est un `Sheet` (shadcn) qu
 |---|---------|-------------|
 | B1 | `server/src/routes/clients.ts` — `GET /` | Ajouter param `is_active` (filtre WHERE `is_active = ?`) |
 | B2 | `server/src/routes/clients.ts` — `GET /` | Ajouter param `search` (WHERE `name ILIKE '%search%'`) |
-| B3 | `server/src/routes/clients.ts` — `POST /` | Changer min name de 1 à 2 chars dans le schema zod |
-| B4 | `server/src/routes/clients.ts` — `POST /` | Ajouter check unicité name avant insert → 409 si doublon |
+| B3 | `server/src/routes/clients.ts` — `POST /` | ~~Changer min name de 1 à 2 chars~~ ✅ FAIT |
+| B4 | `server/src/routes/clients.ts` — `POST /` | Ajouter check unicité name avant insert → 409 si doublon (contrainte UNIQUE ajoutée, mais ajouter gestion erreur explicite) |
 
 ### Base de données
 
 | # | Table | Modification |
 |---|-------|-------------|
-| D1 | `clients` | Ajouter contrainte UNIQUE sur `name` |
+| D1 | `clients` | ~~Ajouter contrainte UNIQUE sur `name`~~ ✅ FAIT (schema.ts + migration) |
+| D2 | `clients` | ~~Ajouter colonnes `subdomain` (unique), `custom_hostname` (unique)~~ ✅ FAIT |
 
 ### Front-end
 
@@ -486,13 +619,18 @@ Le drawer s'ouvre au clic sur une ligne du tableau. C'est un `Sheet` (shadcn) qu
 | F15 | `src/components/admin/clients/ClientEditDrawer.tsx` | Reconnecter aux hooks intégrateurs corrigés (F5, F6, F7) |
 | F16 | `src/components/admin/clients/ClientEditDrawer.tsx` | Ajouter section SSO (nouveau composant `ClientSsoSection`) — admin uniquement |
 | F17 | `src/components/admin/clients/ClientEditDrawer.tsx` | Changer texte bouton archivage : "Supprimer" → "Archiver" |
+| F18 | `src/pages/admin/AdminClientsPage.tsx` | Ajouter dialog de confirmation avant restauration (même pattern que l'archivage) |
+| F19 | `src/pages/admin/AdminClientsPage.tsx` | Vue archivés : brancher pagination serveur (même composant, `is_active=false`) |
+| F20 | `src/components/admin/clients/ClientEditDrawer.tsx` | Ajouter section "Accès & Domaines" : champs subdomain, custom_hostname — admin éditable, intégrateur lecture seule |
 
 ---
 
 ## Décisions prises
 
 - [x] Slug : supprimer (pas de colonne en BDD)
-- [x] SSO : ajouter dans le drawer client (admin uniquement)
+- [x] SSO : ajouter dans le drawer client (admin éditable, intégrateur lecture seule)
+- [x] Auth par client : un client = un mode d'auth (SSO exclusif OU email/mot de passe, jamais les deux)
+- [x] SSO activé = pas de flow "définissez votre mot de passe" à l'invitation
 - [x] Colonnes tableau : Nom + Actions (Configurer), clic ligne ouvre drawer
 - [x] Pagination : 50/page, toujours côté API
 - [x] Filtrage : toujours côté API
@@ -500,3 +638,4 @@ Le drawer s'ouvre au clic sur une ligne du tableau. C'est un `Sheet` (shadcn) qu
 - [x] Drawer intégrateur : lecture seule
 - [x] Bouton "Configurer" : garder sur la ligne du tableau
 - [x] Unicité du nom client : contrainte UNIQUE en BDD + check API 409
+- [x] Détection SSO : 3 mécanismes (domaine email, sous-domaine, CNAME) — colonnes ajoutées en BDD + API check-auth-method créée

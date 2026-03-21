@@ -5,19 +5,20 @@ import {
   accounts,
   refreshTokens,
   passwordResetTokens,
+  clients,
   clientSsoConfigs,
   userClientMemberships,
   integratorClientAssignments,
   clientProfileUsers,
   clientProfiles,
 } from '../db/schema.js';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, isNull, or } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rate-limit.js';
-import { signAccessToken } from '../lib/jwt.js';
+import { signAccessToken, signTempToken, verifyTempToken } from '../lib/jwt.js';
 import type { JwtPayload } from '../lib/jwt.js';
 import { validatePassword } from '../lib/password-policy.js';
-import { decrypt } from '../lib/encryption.js';
+import { decrypt, encrypt } from '../lib/encryption.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -84,6 +85,7 @@ router.post('/signin', rateLimit(5, 60_000), async (c) => {
       passwordHash: accounts.passwordHash,
       failedLoginAttempts: accounts.failedLoginAttempts,
       lockedUntil: accounts.lockedUntil,
+      totpEnabled: accounts.totpEnabled,
     })
     .from(accounts)
     .where(eq(accounts.email, email))
@@ -168,6 +170,32 @@ router.post('/signin', rateLimit(5, 60_000), async (c) => {
     .set({ failedLoginAttempts: 0, lockedUntil: null, updatedAt: new Date() })
     .where(eq(accounts.id, account.id));
 
+  // 2FA check for admin/integrators
+  const requires2fa = account.persona === 'admin_delta' ||
+    account.persona === 'integrator_delta' ||
+    account.persona === 'integrator_external';
+
+  if (requires2fa) {
+    const tempToken = await signTempToken({
+      sub: account.id,
+      email: account.email,
+      persona: account.persona,
+    });
+
+    if (!account.totpEnabled) {
+      return c.json({
+        requires_2fa_setup: true,
+        temp_token: tempToken,
+      });
+    }
+
+    return c.json({
+      requires_2fa: true,
+      temp_token: tempToken,
+    });
+  }
+
+  // No 2FA needed (client_user) — issue tokens directly
   const accessToken = await signAccessToken({
     sub: account.id,
     email: account.email,
@@ -495,7 +523,7 @@ router.get('/me', authMiddleware, async (c) => {
     const assignments = await db
       .select({ clientId: integratorClientAssignments.clientId })
       .from(integratorClientAssignments)
-      .where(eq(integratorClientAssignments.userId, account.id));
+      .where(and(eq(integratorClientAssignments.userId, account.id), isNull(integratorClientAssignments.deletedAt)));
     clientIds = assignments.map((a) => a.clientId);
   }
 
@@ -746,6 +774,311 @@ router.get('/sso/:clientId/check', async (c) => {
   }
 
   return c.json({ enabled: true, provider: config.provider });
+});
+
+// ---------------------------------------------------------------------------
+// POST /2fa/setup  (temp_token required)
+// ---------------------------------------------------------------------------
+
+router.post('/2fa/setup', rateLimit(5, 60_000), async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const tempToken = body?.temp_token;
+  if (!tempToken) return c.json({ error: 'temp_token requis' }, 400);
+
+  let user: JwtPayload;
+  try {
+    user = await verifyTempToken(tempToken);
+  } catch {
+    return c.json({ error: 'Token invalide ou expiré' }, 401);
+  }
+
+  // Generate TOTP secret
+  const { TOTP, Secret } = await import('otpauth');
+  const secret = new Secret({ size: 20 });
+  const totp = new TOTP({
+    issuer: 'Delta RM',
+    label: user.email,
+    algorithm: 'SHA1',
+    digits: 6,
+    period: 30,
+    secret,
+  });
+
+  const otpauthUri = totp.toString();
+
+  // Generate QR code as data URL
+  const QRCode = await import('qrcode');
+  const qrCodeDataUrl = await QRCode.toDataURL(otpauthUri);
+
+  // Store the secret temporarily (encrypted) — not yet activated
+  const encryptedSecret = encrypt(secret.base32);
+  await db
+    .update(accounts)
+    .set({ totpSecret: encryptedSecret, updatedAt: new Date() })
+    .where(eq(accounts.id, user.sub));
+
+  return c.json({
+    secret: secret.base32,
+    qr_code_url: qrCodeDataUrl,
+    otpauth_uri: otpauthUri,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /2fa/setup/confirm  (temp_token required)
+// ---------------------------------------------------------------------------
+
+const setup2faConfirmSchema = z.object({
+  temp_token: z.string().min(1),
+  code: z.string().length(6),
+});
+
+router.post('/2fa/setup/confirm', rateLimit(5, 60_000), async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = setup2faConfirmSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: 'temp_token et code requis' }, 400);
+
+  let user: JwtPayload;
+  try {
+    user = await verifyTempToken(parsed.data.temp_token);
+  } catch {
+    return c.json({ error: 'Token invalide ou expiré' }, 401);
+  }
+
+  // Get the stored secret
+  const [account] = await db
+    .select({ totpSecret: accounts.totpSecret })
+    .from(accounts)
+    .where(eq(accounts.id, user.sub))
+    .limit(1);
+
+  if (!account?.totpSecret) {
+    return c.json({ error: 'Aucun secret TOTP configuré. Appelez /2fa/setup d\'abord.' }, 400);
+  }
+
+  const secretBase32 = decrypt(account.totpSecret);
+
+  // Verify the code
+  const { TOTP, Secret } = await import('otpauth');
+  const totp = new TOTP({
+    issuer: 'Delta RM',
+    label: user.email,
+    algorithm: 'SHA1',
+    digits: 6,
+    period: 30,
+    secret: Secret.fromBase32(secretBase32),
+  });
+
+  const delta = totp.validate({ token: parsed.data.code, window: 1 });
+  if (delta === null) {
+    return c.json({ error: 'Code invalide' }, 401);
+  }
+
+  // Activate 2FA
+  await db
+    .update(accounts)
+    .set({ totpEnabled: true, updatedAt: new Date() })
+    .where(eq(accounts.id, user.sub));
+
+  // Issue real tokens
+  const accessToken = await signAccessToken({
+    sub: user.sub,
+    email: user.email,
+    persona: user.persona,
+  });
+
+  const refreshToken = await createRefreshToken(user.sub);
+
+  setCookie(c, 'refresh_token', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Strict',
+    path: '/api/auth',
+    maxAge: 7 * 24 * 60 * 60,
+  });
+
+  return c.json({
+    access_token: accessToken,
+    token_type: 'Bearer',
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /2fa/verify  (temp_token required)
+// ---------------------------------------------------------------------------
+
+const verify2faSchema = z.object({
+  temp_token: z.string().min(1),
+  code: z.string().length(6),
+});
+
+router.post('/2fa/verify', rateLimit(5, 60_000), async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = verify2faSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: 'temp_token et code requis' }, 400);
+
+  let user: JwtPayload;
+  try {
+    user = await verifyTempToken(parsed.data.temp_token);
+  } catch {
+    return c.json({ error: 'Token invalide ou expiré' }, 401);
+  }
+
+  const [account] = await db
+    .select({ totpSecret: accounts.totpSecret, totpEnabled: accounts.totpEnabled })
+    .from(accounts)
+    .where(eq(accounts.id, user.sub))
+    .limit(1);
+
+  if (!account?.totpSecret || !account.totpEnabled) {
+    return c.json({ error: '2FA non configuré pour ce compte' }, 400);
+  }
+
+  const secretBase32 = decrypt(account.totpSecret);
+
+  const { TOTP, Secret } = await import('otpauth');
+  const totp = new TOTP({
+    issuer: 'Delta RM',
+    label: user.email,
+    algorithm: 'SHA1',
+    digits: 6,
+    period: 30,
+    secret: Secret.fromBase32(secretBase32),
+  });
+
+  const delta = totp.validate({ token: parsed.data.code, window: 1 });
+  if (delta === null) {
+    return c.json({ error: 'Code invalide' }, 401);
+  }
+
+  const accessToken = await signAccessToken({
+    sub: user.sub,
+    email: user.email,
+    persona: user.persona,
+  });
+
+  const refreshToken = await createRefreshToken(user.sub);
+
+  setCookie(c, 'refresh_token', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Strict',
+    path: '/api/auth',
+    maxAge: 7 * 24 * 60 * 60,
+  });
+
+  console.log(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level: 'info',
+    event: 'auth_2fa_verify_success',
+    email: user.email,
+    user_id: user.sub,
+    ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown',
+    user_agent: c.req.header('user-agent'),
+  }));
+
+  return c.json({
+    access_token: accessToken,
+    token_type: 'Bearer',
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /check-auth-method  (public)
+// ---------------------------------------------------------------------------
+
+const checkAuthMethodSchema = z.object({
+  email: z.string().email().optional(),
+  hostname: z.string().min(1).optional(),
+}).refine((data) => data.email || data.hostname, {
+  message: 'email ou hostname requis',
+});
+
+router.post('/check-auth-method', rateLimit(10, 60_000), async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = checkAuthMethodSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'email ou hostname requis' }, 400);
+  }
+
+  const { email, hostname } = parsed.data;
+
+  let clientRow: { id: string; name: string } | undefined;
+
+  if (hostname) {
+    // Try to find client by subdomain or custom_hostname
+    [clientRow] = await db
+      .select({ id: clients.id, name: clients.name })
+      .from(clients)
+      .where(
+        and(
+          eq(clients.isActive, true),
+          or(
+            eq(clients.subdomain, hostname),
+            eq(clients.customHostname, hostname)
+          )
+        )
+      )
+      .limit(1);
+  } else if (email) {
+    // Find the user's account, then their client via membership
+    const [account] = await db
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(eq(accounts.email, email.toLowerCase()))
+      .limit(1);
+
+    if (account) {
+      // Check user_client_memberships first (client_user)
+      const [membership] = await db
+        .select({ clientId: userClientMemberships.clientId })
+        .from(userClientMemberships)
+        .where(
+          and(
+            eq(userClientMemberships.userId, account.id),
+            eq(userClientMemberships.isActive, true)
+          )
+        )
+        .limit(1);
+
+      if (membership) {
+        [clientRow] = await db
+          .select({ id: clients.id, name: clients.name })
+          .from(clients)
+          .where(and(eq(clients.id, membership.clientId), eq(clients.isActive, true)))
+          .limit(1);
+      }
+    }
+    // If account not found or no membership, clientRow stays undefined → returns 'password'
+    // This doesn't leak whether the email exists (always returns a valid response)
+  }
+
+  if (!clientRow) {
+    return c.json({ method: 'password' });
+  }
+
+  // Check if this client has SSO enabled
+  const [ssoConfig] = await db
+    .select({ provider: clientSsoConfigs.provider })
+    .from(clientSsoConfigs)
+    .where(
+      and(
+        eq(clientSsoConfigs.clientId, clientRow.id),
+        eq(clientSsoConfigs.isEnabled, true)
+      )
+    )
+    .limit(1);
+
+  if (!ssoConfig) {
+    return c.json({ method: 'password' });
+  }
+
+  return c.json({
+    method: 'sso',
+    provider: ssoConfig.provider,
+    client_id: clientRow.id,
+    client_name: clientRow.name,
+  });
 });
 
 export default router;

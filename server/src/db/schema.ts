@@ -35,6 +35,8 @@ export const accounts = pgTable('accounts', {
   persona: systemPersonaEnum('persona').notNull(),
   failedLoginAttempts: integer('failed_login_attempts').default(0).notNull(),
   lockedUntil: timestamp('locked_until', { withTimezone: true }),
+  totpSecret: text('totp_secret'),
+  totpEnabled: boolean('totp_enabled').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -43,8 +45,10 @@ export const accounts = pgTable('accounts', {
 
 export const clients = pgTable('clients', {
   id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
+  name: text('name').notNull().unique(),
   isActive: boolean('is_active').default(true).notNull(),
+  subdomain: text('subdomain').unique(),
+  customHostname: text('custom_hostname').unique(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -92,6 +96,7 @@ export const integratorClientAssignments = pgTable('integrator_client_assignment
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   assignedBy: uuid('assigned_by').references(() => accounts.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => [
   index('integrator_client_assignments_user_id_idx').on(table.userId),
   index('integrator_client_assignments_client_id_idx').on(table.clientId),
@@ -636,6 +641,7 @@ export const moduleCvCampaignTargets = pgTable('module_cv_campaign_targets', {
   campaignId: uuid('campaign_id').notNull().references(() => moduleCvCampaigns.id, { onDelete: 'cascade' }),
   eoId: uuid('eo_id').notNull().references(() => eoEntities.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => [
   index('module_cv_campaign_targets_campaign_id_idx').on(table.campaignId),
 ]);
@@ -686,6 +692,7 @@ export const moduleCvResponseDocuments = pgTable('module_cv_response_documents',
   displayOrder: integer('display_order').default(0).notNull(),
   uploadedAt: timestamp('uploaded_at', { withTimezone: true }).defaultNow().notNull(),
   uploadedBy: uuid('uploaded_by').references(() => accounts.id, { onDelete: 'set null' }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => [
   index('module_cv_response_documents_response_id_idx').on(table.responseId),
 ]);

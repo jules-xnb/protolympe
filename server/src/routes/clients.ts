@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq, and, count } from 'drizzle-orm';
+import { eq, and, count, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import {
   clients,
@@ -24,12 +24,14 @@ router.use('*', authMiddleware);
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
 const createClientSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(2),
 });
 
 const updateClientSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().min(2).optional(),
   is_active: z.boolean().optional(),
+  subdomain: z.string().min(1).nullable().optional(),
+  custom_hostname: z.string().min(1).nullable().optional(),
 });
 
 const ssoUpsertSchema = z.object({
@@ -61,7 +63,8 @@ router.get('/', async (c) => {
         integratorClientAssignments,
         and(
           eq(integratorClientAssignments.clientId, clients.id),
-          eq(integratorClientAssignments.userId, user.sub)
+          eq(integratorClientAssignments.userId, user.sub),
+          isNull(integratorClientAssignments.deletedAt)
         )
       );
     const rows = await db
@@ -71,7 +74,8 @@ router.get('/', async (c) => {
         integratorClientAssignments,
         and(
           eq(integratorClientAssignments.clientId, clients.id),
-          eq(integratorClientAssignments.userId, user.sub)
+          eq(integratorClientAssignments.userId, user.sub),
+          isNull(integratorClientAssignments.deletedAt)
         )
       )
       .orderBy(clients.name)
@@ -130,7 +134,8 @@ router.get('/:id', async (c) => {
       .where(
         and(
           eq(integratorClientAssignments.clientId, id),
-          eq(integratorClientAssignments.userId, user.sub)
+          eq(integratorClientAssignments.userId, user.sub),
+          isNull(integratorClientAssignments.deletedAt)
         )
       );
     if (!assignment) return c.json({ error: 'Accès refusé' }, 403);
@@ -195,7 +200,8 @@ router.patch('/:id', async (c) => {
       .where(
         and(
           eq(integratorClientAssignments.clientId, id),
-          eq(integratorClientAssignments.userId, user.sub)
+          eq(integratorClientAssignments.userId, user.sub),
+          isNull(integratorClientAssignments.deletedAt)
         )
       );
     if (!assignment) return c.json({ error: 'Accès refusé' }, 403);
@@ -212,6 +218,8 @@ router.patch('/:id', async (c) => {
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (body.name !== undefined) updateData.name = body.name;
   if (body.is_active !== undefined) updateData.isActive = body.is_active;
+  if (body.subdomain !== undefined) updateData.subdomain = body.subdomain;
+  if (body.custom_hostname !== undefined) updateData.customHostname = body.custom_hostname;
 
   const [updated] = await db
     .update(clients)
@@ -270,7 +278,7 @@ router.get('/:id/integrators', async (c) => {
     })
     .from(integratorClientAssignments)
     .innerJoin(accounts, eq(accounts.id, integratorClientAssignments.userId))
-    .where(eq(integratorClientAssignments.clientId, id));
+    .where(and(eq(integratorClientAssignments.clientId, id), isNull(integratorClientAssignments.deletedAt)));
 
   return c.json(rows);
 });
@@ -293,7 +301,8 @@ router.get('/:id/sso', async (c) => {
       .where(
         and(
           eq(integratorClientAssignments.clientId, id),
-          eq(integratorClientAssignments.userId, user.sub)
+          eq(integratorClientAssignments.userId, user.sub),
+          isNull(integratorClientAssignments.deletedAt)
         )
       );
     if (!assignment) return c.json({ error: 'Accès refusé' }, 403);
@@ -382,7 +391,8 @@ router.delete('/:id/sso', async (c) => {
   if (!existing) return c.json({ error: 'Client introuvable' }, 404);
 
   const [deleted] = await db
-    .delete(clientSsoConfigs)
+    .update(clientSsoConfigs)
+    .set({ isEnabled: false, updatedAt: new Date() })
     .where(eq(clientSsoConfigs.clientId, id))
     .returning();
 
@@ -398,6 +408,8 @@ function toSnake(client: typeof clients.$inferSelect) {
     id: client.id,
     name: client.name,
     is_active: client.isActive,
+    subdomain: client.subdomain,
+    custom_hostname: client.customHostname,
     created_at: client.createdAt,
     updated_at: client.updatedAt,
   };

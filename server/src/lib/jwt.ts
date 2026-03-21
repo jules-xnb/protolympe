@@ -11,6 +11,7 @@ export interface JwtPayload {
   sub: string;
   email: string;
   persona: string;
+  activeProfileId?: string;
 }
 
 export async function signAccessToken(payload: JwtPayload): Promise<string> {
@@ -27,6 +28,7 @@ export async function verifyAccessToken(token: string): Promise<JwtPayload> {
     sub: payload.sub as string,
     email: payload.email as string,
     persona: payload.persona as string,
+    activeProfileId: payload.activeProfileId as string | undefined,
   };
 }
 

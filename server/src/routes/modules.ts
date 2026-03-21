@@ -238,7 +238,7 @@ router.patch('/clients/:clientId/modules/reorder', async (c) => {
 // Helper — verify that the caller has access to the client owning this module
 // =============================================
 
-async function verifyModuleClientAccess(moduleId: string, userId: string, persona: string): Promise<string | null> {
+async function verifyModuleClientAccess(moduleId: string, userId: string, persona: string, activeProfileId?: string): Promise<string | null> {
   if (persona === 'admin_delta') return null;
 
   const [mod] = await db
@@ -249,7 +249,7 @@ async function verifyModuleClientAccess(moduleId: string, userId: string, person
 
   if (!mod) return 'Module introuvable';
 
-  const permissions = await getUserPermissions(userId);
+  const permissions = await getUserPermissions(userId, activeProfileId);
   if (!hasClientAccess(permissions, mod.clientId, persona)) {
     return 'Accès refusé à ce module';
   }
@@ -274,7 +274,7 @@ router.get('/modules/:moduleId/roles', async (c) => {
   }
 
   const { moduleId } = c.req.param();
-  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona);
+  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona, user.activeProfileId);
   if (accessError) return c.json({ error: accessError }, 403);
 
   const roles = await db
@@ -306,7 +306,7 @@ router.post('/modules/:moduleId/roles', async (c) => {
   }
 
   const { moduleId } = c.req.param();
-  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona);
+  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona, user.activeProfileId);
   if (accessError) return c.json({ error: accessError }, 403);
   const body = await c.req.json();
   const parsed = createRoleSchema.safeParse(body);
@@ -353,7 +353,7 @@ router.patch('/modules/:moduleId/roles/:id', async (c) => {
   }
 
   const { moduleId, id } = c.req.param();
-  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona);
+  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona, user.activeProfileId);
   if (accessError) return c.json({ error: accessError }, 403);
   const body = await c.req.json();
   const parsed = updateRoleSchema.safeParse(body);
@@ -398,7 +398,7 @@ router.patch('/modules/:moduleId/roles/:id/deactivate', async (c) => {
   }
 
   const { moduleId, id } = c.req.param();
-  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona);
+  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona, user.activeProfileId);
   if (accessError) return c.json({ error: accessError }, 403);
 
   const [role] = await db
@@ -432,7 +432,7 @@ router.get('/modules/:moduleId/permissions', async (c) => {
   }
 
   const { moduleId } = c.req.param();
-  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona);
+  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona, user.activeProfileId);
   if (accessError) return c.json({ error: accessError }, 403);
 
   const permissions = await db
@@ -482,7 +482,7 @@ router.put('/modules/:moduleId/permissions', async (c) => {
   }
 
   const { moduleId } = c.req.param();
-  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona);
+  const accessError = await verifyModuleClientAccess(moduleId, user.sub, persona, user.activeProfileId);
   if (accessError) return c.json({ error: accessError }, 403);
   const body = await c.req.json();
   const parsed = updatePermissionsSchema.safeParse(body);

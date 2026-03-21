@@ -322,7 +322,7 @@ router.patch('/:id', async (c) => {
       .limit(1);
 
     if (profilsModule) {
-      const editableFields = await getEditableFieldSlugs(requestingUser.sub, profilsModule.id, 'profils');
+      const editableFields = await getEditableFieldSlugs(requestingUser.sub, profilsModule.id, 'profils', requestingUser.activeProfileId);
       const requestedFields = Object.keys(body) as string[];
       for (const field of requestedFields) {
         if (!editableFields.has(field)) {

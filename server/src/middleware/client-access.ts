@@ -18,11 +18,16 @@ export function requireClientAccess(clientIdParam = 'clientId') {
       return c.json({ error: 'Paramètre client_id manquant' }, 400);
     }
 
-    const permissions = await getUserPermissions(user.sub);
+    const permissions = await getUserPermissions(user.sub, user.activeProfileId);
     c.set('permissions', permissions);
 
     if (!hasClientAccess(permissions, clientId, user.persona)) {
       return c.json({ error: 'Accès refusé à ce client' }, 403);
+    }
+
+    // For client_user: verify the active profile belongs to the requested client
+    if (user.persona === 'client_user' && permissions.activeProfileClientId && permissions.activeProfileClientId !== clientId) {
+      return c.json({ error: 'Le profil actif ne correspond pas à ce client' }, 403);
     }
 
     await next();

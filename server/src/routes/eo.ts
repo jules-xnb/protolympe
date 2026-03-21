@@ -222,7 +222,7 @@ router.patch('/:id', async (c) => {
       .limit(1);
 
     if (orgModule) {
-      const editableFields = await getEditableFieldSlugs(user.sub, orgModule.id, 'organisation');
+      const editableFields = await getEditableFieldSlugs(user.sub, orgModule.id, 'organisation', user.activeProfileId);
       const requestedFields = Object.keys(body) as string[];
       for (const field of requestedFields) {
         if (!editableFields.has(field)) {

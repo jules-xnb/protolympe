@@ -9,7 +9,7 @@ Un **profil client** est un template de droits partagé. Il définit :
 
 Un profil est **partagé** : modifier un rôle ou une EO dans un profil impacte **tous les utilisateurs** qui ont ce profil.
 
-Un utilisateur peut avoir **plusieurs profils**. Ses droits sont l'**union** de tous ses profils.
+Un utilisateur peut avoir **plusieurs profils**. Il **switch** entre ses profils dans le FO — ses droits sont **uniquement ceux du profil actif sélectionné**, pas l'union de tous ses profils. L'union se fait à l'intérieur d'un profil (EOs + groupes + rôles).
 
 ---
 

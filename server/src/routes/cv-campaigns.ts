@@ -42,7 +42,7 @@ async function verifyModuleClientAccess(
   const [mod] = await db.select({ clientId: clientModules.clientId }).from(clientModules).where(eq(clientModules.id, moduleId)).limit(1);
   if (!mod) return c.json({ error: 'Module introuvable' }, 404);
 
-  const permissions = await getUserPermissions(user.sub);
+  const permissions = await getUserPermissions(user.sub, user.activeProfileId);
   if (!hasClientAccess(permissions, mod.clientId, user.persona)) {
     return c.json({ error: 'Accès refusé à ce module' }, 403);
   }
@@ -229,7 +229,7 @@ async function requireManageCampaign(
     return true;
   }
   if (user.persona !== 'client_user') return false;
-  const permissions = await getUserPermissions(user.sub);
+  const permissions = await getUserPermissions(user.sub, user.activeProfileId);
   return hasModulePermission(permissions, moduleId, 'can_manage_campaign');
 }
 
@@ -788,7 +788,7 @@ router.patch('/responses/:id', async (c) => {
     .limit(1);
 
   if (currentForm) {
-    const editableFieldIds = await getEditableCvFormFieldIds(user.sub, moduleId, currentForm.id);
+    const editableFieldIds = await getEditableCvFormFieldIds(user.sub, moduleId, currentForm.id, user.activeProfileId);
     for (const entry of body.values) {
       if (!editableFieldIds.has(entry.field_definition_id)) {
         return c.json({ error: `Champ non autorisé : ${entry.field_definition_id}` }, 403);
@@ -913,7 +913,7 @@ router.post('/responses/:id/transition', async (c) => {
   if (!transition) return c.json({ error: 'Transition introuvable ou non applicable depuis le statut actuel' }, 422);
 
   // Verify user's roles include at least one allowed role for this transition
-  const permissions = await getUserPermissions(user.sub);
+  const permissions = await getUserPermissions(user.sub, user.activeProfileId);
   const userRoleIds = getModuleRoleIds(permissions, moduleId);
 
   if (userRoleIds.length > 0) {

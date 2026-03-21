@@ -3,7 +3,6 @@ import {
   accounts,
   integratorClientAssignments,
   userClientMemberships,
-  clientProfileUsers,
   clientProfiles,
   clientProfileModuleRoles,
   clientProfileEos,
@@ -20,9 +19,11 @@ const CACHE_TTL_MS = 60_000; // 1 minute
 
 export interface CachedPermissions {
   clientIds: string[];
-  moduleRolesByClient: Record<string, { moduleId: string; roleId: string; roleName: string }[]>;
+  activeProfileId: string | null;
+  activeProfileClientId: string | null;
+  moduleRoles: { moduleId: string; roleId: string; roleName: string }[];
   permissionsByModule: Record<string, Record<string, boolean>>;
-  eoIdsByClient: Record<string, Set<string>>;
+  eoIds: Set<string>;
   loadedAt: number;
 }
 
@@ -33,11 +34,22 @@ function isExpired(entry: CachedPermissions): boolean {
 }
 
 export function invalidateUserCache(userId: string): void {
-  cache.delete(userId);
+  // Invalidate all cache entries for this user (any profile)
+  for (const key of cache.keys()) {
+    if (key.startsWith(userId)) {
+      cache.delete(key);
+    }
+  }
 }
 
-export async function getUserPermissions(userId: string): Promise<CachedPermissions> {
-  const existing = cache.get(userId);
+/**
+ * Get permissions for a user.
+ * For client_user: permissions are scoped to the active profile.
+ * For admin/integrator: no profile needed, full access to assigned clients.
+ */
+export async function getUserPermissions(userId: string, activeProfileId?: string): Promise<CachedPermissions> {
+  const cacheKey = activeProfileId ? `${userId}:${activeProfileId}` : userId;
+  const existing = cache.get(cacheKey);
   if (existing && !isExpired(existing)) {
     return existing;
   }
@@ -56,7 +68,6 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
   let clientIds: string[] = [];
 
   if (persona === 'admin_delta') {
-    // Admin sees all clients — clientIds not restricted
     clientIds = [];
   } else if (persona === 'integrator_delta' || persona === 'integrator_external') {
     const assignments = await db
@@ -72,193 +83,161 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
     clientIds = memberships.map((m) => m.clientId);
   }
 
-  // Load module roles via profiles (exclude archived profiles)
-  const profileAssignments = await db
+  // For admin/integrator: no profile-scoped permissions
+  if (persona !== 'client_user' || !activeProfileId) {
+    const result: CachedPermissions = {
+      clientIds,
+      activeProfileId: null,
+      activeProfileClientId: null,
+      moduleRoles: [],
+      permissionsByModule: {},
+      eoIds: new Set(),
+      loadedAt: Date.now(),
+    };
+    cache.set(cacheKey, result);
+    return result;
+  }
+
+  // === CLIENT_USER with active profile ===
+
+  // Verify the profile exists, is not archived, and belongs to the user
+  const [profile] = await db
+    .select({ id: clientProfiles.id, clientId: clientProfiles.clientId })
+    .from(clientProfiles)
+    .where(and(eq(clientProfiles.id, activeProfileId), eq(clientProfiles.isArchived, false)));
+
+  if (!profile) {
+    throw new Error('Profile not found or archived');
+  }
+
+  // Load module roles for THIS profile only (not all profiles)
+  const profileRoles = await db
     .select({
-      profileId: clientProfileUsers.profileId,
+      moduleRoleId: clientProfileModuleRoles.moduleRoleId,
+      roleName: moduleRoles.name,
+      clientModuleId: moduleRoles.clientModuleId,
     })
-    .from(clientProfileUsers)
-    .innerJoin(clientProfiles, eq(clientProfileUsers.profileId, clientProfiles.id))
+    .from(clientProfileModuleRoles)
+    .innerJoin(moduleRoles, eq(clientProfileModuleRoles.moduleRoleId, moduleRoles.id))
     .where(and(
-      eq(clientProfileUsers.userId, userId),
-      isNull(clientProfileUsers.deletedAt),
-      eq(clientProfiles.isArchived, false)
+      eq(clientProfileModuleRoles.profileId, activeProfileId),
+      isNull(clientProfileModuleRoles.deletedAt),
+      eq(moduleRoles.isActive, true)
     ));
 
-  const profileIds = profileAssignments.map((p) => p.profileId);
+  const moduleRolesList = profileRoles.map((pr) => ({
+    moduleId: pr.clientModuleId,
+    roleId: pr.moduleRoleId,
+    roleName: pr.roleName,
+  }));
 
-  const moduleRolesByClient: Record<string, { moduleId: string; roleId: string; roleName: string }[]> = {};
+  // Load permissions for the roles of this profile
   const permissionsByModule: Record<string, Record<string, boolean>> = {};
+  const allRoleIds = profileRoles.map((pr) => pr.moduleRoleId);
 
-  if (profileIds.length > 0) {
-    const profileRoles = await db
+  if (allRoleIds.length > 0) {
+    const perms = await db
       .select({
-        profileId: clientProfileModuleRoles.profileId,
-        moduleRoleId: clientProfileModuleRoles.moduleRoleId,
-        roleName: moduleRoles.name,
-        clientModuleId: moduleRoles.clientModuleId,
+        moduleRoleId: modulePermissions.moduleRoleId,
+        permissionSlug: modulePermissions.permissionSlug,
+        isGranted: modulePermissions.isGranted,
+        clientModuleId: modulePermissions.clientModuleId,
       })
-      .from(clientProfileModuleRoles)
-      .innerJoin(moduleRoles, eq(clientProfileModuleRoles.moduleRoleId, moduleRoles.id))
-      .where(and(
-        inArray(clientProfileModuleRoles.profileId, profileIds),
-        isNull(clientProfileModuleRoles.deletedAt),
-        eq(moduleRoles.isActive, true)
-      ));
+      .from(modulePermissions)
+      .where(inArray(modulePermissions.moduleRoleId, allRoleIds));
 
-    // Get client_id for each profile to group by client (already filtered by isArchived in profileAssignments join)
-    const profileDetails = await db
-      .select({ id: clientProfiles.id, clientId: clientProfiles.clientId })
-      .from(clientProfiles)
-      .where(and(inArray(clientProfiles.id, profileIds), eq(clientProfiles.isArchived, false)));
-
-    const profileClientMap = new Map(profileDetails.map((p) => [p.id, p.clientId]));
-
-    for (const pr of profileRoles) {
-      const clientId = profileClientMap.get(pr.profileId);
-      if (!clientId) continue;
-      if (!moduleRolesByClient[clientId]) moduleRolesByClient[clientId] = [];
-      moduleRolesByClient[clientId].push({
-        moduleId: pr.clientModuleId,
-        roleId: pr.moduleRoleId,
-        roleName: pr.roleName,
-      });
-    }
-
-    // Load permissions for all role IDs
-    const allRoleIds = profileRoles.map((pr) => pr.moduleRoleId);
-    if (allRoleIds.length > 0) {
-      const perms = await db
-        .select({
-          moduleRoleId: modulePermissions.moduleRoleId,
-          permissionSlug: modulePermissions.permissionSlug,
-          isGranted: modulePermissions.isGranted,
-          clientModuleId: modulePermissions.clientModuleId,
-        })
-        .from(modulePermissions)
-        .where(inArray(modulePermissions.moduleRoleId, allRoleIds));
-
-      for (const p of perms) {
-        if (!permissionsByModule[p.clientModuleId]) permissionsByModule[p.clientModuleId] = {};
-        if (p.isGranted) {
-          permissionsByModule[p.clientModuleId][p.permissionSlug] = true;
-        }
+    for (const p of perms) {
+      if (!permissionsByModule[p.clientModuleId]) permissionsByModule[p.clientModuleId] = {};
+      if (p.isGranted) {
+        permissionsByModule[p.clientModuleId][p.permissionSlug] = true;
       }
     }
   }
 
-  // Load EO perimeter
-  const eoIdsByClient: Record<string, Set<string>> = {};
+  // Load EO perimeter for THIS profile only
+  const eoIds = new Set<string>();
 
-  if (profileIds.length > 0) {
-    // Direct EO assignments
-    const directEos = await db
+  // Direct EO assignments
+  const directEos = await db
+    .select({
+      eoId: clientProfileEos.eoId,
+      includeDescendants: clientProfileEos.includeDescendants,
+    })
+    .from(clientProfileEos)
+    .where(and(eq(clientProfileEos.profileId, activeProfileId), isNull(clientProfileEos.deletedAt)));
+
+  // Group EO assignments (exclude inactive groups)
+  const groupAssignments = await db
+    .select({ groupId: clientProfileEoGroups.groupId })
+    .from(clientProfileEoGroups)
+    .innerJoin(eoGroups, eq(clientProfileEoGroups.groupId, eoGroups.id))
+    .where(and(
+      eq(clientProfileEoGroups.profileId, activeProfileId),
+      isNull(clientProfileEoGroups.deletedAt),
+      eq(eoGroups.isActive, true)
+    ));
+
+  const groupIds = groupAssignments.map((g) => g.groupId);
+  let groupMembersList: { eoId: string; includeDescendants: boolean }[] = [];
+  if (groupIds.length > 0) {
+    groupMembersList = await db
       .select({
-        profileId: clientProfileEos.profileId,
-        eoId: clientProfileEos.eoId,
-        includeDescendants: clientProfileEos.includeDescendants,
+        eoId: eoGroupMembers.eoId,
+        includeDescendants: eoGroupMembers.includeDescendants,
       })
-      .from(clientProfileEos)
-      .where(and(inArray(clientProfileEos.profileId, profileIds), isNull(clientProfileEos.deletedAt)));
+      .from(eoGroupMembers)
+      .where(and(inArray(eoGroupMembers.groupId, groupIds), isNull(eoGroupMembers.deletedAt)));
+  }
 
-    // Group EO assignments (exclude inactive groups)
-    const groupAssignments = await db
-      .select({
-        profileId: clientProfileEoGroups.profileId,
-        groupId: clientProfileEoGroups.groupId,
-      })
-      .from(clientProfileEoGroups)
-      .innerJoin(eoGroups, eq(clientProfileEoGroups.groupId, eoGroups.id))
-      .where(and(
-        inArray(clientProfileEoGroups.profileId, profileIds),
-        isNull(clientProfileEoGroups.deletedAt),
-        eq(eoGroups.isActive, true)
-      ));
+  // Combine all EO entries
+  const allEoEntries = [
+    ...directEos.map((e) => ({ eoId: e.eoId, includeDescendants: e.includeDescendants })),
+    ...groupMembersList,
+  ];
 
-    const groupIds = groupAssignments.map((g) => g.groupId);
-    let groupMembers: { groupId: string; eoId: string; includeDescendants: boolean }[] = [];
-    if (groupIds.length > 0) {
-      groupMembers = await db
-        .select({
-          groupId: eoGroupMembers.groupId,
-          eoId: eoGroupMembers.eoId,
-          includeDescendants: eoGroupMembers.includeDescendants,
-        })
-        .from(eoGroupMembers)
-        .where(and(inArray(eoGroupMembers.groupId, groupIds), isNull(eoGroupMembers.deletedAt)));
-    }
+  // Resolve each EO (exclude archived and inactive)
+  for (const entry of allEoEntries) {
+    const [eo] = await db
+      .select({ id: eoEntities.id, path: eoEntities.path, isActive: eoEntities.isActive, isArchived: eoEntities.isArchived })
+      .from(eoEntities)
+      .where(eq(eoEntities.id, entry.eoId))
+      .limit(1);
 
-    // Collect all EO IDs with their include_descendants flag
-    const eoWithDescendants: { eoId: string; includeDescendants: boolean; clientId: string }[] = [];
+    if (!eo || eo.isArchived || !eo.isActive) continue;
 
-    // Get profile → client mapping (non-archived profiles only)
-    const profileDetails2 = await db
-      .select({ id: clientProfiles.id, clientId: clientProfiles.clientId })
-      .from(clientProfiles)
-      .where(and(inArray(clientProfiles.id, profileIds), eq(clientProfiles.isArchived, false)));
-    const profileClientMap2 = new Map(profileDetails2.map((p) => [p.id, p.clientId]));
+    eoIds.add(entry.eoId);
 
-    for (const de of directEos) {
-      const clientId = profileClientMap2.get(de.profileId);
-      if (clientId) {
-        eoWithDescendants.push({ eoId: de.eoId, includeDescendants: de.includeDescendants, clientId });
-      }
-    }
-
-    for (const ga of groupAssignments) {
-      const clientId = profileClientMap2.get(ga.profileId);
-      if (!clientId) continue;
-      const members = groupMembers.filter((gm) => gm.groupId === ga.groupId);
-      for (const m of members) {
-        eoWithDescendants.push({ eoId: m.eoId, includeDescendants: m.includeDescendants, clientId });
-      }
-    }
-
-    // Resolve descendants (exclude archived and inactive EOs)
-    for (const entry of eoWithDescendants) {
-      if (!eoIdsByClient[entry.clientId]) eoIdsByClient[entry.clientId] = new Set();
-
-      // Check if the EO itself is active and not archived
-      const [eo] = await db
-        .select({ id: eoEntities.id, path: eoEntities.path, isActive: eoEntities.isActive, isArchived: eoEntities.isArchived })
+    if (entry.includeDescendants) {
+      const prefix = eo.path ? `${eo.path}/${eo.id}` : eo.id;
+      const descendants = await db
+        .select({ id: eoEntities.id })
         .from(eoEntities)
-        .where(eq(eoEntities.id, entry.eoId))
-        .limit(1);
+        .where(
+          and(
+            eq(eoEntities.clientId, profile.clientId),
+            like(eoEntities.path, `${prefix}%`),
+            eq(eoEntities.isActive, true),
+            eq(eoEntities.isArchived, false)
+          )
+        );
 
-      if (!eo || eo.isArchived || !eo.isActive) continue;
-
-      eoIdsByClient[entry.clientId].add(entry.eoId);
-
-      if (entry.includeDescendants) {
-        const prefix = eo.path ? `${eo.path}/${eo.id}` : eo.id;
-        const descendants = await db
-          .select({ id: eoEntities.id })
-          .from(eoEntities)
-          .where(
-            and(
-              eq(eoEntities.clientId, entry.clientId),
-              like(eoEntities.path, `${prefix}%`),
-              eq(eoEntities.isActive, true),
-              eq(eoEntities.isArchived, false)
-            )
-          );
-
-        for (const d of descendants) {
-          eoIdsByClient[entry.clientId].add(d.id);
-        }
+      for (const d of descendants) {
+        eoIds.add(d.id);
       }
     }
   }
 
   const result: CachedPermissions = {
     clientIds,
-    moduleRolesByClient,
+    activeProfileId,
+    activeProfileClientId: profile.clientId,
+    moduleRoles: moduleRolesList,
     permissionsByModule,
-    eoIdsByClient,
+    eoIds,
     loadedAt: Date.now(),
   };
 
-  cache.set(userId, result);
+  cache.set(cacheKey, result);
   return result;
 }
 
@@ -268,10 +247,7 @@ export function hasClientAccess(permissions: CachedPermissions, clientId: string
 }
 
 export function hasModuleRole(permissions: CachedPermissions, moduleId: string): boolean {
-  for (const roles of Object.values(permissions.moduleRolesByClient)) {
-    if (roles.some((r) => r.moduleId === moduleId)) return true;
-  }
-  return false;
+  return permissions.moduleRoles.some((r) => r.moduleId === moduleId);
 }
 
 export function hasModulePermission(permissions: CachedPermissions, moduleId: string, permission: string): boolean {
@@ -280,17 +256,11 @@ export function hasModulePermission(permissions: CachedPermissions, moduleId: st
 }
 
 export function getModuleRoleIds(permissions: CachedPermissions, moduleId: string): string[] {
-  const roleIds: string[] = [];
-  for (const roles of Object.values(permissions.moduleRolesByClient)) {
-    for (const r of roles) {
-      if (r.moduleId === moduleId) roleIds.push(r.roleId);
-    }
-  }
-  return roleIds;
+  return permissions.moduleRoles
+    .filter((r) => r.moduleId === moduleId)
+    .map((r) => r.roleId);
 }
 
-export function isInEoPerimeter(permissions: CachedPermissions, clientId: string, eoId: string): boolean {
-  const eoIds = permissions.eoIdsByClient[clientId];
-  if (!eoIds) return false;
-  return eoIds.has(eoId);
+export function isInEoPerimeter(permissions: CachedPermissions, eoId: string): boolean {
+  return permissions.eoIds.has(eoId);
 }

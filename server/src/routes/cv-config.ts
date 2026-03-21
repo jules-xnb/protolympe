@@ -52,7 +52,7 @@ async function canConfigure(
     return true;
   }
   if (user.persona === 'client_user') {
-    const permissions = await getUserPermissions(user.sub);
+    const permissions = await getUserPermissions(user.sub, user.activeProfileId);
     return hasModulePermission(permissions, moduleId, 'can_configure_survey_type');
   }
   return false;
@@ -81,7 +81,7 @@ async function verifyModuleClientAccess(
   const [mod] = await db.select({ clientId: clientModules.clientId }).from(clientModules).where(eq(clientModules.id, moduleId)).limit(1);
   if (!mod) return c.json({ error: 'Module introuvable' }, 404);
 
-  const permissions = await getUserPermissions(user.sub);
+  const permissions = await getUserPermissions(user.sub, user.activeProfileId);
   if (!hasClientAccess(permissions, mod.clientId, user.persona)) {
     return c.json({ error: 'Accès refusé à ce module' }, 403);
   }

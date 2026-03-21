@@ -28,9 +28,10 @@ import { eq, and, inArray } from 'drizzle-orm';
 export async function getEditableFieldSlugs(
   userId: string,
   moduleId: string,
-  moduleSlug: 'organisation' | 'users' | 'profils'
+  moduleSlug: 'organisation' | 'users' | 'profils',
+  activeProfileId?: string
 ): Promise<Set<string>> {
-  const permissions = await getUserPermissions(userId);
+  const permissions = await getUserPermissions(userId, activeProfileId);
   const roleIds = getModuleRoleIds(permissions, moduleId);
 
   const editableIds = new Set<string>();
@@ -129,9 +130,10 @@ export async function getEditableFieldSlugs(
 export async function getEditableCvFormFieldIds(
   userId: string,
   moduleId: string,
-  formId: string
+  formId: string,
+  activeProfileId?: string
 ): Promise<Set<string>> {
-  const permissions = await getUserPermissions(userId);
+  const permissions = await getUserPermissions(userId, activeProfileId);
   const roleIds = getModuleRoleIds(permissions, moduleId);
 
   const editableIds = new Set<string>();

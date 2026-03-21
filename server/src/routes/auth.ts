@@ -573,6 +573,59 @@ router.get('/me/profiles', authMiddleware, async (c) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /select-profile  (authenticated, client_user)
+// ---------------------------------------------------------------------------
+
+const selectProfileSchema = z.object({
+  profile_id: z.string().uuid(),
+});
+
+router.post('/select-profile', authMiddleware, async (c) => {
+  const user = c.get('user');
+
+  if (user.persona !== 'client_user') {
+    return c.json({ error: 'Réservé aux utilisateurs client' }, 403);
+  }
+
+  const body = await c.req.json();
+  const parsed = selectProfileSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+  }
+
+  const profileId = parsed.data.profile_id;
+
+  // Verify the profile belongs to the user and is not archived
+  const [assignment] = await db
+    .select({ profileId: clientProfileUsers.profileId })
+    .from(clientProfileUsers)
+    .innerJoin(clientProfiles, eq(clientProfileUsers.profileId, clientProfiles.id))
+    .where(
+      and(
+        eq(clientProfileUsers.userId, user.sub),
+        eq(clientProfileUsers.profileId, profileId),
+        eq(clientProfiles.isArchived, false),
+        isNull(clientProfileUsers.deletedAt)
+      )
+    )
+    .limit(1);
+
+  if (!assignment) {
+    return c.json({ error: 'Profil introuvable ou non attribué' }, 404);
+  }
+
+  // Issue a new access token with the active profile
+  const accessToken = await signAccessToken({
+    sub: user.sub,
+    email: user.email,
+    persona: user.persona,
+    activeProfileId: profileId,
+  });
+
+  return c.json({ access_token: accessToken, token_type: 'Bearer' });
+});
+
+// ---------------------------------------------------------------------------
 // GET /sso/callback  — registered BEFORE /sso/:clientId to avoid param capture
 // ---------------------------------------------------------------------------
 

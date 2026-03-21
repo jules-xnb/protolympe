@@ -18,7 +18,7 @@ export function requireModuleAccess(moduleIdParam = 'moduleId') {
       return c.json({ error: 'Paramètre module_id manquant' }, 400);
     }
 
-    const permissions = c.get('permissions') ?? await getUserPermissions(user.sub);
+    const permissions = c.get('permissions') ?? await getUserPermissions(user.sub, user.activeProfileId);
     c.set('permissions', permissions);
 
     // Admin and integrators always have module access
@@ -51,7 +51,7 @@ export function requireModulePermission(moduleIdParam: string, permission: strin
       return;
     }
 
-    const permissions = c.get('permissions') ?? await getUserPermissions(user.sub);
+    const permissions = c.get('permissions') ?? await getUserPermissions(user.sub, user.activeProfileId);
 
     if (!hasModulePermission(permissions, moduleId, permission)) {
       return c.json({ error: `Permission requise : ${permission}` }, 403);

@@ -12,6 +12,8 @@
 | `POST /auth/reset-password` | Reset avec token | Non | Token à usage unique, expire après X minutes |
 | `GET /auth/me` | Infos de l'utilisateur connecté (persona, clients accessibles) | Oui | |
 | `GET /auth/sso/:clientId/check` | Vérifie si le SSO est configuré pour un client | Non | Endpoint public, retourne juste { enabled, provider } |
+| `GET /auth/me/profiles` | Lister mes profils disponibles | Oui | Profils non archivés, `deletedAt IS NULL`. Pour la page de sélection de profil avant d'entrer dans le FO |
+| `POST /auth/select-profile` | Sélectionner un profil actif | Oui (`client_user` uniquement) | Body: `{profile_id}`. Vérifie que le profil appartient à l'utilisateur et n'est pas archivé. Retourne un nouveau JWT avec `activeProfileId` |
 | `POST /auth/check-auth-method` | Détermine le mode d'auth pour un email ou hostname | Non | Reçoit `{ email }` ou `{ hostname }` → retourne `{ method: 'password' \| 'sso', provider?, client_id?, client_name? }` |
 | `POST /auth/2fa/setup` | Générer secret TOTP + QR code | temp_token | Retourne `{ secret, qr_code_url, otpauth_uri }`. Uniquement admin/intégrateurs. |
 | `POST /auth/2fa/setup/confirm` | Confirmer config 2FA avec code valide | temp_token | Vérifie le code, active le 2FA, retourne `{ access_token }` + codes de récupération |
@@ -38,3 +40,10 @@
 - **Pas de 2FA si SSO** — le provider SSO gère sa propre sécurité
 - `POST /signin` : si admin/intégrateur avec `totp_enabled = false` → `{ requires_2fa_setup: true, temp_token }` ; si `totp_enabled = true` → `{ requires_2fa: true, temp_token }`
 - Le `temp_token` est un JWT court (5 min) qui ne donne accès qu'aux routes `/auth/2fa/*`
+
+### Règles profil actif
+- Un `client_user` doit sélectionner un profil pour accéder aux données FO
+- Le JWT contient `activeProfileId` après sélection
+- Tous les droits (périmètre EO, rôles, permissions) sont scopés au profil actif uniquement
+- **Pas d'union entre profils** — l'utilisateur switch entre ses profils
+- Voir `docs/regles-acces-detail.md` pour le modèle complet

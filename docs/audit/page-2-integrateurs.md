@@ -37,6 +37,9 @@
 │  │ Statut                                 │  │
 │  │ [Intégrateur              ▼] auto-save │  │
 │  │                                        │  │
+│  │ Créé le                                │  │
+│  │  20/03/2026               (lecture)    │  │
+│  │                                        │  │
 │  │ Nom                                    │  │
 │  │  Bertrand                 (lecture)    │  │
 │  │                                        │  │
@@ -342,7 +345,7 @@ Aucune modification nécessaire. Le schéma supporte déjà tout.
 | F10 | `hooks/useAdminData.ts` | Refaire types TS : `IntegratorRole` et `IntegratorAssignment` en snake_case, aligner sur réponse API |
 | F11 | `pages/admin/AdminIntegratorsPage.tsx` | Brancher pagination serveur, recherche serveur, filtre client serveur |
 | F12 | `pages/admin/AdminIntegratorsPage.tsx` | Remplacer check `useIsAdminDelta()` par persona du JWT |
-| F13 | `pages/admin/AdminIntegratorsPage.tsx` | Colonne "Nb clients" : utiliser `client_count` de la réponse API |
+| F13 | `pages/admin/AdminIntegratorsPage.tsx` | Supprimer colonne "Créé le", colonne "Nb clients" : utiliser `client_count` de la réponse API |
 | F14 | `components/admin/platform/AddIntegratorDialog.tsx` | 3 options persona : `admin_delta` / `integrator_delta` / `integrator_external` |
 | F15 | `components/admin/platform/AddIntegratorDialog.tsx` | Envoyer body en snake_case (`first_name`, `last_name`) |
 | F16 | `components/admin/platform/IntegratorDetailsDrawer.tsx` | Reconnecter aux hooks corrigés (F4, F5, F6, F8) + supprimer bouton "Retirer le rôle" |

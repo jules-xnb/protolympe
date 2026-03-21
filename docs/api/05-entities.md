@@ -33,8 +33,9 @@ Deux contextes : le **socle** (intégrateur) et le **module Organisation** (FO, 
 | `PATCH /clients/:clientId/eo/groups/:id` | Modifier | Mêmes règles | |
 | `PATCH /clients/:clientId/eo/groups/:id/deactivate` | Désactiver | Mêmes règles | |
 | `GET /clients/:clientId/eo/groups/:id/members` | Lister les membres | Mêmes règles | |
-| `POST /clients/:clientId/eo/groups/:id/members` | Ajouter un membre | Mêmes règles | |
-| `DELETE /clients/:clientId/eo/groups/:id/members/:memberId` | Retirer un membre | Mêmes règles | |
+| `POST /clients/:clientId/eo/groups/:id/members` | Ajouter un membre | Mêmes règles | Body: `{eo_id, include_descendants?}` |
+| `PATCH /clients/:clientId/eo/groups/members/:memberId` | Modifier include_descendants | Mêmes règles | Body: `{include_descendants}`. Vérifie ownership client |
+| `DELETE /clients/:clientId/eo/groups/members/:memberId` | Retirer un membre (soft delete) | Mêmes règles | Vérifie ownership client |
 | **Audit & Commentaires** | | | |
 | `GET /clients/:clientId/eo/:id/audit` | Historique | Authentifié avec accès | |
 | `GET /clients/:clientId/eo/:id/comments` | Commentaires | Authentifié avec accès | |

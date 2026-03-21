@@ -13,16 +13,16 @@
 ├─────────────────────────────────────────────────────────────────────┤
 │  ◀ 1/2 ▶                                          5 résultats      │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Intégrateur     Créé le    Nb clients  Rôle            Actions    │
+│  Intégrateur              Nb clients  Rôle            Actions    │
 │ ─────────────────────────────────────────────────────────────────── │
-│  Alice Bertrand   20/03/26   3          [Intégrateur]   [Modifier] │
-│  alice@delta.com  ← clic ligne = drawer                           │
+│  Alice Bertrand            3          [Intégrateur]   [Modifier] │
+│  alice@delta.com           ← clic ligne = drawer                 │
 │ ─────────────────────────────────────────────────────────────────── │
-│  Bob Martin       18/03/26   Tous       [Admin Delta]   [Modifier] │
-│  bob@delta.com                                                     │
+│  Bob Martin                Tous       [Admin Delta]   [Modifier] │
+│  bob@delta.com                                                   │
 │ ─────────────────────────────────────────────────────────────────── │
-│  Charles Dupont   15/03/26   1          [Intégrateur]   [Modifier] │
-│  charles@ext.com                                                   │
+│  Charles Dupont            1          [Intégrateur]   [Modifier] │
+│  charles@ext.com                                                 │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -36,9 +36,6 @@
 │  ┌────────────────────────────────────────┐  │
 │  │ Statut                                 │  │
 │  │ [Intégrateur              ▼] auto-save │  │
-│  │                                        │  │
-│  │ Créé le                                │  │
-│  │  20/03/2026               (lecture)    │  │
 │  │                                        │  │
 │  │ Nom                                    │  │
 │  │  Bertrand                 (lecture)    │  │
@@ -168,7 +165,7 @@ Le front appelle **8 endpoints qui n'existent pas** dans le backend. Le backend 
 **Accès** : Admin uniquement
 
 **Comportement cible** :
-- Colonnes : Intégrateur (nom + email), Créé le, Nb clients, Rôle (chip), Actions (Modifier)
+- Colonnes : Intégrateur (nom + email), Nb clients, Rôle (chip), Actions (Modifier)
 - Clic sur la ligne → ouvre le drawer
 - Filtre par client (dropdown) côté serveur
 - Recherche par nom/email côté serveur

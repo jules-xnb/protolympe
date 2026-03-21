@@ -101,6 +101,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | client_id | uuid | NON | — | FK → clients.id (cascade delete) — le client |
 | assigned_by | uuid | OUI | — | FK → accounts.id — qui a fait l'affectation |
 | created_at | timestamptz | NON | now() | Date d'affectation |
+| deleted_at | timestamptz | OUI | — | Date de suppression logique (null si actif) |
 
 ---
 
@@ -772,6 +773,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | campaign_id | uuid | NON | — | FK → module_cv_campaigns.id (cascade delete) |
 | eo_id | uuid | NON | — | FK → eo_entities.id (cascade delete) |
 | created_at | timestamptz | NON | now() | Date d'ajout |
+| deleted_at | timestamptz | OUI | — | Date de suppression logique (null si actif) |
 
 ---
 
@@ -836,6 +838,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | display_order | integer | NON | 0 | Ordre d'affichage |
 | uploaded_at | timestamptz | NON | now() | Date d'upload |
 | uploaded_by | uuid | OUI | — | FK → accounts.id (set null on delete) |
+| deleted_at | timestamptz | OUI | — | Date de suppression logique (null si actif) |
 
 ---
 

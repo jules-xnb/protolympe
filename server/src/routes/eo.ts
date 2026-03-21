@@ -723,6 +723,38 @@ router.post('/groups/:id/members', async (c) => {
   return c.json(toSnakeCase(member), 201);
 });
 
+// PATCH /groups/members/:memberId — Update include_descendants on a group member
+const updateMemberSchema = z.object({
+  include_descendants: z.boolean(),
+});
+
+router.patch('/groups/members/:memberId', async (c) => {
+  const clientId = c.req.param('clientId') as string;
+  const memberId = c.req.param('memberId');
+
+  const body = await c.req.json();
+  const parsed = updateMemberSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+  }
+
+  // Verify the member belongs to a group in the current client
+  const [existing] = await db.select({ id: eoGroupMembers.id })
+    .from(eoGroupMembers)
+    .innerJoin(eoGroups, eq(eoGroupMembers.groupId, eoGroups.id))
+    .where(and(eq(eoGroupMembers.id, memberId), eq(eoGroups.clientId, clientId), isNull(eoGroupMembers.deletedAt)));
+
+  if (!existing) return c.json({ error: 'Membre introuvable' }, 404);
+
+  const [updated] = await db
+    .update(eoGroupMembers)
+    .set({ includeDescendants: parsed.data.include_descendants })
+    .where(eq(eoGroupMembers.id, memberId))
+    .returning();
+
+  return c.json(toSnakeCase(updated));
+});
+
 // DELETE /groups/members/:memberId — Remove member from group
 router.delete('/groups/members/:memberId', async (c) => {
   const clientId = c.req.param('clientId') as string;

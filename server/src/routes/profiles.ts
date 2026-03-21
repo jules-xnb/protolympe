@@ -345,6 +345,41 @@ router.post('/:id/eos', async (c) => {
   return c.json(toSnakeCase(entry), 201);
 });
 
+// PATCH /clients/:clientId/profiles/:id/eos/:eoId — update include_descendants
+const updateProfileEoSchema = z.object({
+  include_descendants: z.boolean(),
+});
+
+router.patch('/:id/eos/:eoId', async (c) => {
+  const clientId = c.req.param('clientId') as string;
+  const id = c.req.param('id');
+  const eoId = c.req.param('eoId');
+
+  const [profile] = await db.select({ id: clientProfiles.id }).from(clientProfiles)
+    .where(and(eq(clientProfiles.id, id), eq(clientProfiles.clientId, clientId)));
+  if (!profile) return c.json({ error: 'Profil introuvable' }, 404);
+
+  const body = await c.req.json();
+  const parsed = updateProfileEoSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+  }
+
+  const [updated] = await db
+    .update(clientProfileEos)
+    .set({ includeDescendants: parsed.data.include_descendants })
+    .where(and(
+      eq(clientProfileEos.profileId, id),
+      eq(clientProfileEos.eoId, eoId),
+      isNull(clientProfileEos.deletedAt)
+    ))
+    .returning();
+
+  if (!updated) return c.json({ error: 'Association introuvable' }, 404);
+
+  return c.json(toSnakeCase(updated));
+});
+
 // DELETE /clients/:clientId/profiles/:id/eos/:eoId
 router.delete('/:id/eos/:eoId', async (c) => {
   const clientId = c.req.param('clientId') as string;

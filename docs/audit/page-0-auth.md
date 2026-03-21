@@ -507,18 +507,83 @@ Après un signin réussi (email + mot de passe valides) pour un `admin_delta`, `
 | `POST /auth/2fa/setup/confirm` | Confirmer la config 2FA avec un code valide | temp_token | Vérifie le code, active le 2FA sur le compte, retourne codes de récupération |
 | `POST /auth/2fa/verify` | Vérifier un code TOTP lors du login | temp_token | Si valide → retourne `{ access_token }` + cookie refresh |
 
-### Flow détaillé
+### Flow complet — Première connexion admin/intégrateur (avec setup 2FA)
 
-**Première connexion (setup)** :
-1. `POST /auth/signin` avec email/mdp → réponse `{ requires_2fa_setup: true, temp_token: "..." }`
-2. `POST /auth/2fa/setup` avec `{ temp_token }` → retourne `{ secret, qr_code_url }` — le secret est stocké temporairement (pas encore activé)
-3. L'utilisateur scanne le QR code et saisit le code affiché
-4. `POST /auth/2fa/setup/confirm` avec `{ temp_token, code }` → vérifie le code, sauvegarde le secret en BDD, retourne `{ access_token }` + codes de récupération
+```
+Étape 1                    Étape 2                    Étape 3                    Étape 4
+┌──────────────┐           ┌──────────────┐           ┌──────────────┐           ┌──────────────┐
+│  Saisie      │  POST     │  Saisie      │  POST     │  Setup 2FA   │  POST     │  Confirmer   │
+│  email       │ ──────→   │  mot de      │ ──────→   │  QR code     │ ──────→   │  code TOTP   │ ──→ Dashboard
+│              │ check-    │  passe       │ /signin   │  + clé       │ /2fa/     │  6 digits    │    /2fa/
+│  [Continuer] │ auth-     │              │           │  manuelle    │ setup     │              │    setup/
+│              │ method    │  [Connexion] │           │              │           │  [Activer]   │    confirm
+└──────────────┘           └──────────────┘           └──────────────┘           └──────────────┘
+       │                          │                          │                          │
+       ▼                          ▼                          ▼                          ▼
+  { method:                 { requires_              { secret,                  { access_token }
+    'password' }              2fa_setup: true,         qr_code_url }             → connecté !
+                              temp_token }
+```
 
-**Connexions suivantes** :
-1. `POST /auth/signin` avec email/mdp → réponse `{ requires_2fa: true, temp_token: "..." }`
-2. L'utilisateur saisit le code TOTP
-3. `POST /auth/2fa/verify` avec `{ temp_token, code }` → retourne `{ access_token }` + cookie refresh
+**Détail API** :
+1. `POST /auth/check-auth-method` avec `{ email }` → `{ method: 'password' }` (ou `sso`)
+2. `POST /auth/signin` avec `{ email, password }` → `{ requires_2fa_setup: true, temp_token: "..." }`
+3. `POST /auth/2fa/setup` avec `{ temp_token }` → `{ secret, qr_code_url, otpauth_uri }`
+4. L'utilisateur scanne le QR code dans son app d'authentification
+5. `POST /auth/2fa/setup/confirm` avec `{ temp_token, code }` → `{ access_token, token_type: "Bearer" }` + cookie refresh
+
+### Flow complet — Connexion normale admin/intégrateur (2FA déjà configuré)
+
+```
+Étape 1                    Étape 2                    Étape 3
+┌──────────────┐           ┌──────────────┐           ┌──────────────┐
+│  Saisie      │  POST     │  Saisie      │  POST     │  Saisie      │
+│  email       │ ──────→   │  mot de      │ ──────→   │  code TOTP   │ ──→ Dashboard
+│              │ check-    │  passe       │ /signin   │  6 digits    │    /2fa/
+│  [Continuer] │ auth-     │              │           │              │    verify
+│              │ method    │  [Connexion] │           │  [Vérifier]  │
+└──────────────┘           └──────────────┘           └──────────────┘
+       │                          │                          │
+       ▼                          ▼                          ▼
+  { method:                 { requires_2fa:            { access_token }
+    'password' }              true,                    → connecté !
+                              temp_token }
+```
+
+**Détail API** :
+1. `POST /auth/check-auth-method` avec `{ email }` → `{ method: 'password' }`
+2. `POST /auth/signin` avec `{ email, password }` → `{ requires_2fa: true, temp_token: "..." }`
+3. `POST /auth/2fa/verify` avec `{ temp_token, code }` → `{ access_token, token_type: "Bearer" }` + cookie refresh
+
+### Flow complet — Connexion client_user (pas de 2FA)
+
+```
+Étape 1                    Étape 2
+┌──────────────┐           ┌──────────────┐
+│  Saisie      │  POST     │  Saisie      │
+│  email       │ ──────→   │  mot de      │ ──→ Dashboard
+│              │ check-    │  passe       │    /signin
+│  [Continuer] │ auth-     │              │
+│              │ method    │  [Connexion] │
+└──────────────┘           └──────────────┘
+       │                          │
+       ▼                          ▼
+  { method:                 { access_token }
+    'password' }            → connecté !
+```
+
+### Flow complet — Connexion SSO (sous-domaine)
+
+```
+Étape unique
+┌──────────────┐
+│  Bouton SSO  │
+│  "Se         │ ──→ Redirect provider ──→ Callback ──→ Dashboard
+│  connecter   │    /sso/:clientId          /sso/callback
+│  avec        │
+│  Azure AD"   │
+└──────────────┘
+```
 
 ### Impact BDD
 

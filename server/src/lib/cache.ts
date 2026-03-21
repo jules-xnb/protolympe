@@ -8,6 +8,7 @@ import {
   clientProfileModuleRoles,
   clientProfileEos,
   clientProfileEoGroups,
+  eoGroups,
   eoGroupMembers,
   eoEntities,
   modulePermissions,
@@ -160,14 +161,19 @@ export async function getUserPermissions(userId: string): Promise<CachedPermissi
       .from(clientProfileEos)
       .where(and(inArray(clientProfileEos.profileId, profileIds), isNull(clientProfileEos.deletedAt)));
 
-    // Group EO assignments
+    // Group EO assignments (exclude inactive groups)
     const groupAssignments = await db
       .select({
         profileId: clientProfileEoGroups.profileId,
         groupId: clientProfileEoGroups.groupId,
       })
       .from(clientProfileEoGroups)
-      .where(and(inArray(clientProfileEoGroups.profileId, profileIds), isNull(clientProfileEoGroups.deletedAt)));
+      .innerJoin(eoGroups, eq(clientProfileEoGroups.groupId, eoGroups.id))
+      .where(and(
+        inArray(clientProfileEoGroups.profileId, profileIds),
+        isNull(clientProfileEoGroups.deletedAt),
+        eq(eoGroups.isActive, true)
+      ));
 
     const groupIds = groupAssignments.map((g) => g.groupId);
     let groupMembers: { groupId: string; eoId: string; includeDescendants: boolean }[] = [];

@@ -82,6 +82,7 @@ router.get('/clients/:clientId/modules', async (c) => {
         and(
           eq(clientModules.clientId, clientId),
           inArray(clientModules.id, clientModuleIds),
+          eq(clientModules.isActive, true),
         ),
       )
       .orderBy(clientModules.displayOrder);

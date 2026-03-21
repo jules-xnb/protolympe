@@ -25,5 +25,7 @@
 | 0 | Auth | Connexion + Reset password + 2FA | [page-0-auth.md](page-0-auth.md) | ✅ Audité — 31 refactos (7 API + 2 BDD + 22 front) |
 | 1 | BO | Clients | [page-1-clients.md](page-1-clients.md) | ✅ Audité — 24 refactos (4 API + 1 BDD + 19 front) |
 | 2 | BO | Intégrateurs | [page-2-integrateurs.md](page-2-integrateurs.md) | ✅ Audité — 21 refactos (4 API + 0 BDD + 17 front) |
-| 3+ | MO | Entities, Users, Profiles, BO, Listes, Modules, Workflows, Design, Traductions | À faire | |
+| 3 | MO | Listes | [page-3-listes.md](page-3-listes.md) | ✅ Audité — 30 refactos (8 API + 5 BDD + 17 front) |
+| 4 | MO | Organisation (Entités) | [page-4-mo-organisation.md](page-4-mo-organisation.md) | ✅ Audité — 36 refactos (20 API + 4 BDD + 12 front) |
+| 5+ | MO | Users, Profiles, BO, Modules, Workflows, Design, Traductions | À faire | |
 | 40+ | FO | Profils, Modules, Vues, Workflows, Surveys, Campaigns | À faire | |

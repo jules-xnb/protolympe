@@ -22,9 +22,9 @@
 | `POST /clients/:clientId/users/:id/profiles` | Attribuer | `client_user` | Permission `can_assign_profiles` |
 | `DELETE /clients/:clientId/users/:id/profiles/:profileId` | Retirer | Mêmes règles | |
 | **Champs custom** | | | |
-| `GET /clients/:clientId/user-fields` | Lister les définitions | `admin_delta`, `integrator_*` assigné | |
-| `POST /clients/:clientId/user-fields` | Créer | `admin_delta`, `integrator_*` assigné | |
-| `PATCH /clients/:clientId/user-fields/:id` | Modifier | `admin_delta`, `integrator_*` assigné | |
-| `PATCH /clients/:clientId/user-fields/:id/deactivate` | Désactiver | `admin_delta`, `integrator_*` assigné | |
+| `GET /clients/:clientId/users/field-definitions` | Lister les définitions | `admin_delta`, `integrator_*` assigné | |
+| `POST /clients/:clientId/users/field-definitions` | Créer | `admin_delta`, `integrator_*` assigné | |
+| `PATCH /clients/:clientId/users/field-definitions/:id` | Modifier | `admin_delta`, `integrator_*` assigné | |
+| `PATCH /clients/:clientId/users/field-definitions/:id/deactivate` | Désactiver | `admin_delta`, `integrator_*` assigné | |
 | `POST /clients/:clientId/users/:id/field-values` | Sauvegarder une valeur | Authentifié | Mêmes règles que PATCH utilisateur |
 | `GET /clients/:clientId/users/:id/field-values` | Lire les valeurs | Authentifié | Filtrées par display config, anonymisation |

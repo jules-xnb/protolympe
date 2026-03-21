@@ -325,7 +325,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | actor_id | uuid | OUI | — | FK → accounts.id (set null on delete) |
 | action | text | NON | — | Action effectuée |
 | target_type | text | NON | — | Type de la cible de l'action |
-| target_id | text | OUI | — | Identifiant de la cible |
+| target_id | uuid | OUI | — | Identifiant de la cible |
 | details | jsonb | OUI | — | Détails complémentaires de l'action |
 | created_at | timestamptz | NON | now() | Date de l'action |
 

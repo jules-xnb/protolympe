@@ -255,7 +255,7 @@ export const eoFieldChangeComments = pgTable('eo_field_change_comments', {
 
 export const adminAuditLog = pgTable('admin_audit_log', {
   id: uuid('id').primaryKey().defaultRandom(),
-  actorId: uuid('actor_id').notNull().references(() => accounts.id, { onDelete: 'set null' }),
+  actorId: uuid('actor_id').references(() => accounts.id, { onDelete: 'set null' }),
   action: text('action').notNull(),
   targetType: text('target_type').notNull(),
   targetId: uuid('target_id'),

@@ -22,7 +22,7 @@ import { getEditableFieldSlugs } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';
 import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 import { logAdminAction } from '../lib/audit.js';
-import { findDuplicateProfile } from '../lib/profile-duplicate-check.js';
+import { findDuplicateProfile, findMatchingProfiles, isConfigEmpty, isProfileEmpty, type ProfileConfig } from '../lib/profile-duplicate-check.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
@@ -32,6 +32,97 @@ router.use('*', authMiddleware);
 router.use('*', requireClientAccess());
 
 // ─── Profiles ───────────────────────────────────────────────────────────────
+
+// POST /clients/:clientId/profiles/find-match — find existing profiles matching a configuration
+const findMatchSchema = z.object({
+  eos: z.array(z.object({ eo_id: z.string().uuid(), include_descendants: z.boolean() })),
+  eo_groups: z.array(z.string().uuid()),
+  module_roles: z.array(z.string().uuid()),
+});
+
+router.post('/find-match', async (c) => {
+  const clientId = c.req.param('clientId') as string;
+  const body = await c.req.json();
+  const parsed = findMatchSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+  }
+
+  const config: ProfileConfig = parsed.data;
+
+  if (isConfigEmpty(config)) {
+    return c.json({ error: 'Un profil doit avoir au moins 1 entité ou 1 regroupement ET au moins 1 rôle module' }, 400);
+  }
+
+  const matches = await findMatchingProfiles(clientId, config);
+  return c.json({ matches });
+});
+
+// POST /clients/:clientId/profiles/create-full — create a profile with full config atomically
+const createFullSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  eos: z.array(z.object({ eo_id: z.string().uuid(), include_descendants: z.boolean() })),
+  eo_groups: z.array(z.string().uuid()),
+  module_roles: z.array(z.string().uuid()),
+});
+
+router.post('/create-full', async (c) => {
+  const clientId = c.req.param('clientId') as string;
+  const body = await c.req.json();
+  const parsed = createFullSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
+  }
+
+  const { name, description, eos, eo_groups, module_roles } = parsed.data;
+  const config: ProfileConfig = { eos, eo_groups, module_roles };
+
+  // Validate not empty
+  if (isConfigEmpty(config)) {
+    return c.json({ error: 'Un profil doit avoir au moins 1 entité ou 1 regroupement ET au moins 1 rôle module' }, 400);
+  }
+
+  // Check for existing match BEFORE creating
+  const matches = await findMatchingProfiles(clientId, config);
+  if (matches.length > 0) {
+    return c.json({
+      error: `Un profil identique existe déjà : "${matches[0].name}"`,
+      existing_profiles: matches,
+    }, 409);
+  }
+
+  // Create profile + sub-resources atomically
+  const result = await db.transaction(async (tx) => {
+    const [profile] = await tx.insert(clientProfiles).values({
+      clientId,
+      name,
+      description: description || null,
+    }).returning();
+
+    if (eos.length > 0) {
+      await tx.insert(clientProfileEos).values(
+        eos.map((e) => ({ profileId: profile.id, eoId: e.eo_id, includeDescendants: e.include_descendants }))
+      );
+    }
+
+    if (eo_groups.length > 0) {
+      await tx.insert(clientProfileEoGroups).values(
+        eo_groups.map((g) => ({ profileId: profile.id, groupId: g }))
+      );
+    }
+
+    if (module_roles.length > 0) {
+      await tx.insert(clientProfileModuleRoles).values(
+        module_roles.map((r) => ({ profileId: profile.id, moduleRoleId: r }))
+      );
+    }
+
+    return profile;
+  });
+
+  return c.json(toSnakeCase(result), 201);
+});
 
 // GET /clients/:clientId/profiles
 router.get('/', async (c) => {
@@ -431,13 +522,17 @@ router.delete('/:id/eos/:eoId', async (c) => {
     return c.json({ error: 'Entrée introuvable' }, 404);
   }
 
+  // Check profile won't be empty
+  const empty = await isProfileEmpty(id);
+  if (empty) {
+    await db.update(clientProfileEos).set({ deletedAt: null }).where(eq(clientProfileEos.id, entry.id));
+    return c.json({ error: 'Un profil doit avoir au moins 1 entité ou 1 regroupement ET au moins 1 rôle module' }, 400);
+  }
+
   // Check for duplicate profile
   const duplicateName = await findDuplicateProfile(clientId, id);
   if (duplicateName) {
-    await db
-      .update(clientProfileEos)
-      .set({ deletedAt: null })
-      .where(eq(clientProfileEos.id, entry.id));
+    await db.update(clientProfileEos).set({ deletedAt: null }).where(eq(clientProfileEos.id, entry.id));
     return c.json({ error: `Ce profil est identique au profil "${duplicateName}". Deux profils ne peuvent pas avoir exactement les mêmes entités, regroupements et rôles.` }, 409);
   }
 
@@ -528,14 +623,18 @@ router.delete('/:id/eo-groups/:groupId', async (c) => {
     return c.json({ error: 'Entrée introuvable' }, 404);
   }
 
+  // Check profile won't be empty
+  const emptyAfterGroupDelete = await isProfileEmpty(id);
+  if (emptyAfterGroupDelete) {
+    await db.update(clientProfileEoGroups).set({ deletedAt: null }).where(eq(clientProfileEoGroups.id, entry.id));
+    return c.json({ error: 'Un profil doit avoir au moins 1 entité ou 1 regroupement ET au moins 1 rôle module' }, 400);
+  }
+
   // Check for duplicate profile
-  const duplicateName = await findDuplicateProfile(clientId, id);
-  if (duplicateName) {
-    await db
-      .update(clientProfileEoGroups)
-      .set({ deletedAt: null })
-      .where(eq(clientProfileEoGroups.id, entry.id));
-    return c.json({ error: `Ce profil est identique au profil "${duplicateName}". Deux profils ne peuvent pas avoir exactement les mêmes entités, regroupements et rôles.` }, 409);
+  const duplicateName2 = await findDuplicateProfile(clientId, id);
+  if (duplicateName2) {
+    await db.update(clientProfileEoGroups).set({ deletedAt: null }).where(eq(clientProfileEoGroups.id, entry.id));
+    return c.json({ error: `Ce profil est identique au profil "${duplicateName2}". Deux profils ne peuvent pas avoir exactement les mêmes entités, regroupements et rôles.` }, 409);
   }
 
   return c.json({ success: true });
@@ -632,14 +731,18 @@ router.delete('/:id/module-roles/:roleId', async (c) => {
     return c.json({ error: 'Entrée introuvable' }, 404);
   }
 
+  // Check profile won't be empty
+  const emptyAfterRoleDelete = await isProfileEmpty(id);
+  if (emptyAfterRoleDelete) {
+    await db.update(clientProfileModuleRoles).set({ deletedAt: null }).where(eq(clientProfileModuleRoles.id, entry.id));
+    return c.json({ error: 'Un profil doit avoir au moins 1 entité ou 1 regroupement ET au moins 1 rôle module' }, 400);
+  }
+
   // Check for duplicate profile
-  const duplicateName = await findDuplicateProfile(clientId, id);
-  if (duplicateName) {
-    await db
-      .update(clientProfileModuleRoles)
-      .set({ deletedAt: null })
-      .where(eq(clientProfileModuleRoles.id, entry.id));
-    return c.json({ error: `Ce profil est identique au profil "${duplicateName}". Deux profils ne peuvent pas avoir exactement les mêmes entités, regroupements et rôles.` }, 409);
+  const duplicateName3 = await findDuplicateProfile(clientId, id);
+  if (duplicateName3) {
+    await db.update(clientProfileModuleRoles).set({ deletedAt: null }).where(eq(clientProfileModuleRoles.id, entry.id));
+    return c.json({ error: `Ce profil est identique au profil "${duplicateName3}". Deux profils ne peuvent pas avoir exactement les mêmes entités, regroupements et rôles.` }, 409);
   }
 
   return c.json({ success: true });

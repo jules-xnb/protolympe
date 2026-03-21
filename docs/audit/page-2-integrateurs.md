@@ -304,28 +304,13 @@ Le drawer s'ouvre au clic sur une ligne du tableau. Sheet qui s'ouvre à droite.
 | Retirer | ✅ | ✅ `DELETE /:id/clients/:clientId` | ❌ `DELETE /assignments/:id` inexistant | **REFACTO FRONT** | Créer hook `useRemoveClient()` → `DELETE /api/integrators/${id}/clients/${clientId}` |
 | Masquer si admin_delta | — | — | ✅ Condition `persona !== 'admin_delta'` | ✅ OK | — |
 
-### 2.3.3 Retirer le rôle d'intégrateur
+### 2.3.3 ~~Retirer le rôle d'intégrateur~~ — SUPPRIMÉ
 
-**Comportement cible** :
-- Bouton "Retirer le rôle d'intégrateur" en bas du drawer
-- Dialog de confirmation
-- Remettre le `persona` du compte à `client_user`
-- Supprimer toutes les `integrator_client_assignments` associées
+**Décision** : Un utilisateur a toujours un rôle sur la plateforme. On ne retire pas le rôle d'intégrateur. Un intégrateur sans client assigné voit simplement un tableau vide.
 
-**API cible** : `PATCH /api/integrators/:id` avec `{ persona: 'client_user' }` + cascade assignments
-- Ou endpoint dédié `DELETE /api/integrators/:id` si on veut un verb explicite
-
-**État actuel du front** :
-- ❌ `useRemoveSystemRole()` → `DELETE /api/integrators/role/{roleId}` — **inexistant**
-
-**État actuel de l'API** :
-- ❌ Pas d'endpoint pour retirer le rôle (ni PATCH persona→client_user, ni DELETE)
-- ❌ Pas de cascade sur les assignments quand le rôle change
-
-| Élément | BDD | API | Front | Status | Refacto |
-|---------|:---:|:---:|:---:|---|---|
-| Retirer rôle | ✅ persona modifiable | ❌ Pas d'endpoint | ❌ `DELETE /role/{roleId}` inexistant | **REFACTO API + FRONT** | Ajouter `DELETE /api/integrators/:id` (passe persona→client_user + supprime assignments) |
-| Dialog confirmation | — | — | ✅ Existe | ✅ OK | — |
+| Élément | Front | Status | Refacto |
+|---------|:---:|---|---|
+| Bouton "Retirer le rôle" | ✅ Existe | **SUPPRIMER** | Supprimer le bouton + le dialog de confirmation + le hook `useRemoveSystemRole()` |
 
 ---
 
@@ -338,7 +323,7 @@ Le drawer s'ouvre au clic sur une ligne du tableau. Sheet qui s'ouvre à droite.
 | B1 | `routes/integrators.ts` — `GET /` | Ajouter param `search` (WHERE email/first_name/last_name ILIKE) |
 | B2 | `routes/integrators.ts` — `GET /` | Ajouter param `client_id` (JOIN assignments WHERE client_id = ?) |
 | B3 | `routes/integrators.ts` — `GET /` | Ajouter `client_count` dans la réponse (sous-requête COUNT sur assignments) |
-| B4 | `routes/integrators.ts` | Ajouter `DELETE /api/integrators/:id` — passe persona→`client_user` + supprime toutes les assignments |
+| B4 | `routes/integrators.ts` — `POST /invite` | Accepter `admin_delta` en plus de `integrator_delta` / `integrator_external` dans le schema persona |
 
 ### Base de données
 
@@ -354,23 +339,24 @@ Aucune modification nécessaire. Le schéma supporte déjà tout.
 | F4 | `hooks/useAdminData.ts` | Créer `useIntegratorClients(accountId)` → `GET /api/integrators/${id}/clients` |
 | F5 | `hooks/useAdminData.ts` | Refaire `useAssignIntegratorToClient()` → `POST /api/integrators/${id}/clients` avec `{ client_id }` |
 | F6 | `hooks/useAdminData.ts` | Refaire `useRemoveIntegratorFromClient()` → `DELETE /api/integrators/${id}/clients/${clientId}` |
-| F7 | `hooks/useAdminData.ts` | Refaire `useRemoveSystemRole()` → `DELETE /api/integrators/${id}` |
+| F7 | `hooks/useAdminData.ts` | Supprimer `useRemoveSystemRole()` (feature supprimée — on ne retire pas un rôle) |
 | F8 | `hooks/useAdminData.ts` | Refaire `useUpdateIntegratorPersona()` → `PATCH /api/integrators/${id}` avec `{ persona }` |
 | F9 | `hooks/useAdminData.ts` | Supprimer `useUsersWithoutRole()` (endpoint inexistant) |
 | F10 | `hooks/useAdminData.ts` | Refaire types TS : `IntegratorRole` et `IntegratorAssignment` en snake_case, aligner sur réponse API |
 | F11 | `pages/admin/AdminIntegratorsPage.tsx` | Brancher pagination serveur, recherche serveur, filtre client serveur |
 | F12 | `pages/admin/AdminIntegratorsPage.tsx` | Remplacer check `useIsAdminDelta()` par persona du JWT |
 | F13 | `pages/admin/AdminIntegratorsPage.tsx` | Colonne "Nb clients" : utiliser `client_count` de la réponse API |
-| F14 | `components/admin/platform/AddIntegratorDialog.tsx` | Aligner persona options sur API (`integrator_delta` / `integrator_external`, pas `admin_delta`) |
+| F14 | `components/admin/platform/AddIntegratorDialog.tsx` | 3 options persona : `admin_delta` / `integrator_delta` / `integrator_external` |
 | F15 | `components/admin/platform/AddIntegratorDialog.tsx` | Envoyer body en snake_case (`first_name`, `last_name`) |
-| F16 | `components/admin/platform/IntegratorDetailsDrawer.tsx` | Reconnecter aux hooks corrigés (F4, F5, F6, F7, F8) |
+| F16 | `components/admin/platform/IntegratorDetailsDrawer.tsx` | Reconnecter aux hooks corrigés (F4, F5, F6, F8) + supprimer bouton "Retirer le rôle" |
 | F17 | `components/admin/platform/IntegratorDetailsDrawer.tsx` | Afficher clients via `useIntegratorClients()` au lieu de filtrer `assignments` |
+| F18 | `components/admin/platform/IntegratorDetailsDrawer.tsx` | Protéger auto-rétrogradation : un admin ne peut pas changer son propre persona |
 
 ---
 
-## Décisions à prendre
+## Décisions prises
 
-- [ ] Enum persona dans le dialog d'invitation : `integrator_delta` / `integrator_external` (aligner sur back) ou `integrator_delta` / `admin_delta` (garder front) ?
-- [ ] Retirer le rôle d'intégrateur : `DELETE /api/integrators/:id` (verb explicite) ou `PATCH /api/integrators/:id` avec `{ persona: 'client_user' }` ?
-- [ ] Est-ce qu'un `admin_delta` peut se retrograder lui-même ?
-- [ ] Faut-il un endpoint séparé `GET /api/integrators/is-admin` ou le front utilise le persona du JWT ?
+- [x] Persona dans le dialog d'invitation : 3 options → `admin_delta` / `integrator_delta` / `integrator_external` (back doit accepter `admin_delta`)
+- [x] Pas de retrait de rôle : un intégrateur sans client = tableau vide, le bouton "Retirer le rôle" est supprimé
+- [x] Un admin ne peut PAS se retrograder lui-même (protection front + back)
+- [x] Check admin : utiliser le `persona` du JWT local (pas d'endpoint dédié)

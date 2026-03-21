@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq, and, or, count, isNull } from 'drizzle-orm';
+import { eq, and, or, count, isNull, ilike, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import {
   accounts,
@@ -25,11 +25,11 @@ const inviteIntegratorSchema = z.object({
   email: z.string().email(),
   first_name: z.string().min(1),
   last_name: z.string().min(1),
-  persona: z.enum(['integrator_delta', 'integrator_external']),
+  persona: z.enum(['admin_delta', 'integrator_delta', 'integrator_external']),
 });
 
 const updateIntegratorSchema = z.object({
-  persona: z.enum(['integrator_delta', 'integrator_external']).optional(),
+  persona: z.enum(['admin_delta', 'integrator_delta', 'integrator_external']).optional(),
   first_name: z.string().min(1).optional(),
   last_name: z.string().min(1).optional(),
 });
@@ -45,10 +45,40 @@ router.get('/', async (c) => {
   if (user.persona !== 'admin_delta') return c.json({ error: 'Accès refusé' }, 403);
 
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
-  const where = or(
+  const search = c.req.query('search')?.trim();
+  const clientIdFilter = c.req.query('client_id');
+
+  // Base filter: integrator or admin personas
+  const personaFilter = or(
+    eq(accounts.persona, 'admin_delta'),
     eq(accounts.persona, 'integrator_delta'),
     eq(accounts.persona, 'integrator_external')
   );
+
+  // Build conditions array
+  const conditions = [personaFilter];
+
+  if (search) {
+    const pattern = `%${search}%`;
+    conditions.push(
+      or(
+        ilike(accounts.email, pattern),
+        ilike(accounts.firstName, pattern),
+        ilike(accounts.lastName, pattern)
+      )!
+    );
+  }
+
+  if (clientIdFilter) {
+    // Filter integrators assigned to a specific client
+    const assignedUserIds = db
+      .select({ userId: integratorClientAssignments.userId })
+      .from(integratorClientAssignments)
+      .where(and(eq(integratorClientAssignments.clientId, clientIdFilter), isNull(integratorClientAssignments.deletedAt)));
+    conditions.push(sql`${accounts.id} IN (${assignedUserIds})`);
+  }
+
+  const where = and(...conditions);
 
   const [{ total }] = await db.select({ total: count() }).from(accounts).where(where);
   const rows = await db
@@ -65,7 +95,32 @@ router.get('/', async (c) => {
     .orderBy(accounts.lastName, accounts.firstName)
     .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
-  return c.json(paginatedResponse(rows.map(accountToSnake), total, pagination));
+  // Add client_count per integrator
+  const accountIds = rows.map((r) => r.id);
+  const clientCounts: Record<string, number> = {};
+  if (accountIds.length > 0) {
+    const counts = await db
+      .select({
+        userId: integratorClientAssignments.userId,
+        count: count(),
+      })
+      .from(integratorClientAssignments)
+      .where(and(
+        sql`${integratorClientAssignments.userId} IN (${sql.join(accountIds.map(id => sql`${id}`), sql`, `)})`,
+        isNull(integratorClientAssignments.deletedAt)
+      ))
+      .groupBy(integratorClientAssignments.userId);
+    for (const row of counts) {
+      clientCounts[row.userId] = row.count;
+    }
+  }
+
+  const data = rows.map((r) => ({
+    ...accountToSnake(r),
+    client_count: clientCounts[r.id] ?? 0,
+  }));
+
+  return c.json(paginatedResponse(data, total, pagination));
 });
 
 // ─── POST /invite ─────────────────────────────────────────────────────────────
@@ -116,13 +171,17 @@ router.patch('/:id', async (c) => {
 
   const { id } = c.req.param();
 
+  // Un admin ne peut pas modifier son propre persona
+  if (id === user.sub) return c.json({ error: 'Vous ne pouvez pas modifier votre propre compte' }, 403);
+
   const [existing] = await db
-    .select({ id: accounts.id })
+    .select({ id: accounts.id, persona: accounts.persona })
     .from(accounts)
     .where(
       and(
         eq(accounts.id, id),
         or(
+          eq(accounts.persona, 'admin_delta'),
           eq(accounts.persona, 'integrator_delta'),
           eq(accounts.persona, 'integrator_external')
         )

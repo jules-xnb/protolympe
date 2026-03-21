@@ -50,10 +50,12 @@ function hashToken(token: string): string {
 }
 
 /**
- * For client_user: if they have exactly 1 profile, return its ID.
- * If 0 or 2+, return undefined (they'll need to select manually).
+ * Resolve the profile to auto-activate for a client_user:
+ * 1. If lastActiveProfileId is set and still valid → use it
+ * 2. If only 1 profile → use it
+ * 3. Otherwise → undefined (user must select manually)
  */
-async function getAutoProfileId(userId: string): Promise<string | undefined> {
+async function resolveAutoProfileId(userId: string, lastActiveProfileId?: string | null): Promise<string | undefined> {
   const profiles = await db
     .select({ profileId: clientProfileUsers.profileId })
     .from(clientProfileUsers)
@@ -64,7 +66,18 @@ async function getAutoProfileId(userId: string): Promise<string | undefined> {
       eq(clientProfiles.isArchived, false)
     ));
 
-  return profiles.length === 1 ? profiles[0].profileId : undefined;
+  if (profiles.length === 0) return undefined;
+
+  // If last active profile is still valid, reuse it
+  if (lastActiveProfileId && profiles.some((p) => p.profileId === lastActiveProfileId)) {
+    return lastActiveProfileId;
+  }
+
+  // If only 1 profile, auto-select
+  if (profiles.length === 1) return profiles[0].profileId;
+
+  // Multiple profiles, no valid last → user must choose
+  return undefined;
 }
 
 async function createRefreshToken(userId: string): Promise<string> {
@@ -104,6 +117,7 @@ router.post('/signin', rateLimit(5, 60_000), async (c) => {
       failedLoginAttempts: accounts.failedLoginAttempts,
       lockedUntil: accounts.lockedUntil,
       totpEnabled: accounts.totpEnabled,
+      lastActiveProfileId: accounts.lastActiveProfileId,
     })
     .from(accounts)
     .where(eq(accounts.email, email))
@@ -214,10 +228,17 @@ router.post('/signin', rateLimit(5, 60_000), async (c) => {
   }
 
   // No 2FA needed (client_user) — issue tokens directly
-  // Auto-select profile if user has exactly 1
+  // Auto-select: last active profile, or single profile, or none
   const autoProfileId = account.persona === 'client_user'
-    ? await getAutoProfileId(account.id)
+    ? await resolveAutoProfileId(account.id, account.lastActiveProfileId)
     : undefined;
+
+  // Save last active profile if auto-selected
+  if (autoProfileId && autoProfileId !== account.lastActiveProfileId) {
+    await db.update(accounts)
+      .set({ lastActiveProfileId: autoProfileId, updatedAt: new Date() })
+      .where(eq(accounts.id, account.id));
+  }
 
   const accessToken = await signAccessToken({
     sub: account.id,
@@ -292,6 +313,7 @@ router.post('/refresh', async (c) => {
       id: accounts.id,
       email: accounts.email,
       persona: accounts.persona,
+      lastActiveProfileId: accounts.lastActiveProfileId,
     })
     .from(accounts)
     .where(eq(accounts.id, result.userId))
@@ -301,9 +323,9 @@ router.post('/refresh', async (c) => {
     return c.json({ error: 'Compte introuvable' }, 401);
   }
 
-  // Preserve profile: auto-select if only 1
+  // Restore last active profile, or auto-select if only 1
   const refreshAutoProfileId = account.persona === 'client_user'
-    ? await getAutoProfileId(account.id)
+    ? await resolveAutoProfileId(account.id, account.lastActiveProfileId)
     : undefined;
 
   const accessToken = await signAccessToken({
@@ -644,6 +666,11 @@ router.post('/select-profile', authMiddleware, async (c) => {
     return c.json({ error: 'Profil introuvable ou non attribué' }, 404);
   }
 
+  // Save last active profile
+  await db.update(accounts)
+    .set({ lastActiveProfileId: profileId, updatedAt: new Date() })
+    .where(eq(accounts.id, user.sub));
+
   // Issue a new access token with the active profile
   const accessToken = await signAccessToken({
     sub: user.sub,
@@ -740,7 +767,13 @@ router.get('/sso/callback', async (c) => {
   }
 
   // 8. Generate tokens — auto-select profile if only 1
-  const ssoAutoProfileId = await getAutoProfileId(account.id);
+  // Fetch lastActiveProfileId for the SSO user
+  const [ssoAccountDetails] = await db
+    .select({ lastActiveProfileId: accounts.lastActiveProfileId })
+    .from(accounts)
+    .where(eq(accounts.id, account.id))
+    .limit(1);
+  const ssoAutoProfileId = await resolveAutoProfileId(account.id, ssoAccountDetails?.lastActiveProfileId);
   const accessToken = await signAccessToken({
     sub: account.id,
     email: account.email,

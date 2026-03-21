@@ -7,8 +7,8 @@ Le modèle d'accès a changé : un `client_user` n'a plus l'union de tous ses pr
 
 ### 1. Page de sélection de profil
 - Après le login, vérifier si `activeProfileId` est présent dans le JWT (décoder le token)
-- Si **présent** (1 seul profil) → aller directement au FO, pas de page de sélection
-- Si **absent** (plusieurs profils) → afficher la page de sélection
+- Si **présent** (dernier profil restauré ou profil unique) → aller directement au FO
+- Si **absent** (première connexion avec plusieurs profils) → afficher la page de sélection
 - Appeler `GET /auth/me/profiles` pour lister les profils disponibles
 - Afficher les profils avec leurs EOs, groupes et rôles
 - Au clic sur "Activer" → appeler `POST /auth/select-profile` avec `{profile_id}`
@@ -20,7 +20,9 @@ Le modèle d'accès a changé : un `client_user` n'a plus l'union de tous ses pr
 - Stocker l'access token en mémoire (pas localStorage — il change à chaque sélection de profil)
 
 ### 3. Switch de profil
-- Dans le sidebar FO, un bouton "Changer de profil" qui ramène à la page de sélection
+- En bas à gauche du sidebar FO, un bouton "Changer de profil"
+- Appelle `POST /auth/select-profile` avec le nouveau `{profile_id}`
+- Le backend sauvegarde le choix (pour restauration automatique à la prochaine reconnexion)
 - L'ancien token est remplacé par le nouveau après sélection
 
 ### 4. Suppression du cumul de profils

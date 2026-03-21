@@ -22,6 +22,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | locked_until | timestamptz | OUI | — | Date jusqu'à laquelle le compte est verrouillé (null si non verrouillé) |
 | totp_secret | text | OUI | — | Secret TOTP chiffré pour le 2FA (null si 2FA pas configuré) |
 | totp_enabled | boolean | NON | false | 2FA activé ou non. Obligatoire pour admin/intégrateurs, ignoré pour client_user et SSO. |
+| last_active_profile_id | uuid | OUI | — | Dernier profil actif sélectionné par l'utilisateur. Utilisé pour restaurer la session automatiquement à la reconnexion |
 | created_at | timestamptz | NON | now() | Date de création du compte |
 | updated_at | timestamptz | NON | now() | Date de dernière modification |
 

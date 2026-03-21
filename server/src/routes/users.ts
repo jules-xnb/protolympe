@@ -10,12 +10,14 @@ import {
   userFieldValues,
   clientModules,
 } from '../db/schema.js';
-import { eq, and, count, isNull } from 'drizzle-orm';
+import { eq, and, count, isNull, inArray } from 'drizzle-orm';
 import { generateCsv, parseCsv } from '../lib/csv.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireClientAccess } from '../middleware/client-access.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 import { getEditableFieldSlugs } from '../lib/field-access.js';
+import { getUserPermissions } from '../lib/cache.js';
+import { clientProfileEos, clientProfileEoGroups, eoGroupMembers, clientProfileModuleRoles } from '../db/schema.js';
 import type { JwtPayload } from '../lib/jwt.js';
 import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 import { logAdminAction } from '../lib/audit.js';
@@ -32,8 +34,77 @@ router.use('*', requireClientAccess());
 // GET /clients/:clientId/users
 router.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
+  const user = c.get('user');
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
+  // client_user: only see users who share at least one EO in their perimeter
+  if (user.persona === 'client_user') {
+    const permissions = await getUserPermissions(user.sub, user.activeProfileId);
+    const eoIdArray = Array.from(permissions.eoIds);
+
+    if (eoIdArray.length === 0) {
+      return c.json(paginatedResponse([], 0, pagination));
+    }
+
+    // Find users who have a profile granting access to at least one EO in the requester's perimeter
+    // A user is visible if any of their profile EOs (direct or via groups) overlaps with the requester's perimeter
+    const visibleUserIds = await db
+      .selectDistinct({ userId: clientProfileUsers.userId })
+      .from(clientProfileUsers)
+      .innerJoin(clientProfiles, eq(clientProfileUsers.profileId, clientProfiles.id))
+      .innerJoin(clientProfileEos, eq(clientProfileEos.profileId, clientProfiles.id))
+      .where(and(
+        eq(clientProfiles.clientId, clientId),
+        eq(clientProfiles.isArchived, false),
+        isNull(clientProfileUsers.deletedAt),
+        isNull(clientProfileEos.deletedAt),
+        inArray(clientProfileEos.eoId, eoIdArray)
+      ));
+
+    const userIds = visibleUserIds.map((r) => r.userId);
+
+    // Also include the requesting user themselves
+    if (!userIds.includes(user.sub)) {
+      userIds.push(user.sub);
+    }
+
+    if (userIds.length === 0) {
+      return c.json(paginatedResponse([], 0, pagination));
+    }
+
+    const perimeterWhere = and(
+      eq(userClientMemberships.clientId, clientId),
+      inArray(userClientMemberships.userId, userIds)
+    );
+
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(userClientMemberships)
+      .where(perimeterWhere);
+
+    const result = await db
+      .select({
+        membershipId: userClientMemberships.id,
+        userId: accounts.id,
+        email: accounts.email,
+        firstName: accounts.firstName,
+        lastName: accounts.lastName,
+        persona: accounts.persona,
+        isActive: userClientMemberships.isActive,
+        invitedBy: userClientMemberships.invitedBy,
+        activatedAt: userClientMemberships.activatedAt,
+        membershipCreatedAt: userClientMemberships.createdAt,
+      })
+      .from(userClientMemberships)
+      .innerJoin(accounts, eq(userClientMemberships.userId, accounts.id))
+      .where(perimeterWhere)
+      .orderBy(accounts.lastName, accounts.firstName)
+      .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
+
+    return c.json(paginatedResponse(toSnakeCase(result) as any[], total, pagination));
+  }
+
+  // admin / integrator: all users
   const [{ total }] = await db
     .select({ total: count() })
     .from(userClientMemberships)

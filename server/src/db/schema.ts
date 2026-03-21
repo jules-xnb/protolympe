@@ -37,6 +37,7 @@ export const accounts = pgTable('accounts', {
   lockedUntil: timestamp('locked_until', { withTimezone: true }),
   totpSecret: text('totp_secret'),
   totpEnabled: boolean('totp_enabled').default(false).notNull(),
+  lastActiveProfileId: uuid('last_active_profile_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [

@@ -13,11 +13,12 @@ import {
   clientModules,
 } from '../db/schema.js';
 import { generateCsv, parseCsv } from '../lib/csv.js';
-import { eq, and, count, isNull } from 'drizzle-orm';
+import { eq, and, count, isNull, inArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireClientAccess } from '../middleware/client-access.js';
 import { toSnakeCase } from '../lib/case-transform.js';
 import { getEditableFieldSlugs } from '../lib/field-access.js';
+import { getUserPermissions } from '../lib/cache.js';
 import type { JwtPayload } from '../lib/jwt.js';
 import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 import { logAdminAction } from '../lib/audit.js';
@@ -36,8 +37,35 @@ router.use('*', requireClientAccess());
 // GET / — List entities for a client
 router.get('/', async (c) => {
   const clientId = c.req.param('clientId') as string;
+  const user = c.get('user');
   const pagination = parsePaginationParams({ page: c.req.query('page'), per_page: c.req.query('per_page') });
 
+  // client_user: filter by EO perimeter
+  if (user.persona === 'client_user') {
+    const permissions = await getUserPermissions(user.sub, user.activeProfileId);
+    const eoIdArray = Array.from(permissions.eoIds);
+
+    if (eoIdArray.length === 0) {
+      return c.json(paginatedResponse([], 0, pagination));
+    }
+
+    const perimeterWhere = and(
+      eq(eoEntities.clientId, clientId),
+      eq(eoEntities.isArchived, false),
+      inArray(eoEntities.id, eoIdArray)
+    );
+    const [{ total }] = await db.select({ total: count() }).from(eoEntities).where(perimeterWhere);
+    const result = await db
+      .select()
+      .from(eoEntities)
+      .where(perimeterWhere)
+      .orderBy(eoEntities.path, eoEntities.name)
+      .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
+
+    return c.json(paginatedResponse(toSnakeCase(result) as any[], total, pagination));
+  }
+
+  // admin / integrator: all entities
   const baseWhere = and(eq(eoEntities.clientId, clientId), eq(eoEntities.isArchived, false));
   const [{ total }] = await db.select({ total: count() }).from(eoEntities).where(baseWhere);
   const result = await db

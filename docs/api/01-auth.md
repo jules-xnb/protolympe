@@ -42,8 +42,9 @@
 - Le `temp_token` est un JWT court (5 min) qui ne donne accès qu'aux routes `/auth/2fa/*`
 
 ### Règles profil actif
-- Un `client_user` doit sélectionner un profil pour accéder aux données FO
-- Le JWT contient `activeProfileId` après sélection
+- Si le `client_user` a **1 seul profil** → auto-sélectionné au signin (le JWT contient `activeProfileId` directement)
+- Si **plusieurs profils** → le JWT n'a pas `activeProfileId`, l'utilisateur doit appeler `POST /auth/select-profile`
 - Tous les droits (périmètre EO, rôles, permissions) sont scopés au profil actif uniquement
 - **Pas d'union entre profils** — l'utilisateur switch entre ses profils
+- Lors du `POST /auth/refresh`, le profil est aussi auto-détecté (1 profil = auto)
 - Voir `docs/regles-acces-detail.md` pour le modèle complet

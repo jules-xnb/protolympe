@@ -22,11 +22,17 @@ L'**union** se fait **à l'intérieur** du profil :
 
 ## Flow utilisateur
 
-1. L'utilisateur se connecte → reçoit un access token (sans profil actif)
-2. Il appelle `GET /auth/me/profiles` → voit la liste de ses profils disponibles
-3. Il sélectionne un profil → appelle `POST /auth/select-profile` avec `{profile_id}`
-4. Il reçoit un **nouveau access token** avec `activeProfileId` dans le JWT
-5. Toutes les requêtes suivantes utilisent ce token → le cache calcule les droits pour ce profil uniquement
+### Cas 1 : utilisateur avec 1 seul profil (90% des cas)
+1. L'utilisateur se connecte → le backend détecte qu'il a 1 seul profil
+2. Le profil est **automatiquement activé** dans le JWT → `activeProfileId` est set
+3. L'utilisateur accède directement au FO, pas de page de sélection
+
+### Cas 2 : utilisateur avec plusieurs profils
+1. L'utilisateur se connecte → reçoit un access token **sans** profil actif
+2. Le front détecte que `activeProfileId` est absent → affiche la page de sélection
+3. Il appelle `GET /auth/me/profiles` → voit la liste de ses profils disponibles
+4. Il sélectionne un profil → appelle `POST /auth/select-profile` avec `{profile_id}`
+5. Il reçoit un **nouveau access token** avec `activeProfileId` dans le JWT
 6. Il peut changer de profil en rappelant `POST /auth/select-profile`
 
 ---

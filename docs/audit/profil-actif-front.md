@@ -6,7 +6,9 @@ Le modèle d'accès a changé : un `client_user` n'a plus l'union de tous ses pr
 ## Changements à implémenter côté front
 
 ### 1. Page de sélection de profil
-- Après le login, le `client_user` arrive sur une page de sélection de profil
+- Après le login, vérifier si `activeProfileId` est présent dans le JWT (décoder le token)
+- Si **présent** (1 seul profil) → aller directement au FO, pas de page de sélection
+- Si **absent** (plusieurs profils) → afficher la page de sélection
 - Appeler `GET /auth/me/profiles` pour lister les profils disponibles
 - Afficher les profils avec leurs EOs, groupes et rôles
 - Au clic sur "Activer" → appeler `POST /auth/select-profile` avec `{profile_id}`

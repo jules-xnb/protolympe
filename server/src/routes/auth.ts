@@ -49,6 +49,24 @@ function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+/**
+ * For client_user: if they have exactly 1 profile, return its ID.
+ * If 0 or 2+, return undefined (they'll need to select manually).
+ */
+async function getAutoProfileId(userId: string): Promise<string | undefined> {
+  const profiles = await db
+    .select({ profileId: clientProfileUsers.profileId })
+    .from(clientProfileUsers)
+    .innerJoin(clientProfiles, eq(clientProfileUsers.profileId, clientProfiles.id))
+    .where(and(
+      eq(clientProfileUsers.userId, userId),
+      isNull(clientProfileUsers.deletedAt),
+      eq(clientProfiles.isArchived, false)
+    ));
+
+  return profiles.length === 1 ? profiles[0].profileId : undefined;
+}
+
 async function createRefreshToken(userId: string): Promise<string> {
   const token = generateRefreshToken();
   const tokenHash = hashToken(token);
@@ -196,10 +214,16 @@ router.post('/signin', rateLimit(5, 60_000), async (c) => {
   }
 
   // No 2FA needed (client_user) — issue tokens directly
+  // Auto-select profile if user has exactly 1
+  const autoProfileId = account.persona === 'client_user'
+    ? await getAutoProfileId(account.id)
+    : undefined;
+
   const accessToken = await signAccessToken({
     sub: account.id,
     email: account.email,
     persona: account.persona,
+    activeProfileId: autoProfileId,
   });
 
   const refreshToken = await createRefreshToken(account.id);
@@ -277,10 +301,16 @@ router.post('/refresh', async (c) => {
     return c.json({ error: 'Compte introuvable' }, 401);
   }
 
+  // Preserve profile: auto-select if only 1
+  const refreshAutoProfileId = account.persona === 'client_user'
+    ? await getAutoProfileId(account.id)
+    : undefined;
+
   const accessToken = await signAccessToken({
     sub: account.id,
     email: account.email,
     persona: account.persona,
+    activeProfileId: refreshAutoProfileId,
   });
 
   setCookie(c, 'refresh_token', result.newRefreshToken, {
@@ -709,11 +739,13 @@ router.get('/sso/callback', async (c) => {
     });
   }
 
-  // 8. Generate tokens
+  // 8. Generate tokens — auto-select profile if only 1
+  const ssoAutoProfileId = await getAutoProfileId(account.id);
   const accessToken = await signAccessToken({
     sub: account.id,
     email: account.email,
     persona: account.persona,
+    activeProfileId: ssoAutoProfileId,
   });
   const refreshTokenValue = crypto.randomBytes(64).toString('hex');
   const refreshTokenHash = crypto.createHash('sha256').update(refreshTokenValue).digest('hex');

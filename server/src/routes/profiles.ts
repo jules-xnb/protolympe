@@ -22,6 +22,7 @@ import { getEditableFieldSlugs } from '../lib/field-access.js';
 import type { JwtPayload } from '../lib/jwt.js';
 import { parsePaginationParams, paginatedResponse } from '../lib/pagination.js';
 import { logAdminAction } from '../lib/audit.js';
+import { findDuplicateProfile } from '../lib/profile-duplicate-check.js';
 
 type Env = { Variables: { user: JwtPayload } };
 
@@ -342,6 +343,13 @@ router.post('/:id/eos', async (c) => {
     })
     .returning();
 
+  // Check for duplicate profile
+  const duplicateName = await findDuplicateProfile(clientId, id);
+  if (duplicateName) {
+    await db.delete(clientProfileEos).where(eq(clientProfileEos.id, entry.id));
+    return c.json({ error: `Ce profil est identique au profil "${duplicateName}". Deux profils ne peuvent pas avoir exactement les mêmes entités, regroupements et rôles.` }, 409);
+  }
+
   return c.json(toSnakeCase(entry), 201);
 });
 
@@ -365,6 +373,19 @@ router.patch('/:id/eos/:eoId', async (c) => {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
   }
 
+  const [existing] = await db
+    .select({ id: clientProfileEos.id, includeDescendants: clientProfileEos.includeDescendants })
+    .from(clientProfileEos)
+    .where(and(
+      eq(clientProfileEos.profileId, id),
+      eq(clientProfileEos.eoId, eoId),
+      isNull(clientProfileEos.deletedAt)
+    ));
+
+  if (!existing) return c.json({ error: 'Association introuvable' }, 404);
+
+  const oldIncludeDescendants = existing.includeDescendants;
+
   const [updated] = await db
     .update(clientProfileEos)
     .set({ includeDescendants: parsed.data.include_descendants })
@@ -376,6 +397,16 @@ router.patch('/:id/eos/:eoId', async (c) => {
     .returning();
 
   if (!updated) return c.json({ error: 'Association introuvable' }, 404);
+
+  // Check for duplicate profile
+  const duplicateName = await findDuplicateProfile(clientId, id);
+  if (duplicateName) {
+    await db
+      .update(clientProfileEos)
+      .set({ includeDescendants: oldIncludeDescendants })
+      .where(eq(clientProfileEos.id, existing.id));
+    return c.json({ error: `Ce profil est identique au profil "${duplicateName}". Deux profils ne peuvent pas avoir exactement les mêmes entités, regroupements et rôles.` }, 409);
+  }
 
   return c.json(toSnakeCase(updated));
 });
@@ -398,6 +429,16 @@ router.delete('/:id/eos/:eoId', async (c) => {
 
   if (!entry) {
     return c.json({ error: 'Entrée introuvable' }, 404);
+  }
+
+  // Check for duplicate profile
+  const duplicateName = await findDuplicateProfile(clientId, id);
+  if (duplicateName) {
+    await db
+      .update(clientProfileEos)
+      .set({ deletedAt: null })
+      .where(eq(clientProfileEos.id, entry.id));
+    return c.json({ error: `Ce profil est identique au profil "${duplicateName}". Deux profils ne peuvent pas avoir exactement les mêmes entités, regroupements et rôles.` }, 409);
   }
 
   return c.json({ success: true });
@@ -457,6 +498,13 @@ router.post('/:id/eo-groups', async (c) => {
     })
     .returning();
 
+  // Check for duplicate profile
+  const duplicateName = await findDuplicateProfile(clientId, id);
+  if (duplicateName) {
+    await db.delete(clientProfileEoGroups).where(eq(clientProfileEoGroups.id, entry.id));
+    return c.json({ error: `Ce profil est identique au profil "${duplicateName}". Deux profils ne peuvent pas avoir exactement les mêmes entités, regroupements et rôles.` }, 409);
+  }
+
   return c.json(toSnakeCase(entry), 201);
 });
 
@@ -478,6 +526,16 @@ router.delete('/:id/eo-groups/:groupId', async (c) => {
 
   if (!entry) {
     return c.json({ error: 'Entrée introuvable' }, 404);
+  }
+
+  // Check for duplicate profile
+  const duplicateName = await findDuplicateProfile(clientId, id);
+  if (duplicateName) {
+    await db
+      .update(clientProfileEoGroups)
+      .set({ deletedAt: null })
+      .where(eq(clientProfileEoGroups.id, entry.id));
+    return c.json({ error: `Ce profil est identique au profil "${duplicateName}". Deux profils ne peuvent pas avoir exactement les mêmes entités, regroupements et rôles.` }, 409);
   }
 
   return c.json({ success: true });
@@ -538,6 +596,13 @@ router.post('/:id/module-roles', async (c) => {
     })
     .returning();
 
+  // Check for duplicate profile
+  const duplicateName = await findDuplicateProfile(clientId, id);
+  if (duplicateName) {
+    await db.delete(clientProfileModuleRoles).where(eq(clientProfileModuleRoles.id, entry.id));
+    return c.json({ error: `Ce profil est identique au profil "${duplicateName}". Deux profils ne peuvent pas avoir exactement les mêmes entités, regroupements et rôles.` }, 409);
+  }
+
   return c.json(toSnakeCase(entry), 201);
 });
 
@@ -565,6 +630,16 @@ router.delete('/:id/module-roles/:roleId', async (c) => {
 
   if (!entry) {
     return c.json({ error: 'Entrée introuvable' }, 404);
+  }
+
+  // Check for duplicate profile
+  const duplicateName = await findDuplicateProfile(clientId, id);
+  if (duplicateName) {
+    await db
+      .update(clientProfileModuleRoles)
+      .set({ deletedAt: null })
+      .where(eq(clientProfileModuleRoles.id, entry.id));
+    return c.json({ error: `Ce profil est identique au profil "${duplicateName}". Deux profils ne peuvent pas avoir exactement les mêmes entités, regroupements et rôles.` }, 409);
   }
 
   return c.json({ success: true });

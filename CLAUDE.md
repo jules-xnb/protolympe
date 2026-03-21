@@ -46,6 +46,73 @@ Exemple : "mo-navbar" = la navbar dans la vue intégrateur.
 
 - **Icônes dans les boutons** : toujours placer les icônes à **droite** du texte (ex : `<Button>Enregistrer <Save className="h-4 w-4" /></Button>`).
 
+### Design System — Règle absolue
+
+**0 composant custom. Tout vient de `src/components/ui/`.**
+
+#### Hiérarchie d'utilisation obligatoire
+
+Avant d'écrire du JSX, vérifier dans cet ordre :
+
+1. **Un wrapper existe ?** → l'utiliser (jamais recomposer du shadcn si un wrapper fait déjà le job)
+2. **Un composant shadcn existe ?** → l'utiliser tel quel
+3. **Rien n'existe ?** → créer un nouveau wrapper dans `src/components/ui/` puis l'utiliser
+
+#### Wrappers disponibles (à utiliser EN PRIORITÉ sur le shadcn brut)
+
+| Besoin | Wrapper | Ne PAS faire |
+|--------|---------|-------------|
+| Select avec recherche | `SearchableSelect` | Popover + Command à la main |
+| Dialog avec formulaire | `FormDialog` | Dialog + Form à la main |
+| Panneau latéral détails | `DetailsDrawer` | Sheet + header/footer à la main |
+| Chip de statut métier | `StatusChip` | Chip + mapping couleur à la main |
+| État vide / aucun résultat | `EmptyState` | Alert customisé à la main |
+| Pagination de tableau | `UnifiedPagination` | Boutons prev/next à la main |
+| Menu actions ligne tableau | `TableActionMenu` | DropdownMenu à la main |
+| Input avec label flottant | `FloatingInput` | Input + label animé à la main |
+| Upload de fichier | `FileInput` | input[type=file] à la main |
+| Toast / notification | `toast()` (Sonner) | Alert ou custom notification |
+
+#### Suivi obligatoire
+
+À chaque utilisation d'un composant ou wrapper dans une page, **mettre à jour** la colonne "Utilisé dans" dans :
+- `docs/design-system/composants-shadcn.md` (composants shadcn)
+- `docs/design-system/wrappers.md` (wrappers custom)
+
+#### Theming FO (personnalisation client)
+
+Le FO est thémé par client via CSS variables. Règles :
+- **Jamais de couleur hex en dur** — utiliser `bg-primary`, `text-primary`, `border-primary`, etc.
+- **Jamais de `rounded-*` en dur** — le radius est piloté par `--radius`
+- **Jamais de font-family en dur** — héritée du body
+- **MO et BO ne sont PAS thémés** — thème Delta par défaut uniquement
+
+#### Traductions FO (i18n)
+
+- **En FO** : tout texte visible passe par `t('scope.key')` — jamais de texte en dur
+- **En MO / BO** : texte en dur (interface Delta interne)
+- **Les wrappers reçoivent des strings déjà traduites** — c'est la page qui appelle `t()`, pas le composant
+- Doc complète : `docs/design-system/theming-i18n.md`
+
+#### Création d'un nouveau composant = ALERTE OBLIGATOIRE
+
+Si aucun composant ou wrapper existant ne couvre le besoin, **STOPPER et ALERTER l'utilisateur** avant de créer quoi que ce soit. Le message doit contenir :
+1. Ce que tu as besoin de faire
+2. Les composants/wrappers existants que tu as envisagés et pourquoi ils ne conviennent pas
+3. Ta proposition de nouveau composant (nom, props, ce qu'il compose)
+
+**Ne jamais créer un composant sans validation explicite de l'utilisateur.**
+
+Après validation, créer le composant dans `src/components/ui/`, l'ajouter à la page design system wrappers (`/design-system/wrappers`), et mettre à jour `docs/design-system/wrappers.md`.
+
+#### Interdictions
+
+- **Jamais** de composant custom en dehors de `src/components/ui/`
+- **Jamais** deux wrappers qui font la même chose
+- **Jamais** de recomposition manuelle si un wrapper existe
+- **Jamais** d'import direct de librairies tierces (Radix, cmdk, etc.) dans les pages — passer par les composants UI
+- **Jamais** de nouveau composant sans alerte et validation utilisateur
+
 ## Processus de développement
 
 ### Règle n°1 : PRD avant tout code

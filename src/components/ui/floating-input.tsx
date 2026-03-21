@@ -1,39 +1,22 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export interface FloatingInputProps extends Omit<React.ComponentProps<"input">, "placeholder"> {
+interface FloatingInputProps extends Omit<React.ComponentProps<"input">, "placeholder"> {
+  /** Label qui flotte au-dessus du champ quand il est focus ou rempli */
   label: string;
+  /** Valeur contrôlée */
+  value: string;
+  /** Callback de changement */
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  /** Afficher le style erreur */
   error?: boolean;
 }
 
 const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputProps>(
-  ({ className, label, error, value, defaultValue, onChange, onFocus, onBlur, disabled, ...props }, ref) => {
+  ({ className, label, value, onChange, error, disabled, ...props }, ref) => {
     const [focused, setFocused] = React.useState(false);
-    const [hasInternalValue, setHasInternalValue] = React.useState(
-      defaultValue !== undefined && defaultValue !== null && String(defaultValue).length > 0,
-    );
-
-    const isControlled = value !== undefined;
-    const hasValue = isControlled
-      ? value !== null && String(value).length > 0
-      : hasInternalValue;
-
+    const hasValue = value.length > 0;
     const isFloating = focused || hasValue;
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!isControlled) setHasInternalValue(e.target.value.length > 0);
-      onChange?.(e);
-    };
-
-    const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-      setFocused(true);
-      onFocus?.(e);
-    };
-
-    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-      setFocused(false);
-      onBlur?.(e);
-    };
 
     return (
       <div className={cn("relative w-full pt-2", disabled && "opacity-30 pointer-events-none")}>
@@ -50,10 +33,9 @@ const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputProps>(
           <input
             ref={ref}
             value={value}
-            defaultValue={isControlled ? undefined : defaultValue}
-            onChange={handleChange}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
+            onChange={onChange}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             disabled={disabled}
             placeholder={!isFloating ? label : undefined}
             className={cn(

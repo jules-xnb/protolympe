@@ -1,6 +1,6 @@
-# Audit Front ↔ Back ↔ BDD — Index
+# Specs Front — Index
 
-> Document vivant. Chaque page est auditée pour vérifier l'alignement entre le front, les routes API et le schéma BDD.
+> Specs de construction pour la refonte complète du front-end Delta RM. Le front a été entièrement supprimé — seul le design system reste. Chaque spec décrit ce qu'il faut construire avec maquettes ASCII, règles métier, endpoints API et comportements attendus.
 
 ## Règles d'accès globales
 
@@ -12,20 +12,51 @@
 
 ## Standards de l'application
 
+- **Design system** : 0 composant custom — utiliser exclusivement `src/components/ui/`
 - **Pagination** : toujours côté API, 50 éléments max par page
-- **Filtrage** : toujours côté API (même quand l'utilisateur a des filtres en front, ça conditionne la requête)
+- **Filtrage** : toujours côté API
 - **Tri** : côté API sauf indication contraire
 - **Unicité** : vérifiée côté API avec erreur 409 si doublon
 - **Authentification par client** : un client = un mode d'auth (SSO exclusif OU email/mot de passe, jamais les deux)
+- **Archivage** : jamais de suppression physique, toujours archiver/désactiver
+- **Icônes dans les boutons** : toujours à droite du texte
+- **Gestion d'erreurs** : explicite, jamais de fail silencieux
+- **Loading states** : skeleton ou spinner sur chaque chargement async
 
-## Pages auditées
+## Specs par section
 
-| # | Section | Page | Doc | Status |
-|---|---------|------|-----|--------|
-| 0 | Auth | Connexion + Reset password + 2FA | [page-0-auth.md](page-0-auth.md) | ✅ Audité — 31 refactos (7 API + 2 BDD + 22 front) |
-| 1 | BO | Clients | [page-1-clients.md](page-1-clients.md) | ✅ Audité — 24 refactos (4 API + 1 BDD + 19 front) |
-| 2 | BO | Intégrateurs | [page-2-integrateurs.md](page-2-integrateurs.md) | ✅ Audité — 21 refactos (4 API + 0 BDD + 17 front) |
-| 3 | MO | Listes | [page-3-listes.md](page-3-listes.md) | ✅ Audité — 30 refactos (8 API + 5 BDD + 17 front) |
-| 4 | MO | Organisation (Entités) | [page-4-mo-organisation.md](page-4-mo-organisation.md) | ✅ Audité — 36 refactos (20 API + 4 BDD + 12 front) |
-| 5+ | MO | Users, Profiles, BO, Modules, Workflows, Design, Traductions | À faire | |
-| 40+ | FO | Profils, Modules, Vues, Workflows, Surveys, Campaigns | À faire | |
+### BO — Back Office (Admin)
+
+| # | Page | Doc |
+|---|------|-----|
+| 0 | Auth (Connexion, Reset password, 2FA) | [page-0-auth.md](page-0-auth.md) |
+| 1 | Clients | [page-1-clients.md](page-1-clients.md) |
+| 2 | Intégrateurs | [page-2-integrateurs.md](page-2-integrateurs.md) |
+
+### MO — Module Owner (Intégrateur)
+
+| # | Page | Doc |
+|---|------|-----|
+| 3 | Listes | [page-3-listes.md](page-3-listes.md) |
+| 5 | Navigation (sidebar, routing, guards) | [page-5-mo-navigation.md](page-5-mo-navigation.md) |
+| 6 | Design + Traductions | [page-6-mo-design.md](page-6-mo-design.md) |
+| 7 | Module Users | [mo-users/index.md](mo-users/index.md) |
+| 8 | Module Organisation | [mo-organisation/index.md](mo-organisation/index.md) |
+| 9 | Module Collecte de valeur | [mo-collecte-de-valeur/index.md](mo-collecte-de-valeur/index.md) |
+| 10 | Module Profiles | [mo-profiles/index.md](mo-profiles/index.md) |
+
+### FO — Front Office (User Final)
+
+| # | Page | Doc |
+|---|------|-----|
+| 11 | Sidebar FO | [page-7-fo-sidebar.md](page-7-fo-sidebar.md) |
+| 12 | Module Users | [fo-users.md](fo-users.md) |
+| 13 | Module Organisation | [fo-organisation.md](fo-organisation.md) |
+| 14 | Module Collecte de valeur | [fo-collecte-de-valeur/index.md](fo-collecte-de-valeur/index.md) |
+| 15 | Module Profiles | [fo-profiles/index.md](fo-profiles/index.md) |
+
+### Transversal
+
+| Doc | Description |
+|-----|-------------|
+| [profil-actif-front.md](profil-actif-front.md) | Gestion du profil actif (sélection, JWT, restauration) |

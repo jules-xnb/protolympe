@@ -152,7 +152,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | name | text | NON | — | Nom affiché du rôle (ex : "Validateur") |
 | color | text | OUI | — | Couleur associée |
 | description | text | OUI | — | Description |
-| is_active | boolean | NON | true | Rôle actif |
+| is_archived | boolean | NON | false | Rôle archivé (soft delete) |
 | created_at | timestamptz | NON | now() | Date de création |
 
 ---
@@ -168,6 +168,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | permission_slug | text | NON | — | Identifiant de la permission |
 | module_role_id | uuid | NON | — | FK → module_roles.id (cascade delete) |
 | is_granted | boolean | NON | false | Permission accordée |
+| deleted_at | timestamptz | OUI | — | Date de suppression (soft delete) |
 | created_at | timestamptz | NON | now() | Date de création |
 
 ---
@@ -208,7 +209,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | field_type | text | NON | — | Type de champ (texte, nombre, date, liste, etc.) |
 | is_required | boolean | NON | false | Champ obligatoire |
 | is_unique | boolean | NON | false | Valeur unique par entité |
-| is_active | boolean | NON | true | Champ actif |
+| is_archived | boolean | NON | false | Champ archivé (soft delete) |
 | comment_on_change | text | NON | 'none' | Comportement du commentaire lors d'une modification : `none`, `optional`, `required` |
 | list_id | uuid | OUI | — | FK → lists.id (set null on delete) — liste source si type liste |
 | settings | jsonb | OUI | — | Paramètres supplémentaires |
@@ -243,7 +244,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | client_id | uuid | NON | — | FK → clients.id (cascade delete) |
 | name | text | NON | — | Nom du groupe |
 | description | text | OUI | — | Description |
-| is_active | boolean | NON | true | Groupe actif |
+| is_archived | boolean | NON | false | Groupe archivé (soft delete) |
 | created_by | uuid | OUI | — | FK → accounts.id (set null on delete) |
 | created_at | timestamptz | NON | now() | Date de création |
 | updated_at | timestamptz | NON | now() | Date de dernière modification |
@@ -443,6 +444,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | value | jsonb | OUI | — | Valeur stockée (format JSON) |
 | updated_by | uuid | OUI | — | FK → accounts.id (set null on delete) |
 | updated_at | timestamptz | NON | now() | Date de dernière modification |
+| deleted_at | timestamptz | OUI | — | Date de suppression logique (null si actif) |
 
 ---
 
@@ -476,11 +478,11 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | description | text | OUI | — | Description |
 | color | text | OUI | — | Couleur associée |
 | display_order | integer | NON | 0 | Ordre d'affichage |
-| is_active | boolean | NON | true | Valeur active |
 | parent_id | uuid | OUI | — | Valeur parente (auto-référence, listes hiérarchiques) |
 | level | integer | OUI | 0 | Profondeur dans la hiérarchie |
 | created_at | timestamptz | NON | now() | Date de création |
 | updated_at | timestamptz | NON | now() | Date de dernière modification |
+| deleted_at | timestamptz | OUI | — | Date de suppression logique (null si actif) |
 
 ---
 
@@ -535,7 +537,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | client_module_id | uuid | NON | — | FK → client_modules.id (cascade delete) |
 | name | text | NON | — | Nom du type de campagne |
 | description | text | OUI | — | Description |
-| is_active | boolean | NON | true | Type actif |
+| is_archived | boolean | NON | false | Type archivé (soft delete) |
 | created_at | timestamptz | NON | now() | Date de création |
 | updated_at | timestamptz | NON | now() | Date de dernière modification |
 
@@ -553,7 +555,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | field_type | text | NON | — | Type de champ |
 | description | text | OUI | — | Description |
 | list_id | uuid | OUI | — | FK → lists.id (set null on delete) — liste source si type liste |
-| is_active | boolean | NON | true | Champ actif |
+| is_archived | boolean | NON | false | Champ archivé (soft delete) |
 | settings | jsonb | OUI | — | Paramètres supplémentaires |
 | created_at | timestamptz | NON | now() | Date de création |
 | updated_at | timestamptz | NON | now() | Date de dernière modification |
@@ -759,6 +761,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | start_date | timestamptz | OUI | — | Date de début |
 | end_date | timestamptz | OUI | — | Date de fin |
 | created_by | uuid | OUI | — | FK → accounts.id (set null on delete) |
+| is_archived | boolean | NON | false | Campagne archivée (soft delete) |
 | created_at | timestamptz | NON | now() | Date de création |
 | updated_at | timestamptz | NON | now() | Date de dernière modification |
 
@@ -820,6 +823,7 @@ Ce document décrit l'intégralité du modèle de données de la plateforme Delt
 | comment | text | NON | — | Contenu du commentaire |
 | created_at | timestamptz | NON | now() | Date de création |
 | created_by | uuid | OUI | — | FK → accounts.id (set null on delete) |
+| deleted_at | timestamptz | OUI | — | Date de suppression logique (null si actif) |
 
 ---
 

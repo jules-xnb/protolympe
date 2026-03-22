@@ -202,7 +202,7 @@ Voir `07-workflows.md` -- memes endpoints.
 
 ### Points d'attention backend
 
-- **Suppression physique** : le `DELETE` actuel fait une suppression physique. Un role supprime peut casser des profils clients. Doit etre remplace par un archivage (`is_active = false`).
+- **Archivage** : ~~le `DELETE` actuel fait une suppression physique~~ → corrigé, le endpoint `PATCH .../archive` met `is_archived = true`. Les permissions du rôle sont préservées mais exclues du calcul des droits.
 - **Slug** : doit etre genere et valide cote serveur (unicite garantie). Actuellement genere cote front avec risque de collision.
 - **Validation nom unique** : empecher la creation de deux roles avec le meme nom pour un meme module.
 

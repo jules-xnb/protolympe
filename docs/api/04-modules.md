@@ -12,7 +12,7 @@
 | `GET /modules/:moduleId/roles` | Lister les rôles | `admin_delta`, `integrator_*` assigné | |
 | `POST /modules/:moduleId/roles` | Créer un rôle | `admin_delta`, `integrator_*` assigné | |
 | `PATCH /modules/:moduleId/roles/:id` | Modifier (nom, couleur, description) | `admin_delta`, `integrator_*` assigné | |
-| `PATCH /modules/:moduleId/roles/:id/deactivate` | Désactiver un rôle | `admin_delta`, `integrator_*` assigné | |
+| `PATCH /modules/:moduleId/roles/:id/archive` | Archiver un rôle | `admin_delta`, `integrator_*` assigné | Soft delete — le rôle et ses permissions sont exclus du calcul des droits |
 | **Permissions** | | | |
 | `GET /modules/:moduleId/permissions` | Lister les permissions (avec état par rôle) | `admin_delta`, `integrator_*` assigné | |
 | `PUT /modules/:moduleId/permissions` | Mettre à jour les permissions (batch) | `admin_delta`, `integrator_*` assigné | |

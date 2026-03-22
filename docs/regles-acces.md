@@ -134,8 +134,8 @@ Profil avec `EO id=2 (include_descendants=true)` -> perimetre = {2, 5, 6}
 ```
 Profil actif :
   +-- client_profile_module_roles (si deletedAt IS NULL)
-      +-- module_roles (si isActive=true)
-          +-- module_permissions (isGranted=true)
+      +-- module_roles (si isArchived=false)
+          +-- module_permissions (isGranted=true, deletedAt IS NULL)
 ```
 
 Un utilisateur peut avoir **plusieurs roles dans le meme module** (via le meme profil).

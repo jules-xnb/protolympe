@@ -123,6 +123,7 @@ function campaignToSnake(c: typeof moduleCvCampaigns.$inferSelect) {
     start_date: c.startDate,
     end_date: c.endDate,
     created_by: c.createdBy,
+    is_archived: c.isArchived,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
   };
@@ -425,6 +426,45 @@ router.patch('/campaigns/:id/close', async (c) => {
   const [updated] = await db
     .update(moduleCvCampaigns)
     .set({ status: 'closed', updatedAt: new Date() })
+    .where(eq(moduleCvCampaigns.id, id))
+    .returning();
+
+  return c.json(campaignToSnake(updated));
+});
+
+// 5b. PATCH /campaigns/:id/archive — Archive campaign
+router.patch('/campaigns/:id/archive', async (c) => {
+  const { id } = c.req.param();
+  const moduleId = c.req.param('moduleId') as string;
+  const user = c.get('user');
+
+  if (user.persona !== 'client_user') {
+    return c.json({ error: 'Réservé aux utilisateurs client' }, 403);
+  }
+
+  const allowed = await requireManageCampaign(c, moduleId);
+  if (!allowed) return c.json({ error: 'Permission requise : can_manage_campaign' }, 403);
+
+  const [campaign] = await db
+    .select()
+    .from(moduleCvCampaigns)
+    .where(eq(moduleCvCampaigns.id, id));
+  if (!campaign) return c.json({ error: 'Campagne introuvable' }, 404);
+
+  const [surveyType] = await db
+    .select()
+    .from(moduleCvSurveyTypes)
+    .where(
+      and(
+        eq(moduleCvSurveyTypes.id, campaign.surveyTypeId),
+        eq(moduleCvSurveyTypes.clientModuleId, moduleId)
+      )
+    );
+  if (!surveyType) return c.json({ error: 'Campagne introuvable' }, 404);
+
+  const [updated] = await db
+    .update(moduleCvCampaigns)
+    .set({ isArchived: true, updatedAt: new Date() })
     .where(eq(moduleCvCampaigns.id, id))
     .returning();
 
@@ -1039,7 +1079,7 @@ router.get('/responses/:id/comments', async (c) => {
   const comments = await db
     .select()
     .from(moduleCvFieldComments)
-    .where(eq(moduleCvFieldComments.responseId, id))
+    .where(and(eq(moduleCvFieldComments.responseId, id), isNull(moduleCvFieldComments.deletedAt)))
     .orderBy(moduleCvFieldComments.createdAt);
 
   return c.json(comments.map(commentToSnake));

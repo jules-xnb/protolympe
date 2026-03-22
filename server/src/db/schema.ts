@@ -142,7 +142,7 @@ export const moduleRoles = pgTable('module_roles', {
   name: text('name').notNull(),
   color: text('color'),
   description: text('description'),
-  isActive: boolean('is_active').default(true).notNull(),
+  isArchived: boolean('is_archived').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('module_roles_client_module_id_idx').on(table.clientModuleId),
@@ -154,6 +154,7 @@ export const modulePermissions = pgTable('module_permissions', {
   permissionSlug: text('permission_slug').notNull(),
   moduleRoleId: uuid('module_role_id').notNull().references(() => moduleRoles.id, { onDelete: 'cascade' }),
   isGranted: boolean('is_granted').default(false).notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex('module_permissions_unique').on(table.moduleRoleId, table.permissionSlug),
@@ -192,7 +193,7 @@ export const eoFieldDefinitions = pgTable('eo_field_definitions', {
   fieldType: text('field_type').notNull(),
   isRequired: boolean('is_required').default(false).notNull(),
   isUnique: boolean('is_unique').default(false).notNull(),
-  isActive: boolean('is_active').default(true).notNull(),
+  isArchived: boolean('is_archived').default(false).notNull(),
   commentOnChange: text('comment_on_change').default('none').notNull(),
   listId: uuid('list_id').references(() => lists.id, { onDelete: 'set null' }),
   settings: jsonb('settings'),
@@ -220,7 +221,7 @@ export const eoGroups = pgTable('eo_groups', {
   clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
-  isActive: boolean('is_active').default(true).notNull(),
+  isArchived: boolean('is_archived').default(false).notNull(),
   createdBy: uuid('created_by').references(() => accounts.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -377,6 +378,7 @@ export const userFieldValues = pgTable('user_field_values', {
   value: jsonb('value'),
   updatedBy: uuid('updated_by').references(() => accounts.id, { onDelete: 'set null' }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => [
   index('user_field_values_user_id_idx').on(table.userId),
   index('user_field_values_user_field_idx').on(table.userId, table.fieldDefinitionId),
@@ -405,11 +407,11 @@ export const listValues = pgTable('list_values', {
   description: text('description'),
   color: text('color'),
   displayOrder: integer('display_order').default(0).notNull(),
-  isActive: boolean('is_active').default(true).notNull(),
   parentId: uuid('parent_id'),
   level: integer('level').default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => [
   index('list_values_list_id_idx').on(table.listId),
 ]);
@@ -456,7 +458,7 @@ export const moduleCvSurveyTypes = pgTable('module_cv_survey_types', {
   clientModuleId: uuid('client_module_id').notNull().references(() => clientModules.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
-  isActive: boolean('is_active').default(true).notNull(),
+  isArchived: boolean('is_archived').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -470,7 +472,7 @@ export const moduleCvFieldDefinitions = pgTable('module_cv_field_definitions', {
   fieldType: text('field_type').notNull(),
   description: text('description'),
   listId: uuid('list_id').references(() => lists.id, { onDelete: 'set null' }),
-  isActive: boolean('is_active').default(true).notNull(),
+  isArchived: boolean('is_archived').default(false).notNull(),
   settings: jsonb('settings'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -563,46 +565,11 @@ export const moduleCvFormDisplayConfigFields = pgTable('module_cv_form_display_c
   formFieldId: uuid('form_field_id').notNull().references(() => moduleCvFormFields.id, { onDelete: 'cascade' }),
   canView: boolean('can_view').default(false).notNull(),
   canEdit: boolean('can_edit').default(false).notNull(),
-  displayOrder: integer('display_order').default(0).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  index('module_cv_form_display_config_fields_config_id_idx').on(table.displayConfigId),
-]);
-
-// --- CV Listing display configs (tableaux campagnes/réponses) ---
-
-export const moduleCvDisplayConfigs = pgTable('module_cv_display_configs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  clientModuleId: uuid('client_module_id').notNull().references(() => clientModules.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  filters: jsonb('filters'),
-  preFilters: jsonb('pre_filters'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  index('module_cv_display_configs_client_module_id_idx').on(table.clientModuleId),
-]);
-
-export const moduleCvDisplayConfigRoles = pgTable('module_cv_display_config_roles', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  displayConfigId: uuid('display_config_id').notNull().references(() => moduleCvDisplayConfigs.id, { onDelete: 'cascade' }),
-  moduleRoleId: uuid('module_role_id').notNull().references(() => moduleRoles.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  index('module_cv_display_config_roles_config_id_idx').on(table.displayConfigId),
-]);
-
-export const moduleCvDisplayConfigFields = pgTable('module_cv_display_config_fields', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  displayConfigId: uuid('display_config_id').notNull().references(() => moduleCvDisplayConfigs.id, { onDelete: 'cascade' }),
-  fieldSlug: text('field_slug'),
-  cvFieldDefinitionId: uuid('cv_field_definition_id').references(() => moduleCvFieldDefinitions.id, { onDelete: 'cascade' }),
-  showInTable: boolean('show_in_table').default(false).notNull(),
   showInExport: boolean('show_in_export').default(false).notNull(),
   displayOrder: integer('display_order').default(0).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
-  index('module_cv_display_config_fields_config_id_idx').on(table.displayConfigId),
+  index('module_cv_form_display_config_fields_config_id_idx').on(table.displayConfigId),
 ]);
 
 export const moduleCvValidationRules = pgTable('module_cv_validation_rules', {
@@ -631,6 +598,7 @@ export const moduleCvCampaigns = pgTable('module_cv_campaigns', {
   startDate: timestamp('start_date', { withTimezone: true }),
   endDate: timestamp('end_date', { withTimezone: true }),
   createdBy: uuid('created_by').references(() => accounts.id, { onDelete: 'set null' }),
+  isArchived: boolean('is_archived').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -678,6 +646,7 @@ export const moduleCvFieldComments = pgTable('module_cv_field_comments', {
   comment: text('comment').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   createdBy: uuid('created_by').references(() => accounts.id, { onDelete: 'set null' }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => [
   index('module_cv_field_comments_response_id_idx').on(table.responseId),
 ]);

@@ -336,7 +336,7 @@ const updateRoleSchema = z.object({
   name: z.string().min(1).optional(),
   color: z.string().optional(),
   description: z.string().optional(),
-  is_active: z.boolean().optional(),
+  is_archived: z.boolean().optional(),
 });
 
 // PATCH /modules/:moduleId/roles/:id — update a role
@@ -362,7 +362,7 @@ router.patch('/modules/:moduleId/roles/:id', async (c) => {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
   }
 
-  const { name, color, description, is_active } = parsed.data;
+  const { name, color, description, is_archived } = parsed.data;
 
   const [role] = await db
     .update(moduleRoles)
@@ -370,7 +370,7 @@ router.patch('/modules/:moduleId/roles/:id', async (c) => {
       ...(name !== undefined && { name }),
       ...(color !== undefined && { color }),
       ...(description !== undefined && { description }),
-      ...(is_active !== undefined && { isActive: is_active }),
+      ...(is_archived !== undefined && { isArchived: is_archived }),
     })
     .where(and(eq(moduleRoles.id, id), eq(moduleRoles.clientModuleId, moduleId)))
     .returning();
@@ -384,8 +384,8 @@ router.patch('/modules/:moduleId/roles/:id', async (c) => {
   return c.json(toSnakeCase(role));
 });
 
-// PATCH /modules/:moduleId/roles/:id/deactivate — deactivate a role
-router.patch('/modules/:moduleId/roles/:id/deactivate', async (c) => {
+// PATCH /modules/:moduleId/roles/:id/archive — archive a role
+router.patch('/modules/:moduleId/roles/:id/archive', async (c) => {
   const user = c.get('user');
   const persona = user.persona;
 
@@ -403,7 +403,7 @@ router.patch('/modules/:moduleId/roles/:id/deactivate', async (c) => {
 
   const [role] = await db
     .update(moduleRoles)
-    .set({ isActive: false })
+    .set({ isArchived: true })
     .where(and(eq(moduleRoles.id, id), eq(moduleRoles.clientModuleId, moduleId)))
     .returning();
 
@@ -445,7 +445,7 @@ router.get('/modules/:moduleId/permissions', async (c) => {
       createdAt: modulePermissions.createdAt,
       roleName: moduleRoles.name,
       roleColor: moduleRoles.color,
-      roleIsActive: moduleRoles.isActive,
+      roleIsArchived: moduleRoles.isArchived,
     })
     .from(modulePermissions)
     .innerJoin(moduleRoles, eq(modulePermissions.moduleRoleId, moduleRoles.id))

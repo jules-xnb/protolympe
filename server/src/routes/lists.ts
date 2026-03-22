@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import { lists, listValues } from '../db/schema.js';
-import { eq, and, asc, count } from 'drizzle-orm';
+import { eq, and, asc, count, isNull } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireClientAccess } from '../middleware/client-access.js';
 import { requireAdminOrIntegrator } from '../middleware/persona.js';
@@ -56,7 +56,7 @@ router.get('/:id', async (c) => {
   const values = await db
     .select()
     .from(listValues)
-    .where(eq(listValues.listId, id))
+    .where(and(eq(listValues.listId, id), isNull(listValues.deletedAt)))
     .orderBy(asc(listValues.displayOrder));
 
   return c.json(toSnakeCase({ ...list, values }));
@@ -161,11 +161,11 @@ router.get('/:id/values', async (c) => {
     return c.json({ error: 'Liste introuvable' }, 404);
   }
 
-  const [{ total }] = await db.select({ total: count() }).from(listValues).where(eq(listValues.listId, id));
+  const [{ total }] = await db.select({ total: count() }).from(listValues).where(and(eq(listValues.listId, id), isNull(listValues.deletedAt)));
   const result = await db
     .select()
     .from(listValues)
-    .where(eq(listValues.listId, id))
+    .where(and(eq(listValues.listId, id), isNull(listValues.deletedAt)))
     .orderBy(asc(listValues.displayOrder))
     .limit(pagination.perPage).offset((pagination.page - 1) * pagination.perPage);
 
@@ -259,7 +259,7 @@ router.patch('/:id/values/reorder', requireAdminOrIntegrator(), async (c) => {
   const result = await db
     .select()
     .from(listValues)
-    .where(eq(listValues.listId, id))
+    .where(and(eq(listValues.listId, id), isNull(listValues.deletedAt)))
     .orderBy(asc(listValues.displayOrder));
 
   return c.json(toSnakeCase(result));
@@ -272,7 +272,6 @@ const updateValueSchema = z.object({
   display_order: z.number().int().optional(),
   parent_id: z.string().uuid().nullable().optional(),
   level: z.number().int().optional(),
-  is_active: z.boolean().optional(),
 });
 
 // PATCH /:id/values/:valueId — update value (admin/integrator only)
@@ -296,7 +295,7 @@ router.patch('/:id/values/:valueId', requireAdminOrIntegrator(), async (c) => {
     return c.json({ error: 'Données invalides', details: parsed.error.flatten() }, 400);
   }
 
-  const { label, description, color, display_order, parent_id, level, is_active } = parsed.data;
+  const { label, description, color, display_order, parent_id, level } = parsed.data;
 
   const [value] = await db
     .update(listValues)
@@ -307,7 +306,6 @@ router.patch('/:id/values/:valueId', requireAdminOrIntegrator(), async (c) => {
       ...(display_order !== undefined && { displayOrder: display_order }),
       ...(parent_id !== undefined && { parentId: parent_id }),
       ...(level !== undefined && { level }),
-      ...(is_active !== undefined && { isActive: is_active }),
       updatedAt: new Date(),
     })
     .where(and(eq(listValues.id, valueId), eq(listValues.listId, id)))
@@ -320,8 +318,8 @@ router.patch('/:id/values/:valueId', requireAdminOrIntegrator(), async (c) => {
   return c.json(toSnakeCase(value));
 });
 
-// PATCH /:id/values/:valueId/deactivate — deactivate value (admin/integrator only)
-router.patch('/:id/values/:valueId/deactivate', requireAdminOrIntegrator(), async (c) => {
+// DELETE /:id/values/:valueId — soft delete value (admin/integrator only)
+router.delete('/:id/values/:valueId', requireAdminOrIntegrator(), async (c) => {
   const clientId = c.req.param('clientId') as string;
   const id = c.req.param('id');
   const valueId = c.req.param('valueId');
@@ -337,7 +335,7 @@ router.patch('/:id/values/:valueId/deactivate', requireAdminOrIntegrator(), asyn
 
   const [value] = await db
     .update(listValues)
-    .set({ isActive: false, updatedAt: new Date() })
+    .set({ deletedAt: new Date(), updatedAt: new Date() })
     .where(and(eq(listValues.id, valueId), eq(listValues.listId, id)))
     .returning();
 

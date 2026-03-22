@@ -122,7 +122,7 @@ export async function getUserPermissions(userId: string, activeProfileId?: strin
     .where(and(
       eq(clientProfileModuleRoles.profileId, activeProfileId),
       isNull(clientProfileModuleRoles.deletedAt),
-      eq(moduleRoles.isActive, true)
+      eq(moduleRoles.isArchived, false)
     ));
 
   const moduleRolesList = profileRoles.map((pr) => ({
@@ -144,7 +144,10 @@ export async function getUserPermissions(userId: string, activeProfileId?: strin
         clientModuleId: modulePermissions.clientModuleId,
       })
       .from(modulePermissions)
-      .where(inArray(modulePermissions.moduleRoleId, allRoleIds));
+      .where(and(
+        inArray(modulePermissions.moduleRoleId, allRoleIds),
+        isNull(modulePermissions.deletedAt)
+      ));
 
     for (const p of perms) {
       if (!permissionsByModule[p.clientModuleId]) permissionsByModule[p.clientModuleId] = {};
@@ -174,7 +177,7 @@ export async function getUserPermissions(userId: string, activeProfileId?: strin
     .where(and(
       eq(clientProfileEoGroups.profileId, activeProfileId),
       isNull(clientProfileEoGroups.deletedAt),
-      eq(eoGroups.isActive, true)
+      eq(eoGroups.isArchived, false)
     ));
 
   const groupIds = groupAssignments.map((g) => g.groupId);

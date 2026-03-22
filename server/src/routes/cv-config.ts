@@ -195,7 +195,7 @@ function surveyTypeToSnake(row: typeof moduleCvSurveyTypes.$inferSelect) {
     client_module_id: row.clientModuleId,
     name: row.name,
     description: row.description,
-    is_active: row.isActive,
+    is_archived: row.isArchived,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
   };
@@ -209,7 +209,7 @@ function fieldDefinitionToSnake(row: typeof moduleCvFieldDefinitions.$inferSelec
     field_type: row.fieldType,
     description: row.description,
     list_id: row.listId,
-    is_active: row.isActive,
+    is_archived: row.isArchived,
     settings: row.settings,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
@@ -423,7 +423,7 @@ router.patch('/survey-types/:id/deactivate', async (c) => {
 
   const [updated] = await db
     .update(moduleCvSurveyTypes)
-    .set({ isActive: false, updatedAt: new Date() })
+    .set({ isArchived: true, updatedAt: new Date() })
     .where(eq(moduleCvSurveyTypes.id, id))
     .returning();
 
@@ -583,7 +583,7 @@ router.patch('/survey-types/:typeId/fields/:id/deactivate', async (c) => {
 
   const [updated] = await db
     .update(moduleCvFieldDefinitions)
-    .set({ isActive: false, updatedAt: new Date() })
+    .set({ isArchived: true, updatedAt: new Date() })
     .where(eq(moduleCvFieldDefinitions.id, id))
     .returning();
 

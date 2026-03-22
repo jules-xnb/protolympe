@@ -9,6 +9,7 @@
 | `POST /modules/:moduleId/cv/campaigns` | Lancer une campagne | `client_user` | Permission `can_manage_campaign`. Côté FO. Choisit type, année, campagne N-1 |
 | `PATCH /modules/:moduleId/cv/campaigns/:id` | Modifier (nom, dates, statut) | `client_user` | Permission `can_manage_campaign` |
 | `PATCH /modules/:moduleId/cv/campaigns/:id/close` | Clôturer | `client_user` | Permission `can_manage_campaign` |
+| `PATCH /modules/:moduleId/cv/campaigns/:id/archive` | Archiver | `client_user` | Permission `can_manage_campaign` |
 | **Cibles** | | | |
 | `GET /modules/:moduleId/cv/campaigns/:id/targets` | Lister les cibles | Authentifié avec accès campagne | |
 | `POST /modules/:moduleId/cv/campaigns/:id/targets` | Ajouter des cibles | `client_user` | Permission `can_manage_campaign` |

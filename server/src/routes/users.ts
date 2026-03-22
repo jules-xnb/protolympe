@@ -670,7 +670,7 @@ router.get('/:id/field-values', async (c) => {
       userFieldDefinitions,
       eq(userFieldValues.fieldDefinitionId, userFieldDefinitions.id)
     )
-    .where(eq(userFieldValues.userId, id));
+    .where(and(eq(userFieldValues.userId, id), isNull(userFieldValues.deletedAt)));
 
   return c.json(toSnakeCase(result));
 });
@@ -699,9 +699,9 @@ router.post('/:id/field-values', async (c) => {
 
   const { field_definition_id, value } = parsed.data;
 
-  // Check if a value already exists for this user + field
+  // Check if a value already exists for this user + field (including soft-deleted)
   const [existing] = await db
-    .select({ id: userFieldValues.id })
+    .select({ id: userFieldValues.id, deletedAt: userFieldValues.deletedAt })
     .from(userFieldValues)
     .where(
       and(
@@ -717,6 +717,7 @@ router.post('/:id/field-values', async (c) => {
         value: value as any,
         updatedBy: requestingUser.sub,
         updatedAt: new Date(),
+        deletedAt: null,
       })
       .where(eq(userFieldValues.id, existing.id))
       .returning();

@@ -450,7 +450,7 @@ router.patch('/fields/:id/deactivate', async (c) => {
 
   const [field] = await db
     .update(eoFieldDefinitions)
-    .set({ isActive: false, updatedAt: new Date() })
+    .set({ isArchived: true, updatedAt: new Date() })
     .where(and(eq(eoFieldDefinitions.id, id), eq(eoFieldDefinitions.clientId, clientId)))
     .returning();
 
@@ -666,11 +666,11 @@ router.patch('/groups/:id/deactivate', async (c) => {
 
   const [group] = await db
     .update(eoGroups)
-    .set({ isActive: false, updatedAt: new Date() })
+    .set({ isArchived: true, updatedAt: new Date() })
     .where(and(eq(eoGroups.id, id), eq(eoGroups.clientId, clientId)))
     .returning();
 
-  await logAdminAction(user.sub, 'eo.group.deactivate', 'eo_group', id, { client_id: clientId });
+  await logAdminAction(user.sub, 'eo.group.archive', 'eo_group', id, { client_id: clientId });
 
   return c.json(toSnakeCase(group));
 });

@@ -31,11 +31,4 @@ Pattern identique pour tous les modules. L'intégrateur crée des configs d'affi
 | `PATCH /modules/:moduleId/cv/forms/:formId/display-configs/:id` | Modifier | Mêmes règles | |
 | `DELETE /modules/:moduleId/cv/forms/:formId/display-configs/:id` | Supprimer | Mêmes règles | |
 | `PUT /modules/:moduleId/cv/forms/:formId/display-configs/:id/roles` | Définir les rôles | Mêmes règles | |
-| `PUT /modules/:moduleId/cv/forms/:formId/display-configs/:id/fields` | Définir les champs (can_view, can_edit, display_order) | Mêmes règles | |
-| **CV — Listing** | | | |
-| `GET /modules/:moduleId/cv/display-configs` | Lister | `admin_delta`, `integrator_*` assigné, ou `can_configure_survey_type` | |
-| `POST /modules/:moduleId/cv/display-configs` | Créer | Mêmes règles | |
-| `PATCH /modules/:moduleId/cv/display-configs/:id` | Modifier (filtres, pré-filtres) | Mêmes règles | |
-| `DELETE /modules/:moduleId/cv/display-configs/:id` | Supprimer | Mêmes règles | |
-| `PUT /modules/:moduleId/cv/display-configs/:id/roles` | Définir les rôles | Mêmes règles | |
-| `PUT /modules/:moduleId/cv/display-configs/:id/fields` | Définir les champs (show_in_table, show_in_export, display_order) | Mêmes règles | |
+| `PUT /modules/:moduleId/cv/forms/:formId/display-configs/:id/fields` | Définir les champs (can_view, can_edit, show_in_table, show_in_export, display_order) | Mêmes règles | |

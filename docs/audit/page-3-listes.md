@@ -25,42 +25,6 @@
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Drawer — Gestion des valeurs d'une liste
-
-```
-┌─ SheetContent ──────────────────────────────────┐
-│ 📝 Civilités           [Tag: RH ✎]  [🗑] [✕]    │
-│                                                  │
-│ [+ Ajouter une valeur]                           │
-│                                                  │
-│ ┌ 🔴 Monsieur  (M)  ────────── [+] [✏] [🗑] ┐  │
-│ ├ 🔵 Madame    (MME) ────────── [+] [✏] [🗑] │  │
-│ └ 🟢 Mx        (MX)  ────────── [+] [✏] [🗑] ┘  │
-│                                                  │
-│ 3 valeurs                                        │
-│ [Voir les valeurs archivées (1)]                 │
-└──────────────────────────────────────────────────┘
-```
-
-### Dialog — Création/édition de valeur
-
-```
-┌─ Dialog ────────────────────────────────┐
-│ Nouvelle valeur                          │
-│                                          │
-│ Valeur parente : [Aucune (racine) ▾]     │
-│ Valeurs (une par ligne) * :              │
-│ ┌──────────────────────────────────┐     │
-│ │ En cours                         │     │
-│ │ Terminé                          │     │
-│ │ Annulé                           │     │
-│ └──────────────────────────────────┘     │
-│ Couleur : ● ● ● ● ● ● ● ● ● ●         │
-│                                          │
-│               [Annuler] [Ajouter 3 val.] │
-└──────────────────────────────────────────┘
-```
-
 ### ListeFormDialog — Creation / edition d'une liste
 
 Mode creation :
@@ -167,6 +131,8 @@ Mode "valeurs archivees" :
 ```
 ┌─── SheetContent (droite) ──────────────────────────────────────────┐
 │                                                                     │
+│  [Retour aux valeurs actives ←]              2 valeurs archivées   │
+│                                                                     │
 │  Civilites          [Tag: RH ✎]                          [✕]      │
 │                                                                     │
 │  ┌─────────────────────────────────────────────────────────────┐   │
@@ -177,10 +143,6 @@ Mode "valeurs archivees" :
 │  │ (opacity 60%) Autre                                [↩ Restaurer] │
 │  │                AUT                                          │   │
 │  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ─────────────────────────────────────────────────────────────────  │
-│  2 valeurs archivees                                               │
-│  [Retour aux valeurs actives ←]                                    │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```

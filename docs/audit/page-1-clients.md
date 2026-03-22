@@ -103,6 +103,19 @@
 │  │            [Supprimer la config SSO]   │  │
 │  └────────────────────────────────────────┘  │
 │                                              │
+│  ── Popup confirmation suppression SSO ───── │
+│                                              │
+│  ┌────────────────────────────────────────┐  │
+│  │  ⚠ Supprimer la configuration SSO ?   │  │
+│  │                                        │  │
+│  │  Cette action est irréversible.        │  │
+│  │  Les utilisateurs connectés via SSO    │  │
+│  │  ne pourront plus se connecter.        │  │
+│  │  Ils devront utiliser un mot de passe. │  │
+│  │                                        │  │
+│  │        [Annuler]  [Supprimer ⚠]       │  │
+│  └────────────────────────────────────────┘  │
+│                                              │
 │  ─────────────────────────────────────────── │
 │                                              │
 │  🌐 Accès & Domaines                        │
@@ -262,6 +275,9 @@
 │  Intégrateur                                 │
 │  [🔍 Rechercher par nom ou email...]         │
 │                                              │
+│  ⚠ N'affiche que les intégrateurs NON       │
+│    déjà assignés à ce client.                │
+│                                              │
 │  ┌────────────────────────────────────────┐  │
 │  │ [EF] Eve Faure     [Intégrateur]      │  │
 │  │     eve@delta-rm.com                   │  │
@@ -305,86 +321,6 @@
 │                    [Annuler]   [Restaurer]    │
 │                                              │
 └──────────────────────────────────────────────┘
-```
-
-### Drawer edition client (vue complète admin)
-
-```
-┌─── SheetContent (droite) ──────────────────────────────────────┐
-│                                                                 │
-│  🏢 Acme Corporation                                           │
-│                                                                 │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                 │
-│  Nom                                                           │
-│  [Acme Corporation                          ]  (auto-save)     │
-│                                                                 │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                 │
-│  👥 Integrateurs (2)                        [Ajouter +]        │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │  [AB] Alice Bertrand                               🗑   │   │
-│  │       alice@delta.com                                   │   │
-│  ├─────────────────────────────────────────────────────────┤   │
-│  │  [CM] Charles Martin                               🗑   │   │
-│  │       charles@ext.com                                   │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  (ou si aucun integrateur assigne :)                           │
-│  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐   │
-│  │  Aucun integrateur assigne a ce client                  │   │
-│  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘   │
-│                                                                 │
-│                                                                 │
-│               [Archiver ce client 📦]                          │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Dialog "Ajouter un integrateur a un client"
-
-```
-┌─── Dialog ─────────────────────────────────────────┐
-│                                                     │
-│  Ajouter un integrateur                             │
-│  Recherchez et selectionnez un integrateur          │
-│  a assigner a ce client.                            │
-│                                                     │
-│  Integrateur                                        │
-│  [🔍 Rechercher par nom ou email...            ]   │
-│                                                     │
-│  ┌─────────────────────────────────────────────┐    │
-│  │  [AB] Alice Bertrand      [Integrateur] ✓   │    │
-│  │       alice@delta.com                        │    │
-│  ├─────────────────────────────────────────────┤    │
-│  │  [BM] Bob Martin          [Admin]           │    │
-│  │       bob@delta.com                          │    │
-│  ├─────────────────────────────────────────────┤    │
-│  │  [CD] Charles Dupont      [Integrateur]     │    │
-│  │       charles@ext.com                        │    │
-│  └─────────────────────────────────────────────┘    │
-│                                                     │
-│                    [Annuler]  [Ajouter]             │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-```
-
-### Dialog "Archiver le client"
-
-```
-┌─── AlertDialog ────────────────────────────────────┐
-│                                                     │
-│  Archiver le client                                 │
-│                                                     │
-│  Etes-vous sur de vouloir archiver                  │
-│  "Acme Corporation" ? Il ne sera plus               │
-│  accessible mais pourra etre restaure.              │
-│                                                     │
-│                 [Annuler]  [Archiver]               │
-│                            (destructive)            │
-│                                                     │
-└─────────────────────────────────────────────────────┘
 ```
 
 ---

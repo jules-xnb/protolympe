@@ -37,7 +37,7 @@ Un doc par ticket. L'arborescence des dossiers porte la hiérarchie EPIC > FEATU
 Préfixes utilisés dans les instructions pour indiquer la vue concernée :
 
 - **`bo-`** → vue **Admin** (Back Office)
-- **`mo-`** → vue **Intégrateur** (Module Owner)
+- **`mo-`** → vue **Intégrateur** (Middle Office)
 - **`fo-`** → vue **User Final** (Front Office)
 
 Exemple : "mo-navbar" = la navbar dans la vue intégrateur.

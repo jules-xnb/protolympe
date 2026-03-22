@@ -33,27 +33,35 @@
 | 1 | Clients | [page-1-clients.md](page-1-clients.md) |
 | 2 | Intégrateurs | [page-2-integrateurs.md](page-2-integrateurs.md) |
 
-### MO — Module Owner (Intégrateur)
+### MO — Middle Office (Intégrateur)
 
 | # | Page | Doc |
 |---|------|-----|
-| 3 | Listes | [page-3-listes.md](page-3-listes.md) |
-| 5 | Navigation (sidebar, routing, guards) | [page-5-mo-navigation.md](page-5-mo-navigation.md) |
+| 3 | Listes (enabler) | [page-3-listes.md](page-3-listes.md) |
+| 4 | Organisation (enabler) | [page-4-organisation/index.md](page-4-organisation/index.md) |
+| 5 | Navigation MO (sidebar, routing, guards) | [page-5-mo-navigation/index.md](page-5-mo-navigation/index.md) |
 | 6 | Design + Traductions | [page-6-mo-design.md](page-6-mo-design.md) |
-| 7 | Module Users | [mo-users/index.md](mo-users/index.md) |
-| 8 | Module Organisation | [mo-organisation/index.md](mo-organisation/index.md) |
-| 9 | Module Collecte de valeur | [mo-collecte-de-valeur/index.md](mo-collecte-de-valeur/index.md) |
-| 10 | Module Profiles | [mo-profiles/index.md](mo-profiles/index.md) |
+| 7 | Profiles (enabler) | [page-7-profiles/index.md](page-7-profiles/index.md) |
+
+**Modules MO** (configurés dans la navigation)
+
+| Module | Doc |
+|--------|-----|
+| Users | [page-5-mo-navigation/users/index.md](page-5-mo-navigation/users/index.md) |
+| Organisation | [page-5-mo-navigation/organisation.md](page-5-mo-navigation/organisation.md) |
+| Collecte de valeur | [page-5-mo-navigation/collecte-de-valeur/index.md](page-5-mo-navigation/collecte-de-valeur/index.md) |
+| Profiles | [page-5-mo-navigation/profiles.md](page-5-mo-navigation/profiles.md) |
 
 ### FO — Front Office (User Final)
 
-| # | Page | Doc |
-|---|------|-----|
-| 11 | Sidebar FO | [page-7-fo-sidebar.md](page-7-fo-sidebar.md) |
-| 12 | Module Users | [fo-users.md](fo-users.md) |
-| 13 | Module Organisation | [fo-organisation.md](fo-organisation.md) |
-| 14 | Module Collecte de valeur | [fo-collecte-de-valeur/index.md](fo-collecte-de-valeur/index.md) |
-| 15 | Module Profiles | [fo-profiles/index.md](fo-profiles/index.md) |
+**Navigation FO** — [fo-navigation/index.md](fo-navigation/index.md)
+
+| Module | Doc |
+|--------|-----|
+| Users | [fo-navigation/users.md](fo-navigation/users.md) |
+| Organisation | [fo-navigation/organisation.md](fo-navigation/organisation.md) |
+| Collecte de valeur | [fo-navigation/collecte-de-valeur/index.md](fo-navigation/collecte-de-valeur/index.md) |
+| Profiles | [fo-navigation/profiles/index.md](fo-navigation/profiles/index.md) |
 
 ### Transversal
 
